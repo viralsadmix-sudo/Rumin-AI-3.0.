@@ -124,10 +124,6 @@ class MainActivity : ComponentActivity() {
                         webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কমান্ডটি সমর্থিত নয়')", null)
                         return@runOnUiThread
                     }
-                    if (intent.resolveActivity(packageManager) == null) {
-                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কাজের জন্য ফোনে উপযুক্ত অ্যাপ পাওয়া যায়নি')", null)
-                        return@runOnUiThread
-                    }
                     startActivity(intent)
                     val message = when (action) {
                         "alarm" -> "অ্যালার্ম অ্যাপে সময়টি সেট করার জন্য পাঠানো হয়েছে।"
