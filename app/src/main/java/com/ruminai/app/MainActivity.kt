@@ -15,8 +15,14 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    private val aiExecutor = Executors.newSingleThreadExecutor()
     private lateinit var webView: WebView
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingNativeSpeech = false
@@ -94,6 +100,103 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun openUrl(url: String) {
             runOnUiThread {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+            }
+        }
+
+        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
+            if (key.isBlank()) {
+                deliverAiResult(requestId, false, "API Key ফাঁকা")
+                return
+            }
+            aiExecutor.execute {
+                var connection: HttpURLConnection? = null
+                try {
+                    val isGroq = provider == "groq"
+                    val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
+                    val body = if (isGroq) {
+                        val messages = JSONArray()
+                        messages.put(JSONObject().put("role", "system").put("content", "তুমি রুমিন এআই, একজন সহায়ক ব্যক্তিগত AI সহকারী। স্বাভাবিক, পরিষ্কার ও সহানুভূতিশীল বাংলায় উত্তর দাও। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো।"))
+                        val history = JSONArray(historyJson)
+                        for (i in 0 until history.length()) {
+                            val item = history.optJSONObject(i) ?: continue
+                            val role = if (item.optString("role") == "assistant") "assistant" else "user"
+                            messages.put(JSONObject().put("role", role).put("content", item.optString("content")))
+                        }
+                        messages.put(JSONObject().put("role", "user").put("content", currentText))
+                        JSONObject().put("model", "openai/gpt-oss-20b").put("messages", messages).put("temperature", 0.7)
+                    } else {
+                        val history = JSONArray(historyJson)
+                        val lines = mutableListOf<String>()
+                        for (i in 0 until history.length()) {
+                            val item = history.optJSONObject(i) ?: continue
+                            val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
+                            lines.add(label + item.optString("content"))
+                        }
+                        lines.add("ব্যবহারকারী: " + currentText)
+                        JSONObject()
+                            .put("model", "gemini-3.8-flash")
+                            .put("system_instruction", "তুমি রুমিন এআই, একজন সহায়ক ব্যক্তিগত AI সহকারী। স্বাভাবিক ও পরিষ্কার বাংলায় উত্তর দাও। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো।")
+                            .put("input", lines.joinToString("\n"))
+                    }
+                    connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 20000
+                        readTimeout = 45000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                        if (isGroq) setRequestProperty("Authorization", "Bearer $key")
+                        else setRequestProperty("x-goog-api-key", key)
+                    }
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                    val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+                    if (status !in 200..299) {
+                        val errorObj = response.optJSONObject("error")
+                        val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
+                            ?: response.optString("message").takeIf { it.isNotBlank() }
+                            ?: "HTTP $status"
+                        throw IllegalStateException(message)
+                    }
+                    val reply = if (isGroq) {
+                        response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
+                    } else {
+                        extractGeminiText(response)
+                    }
+                    if (reply.isBlank()) throw IllegalStateException("AI থেকে ফাঁকা উত্তর এসেছে")
+                    deliverAiResult(requestId, true, reply)
+                } catch (e: Exception) {
+                    deliverAiResult(requestId, false, e.message ?: "AI সংযোগে অজানা সমস্যা")
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+        }
+
+        private fun extractGeminiText(response: JSONObject): String {
+            response.optString("output_text").takeIf { it.isNotBlank() }?.let { return it }
+            val pieces = mutableListOf<String>()
+            fun collect(array: JSONArray?) {
+                if (array == null) return
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    if (item.optString("type") == "text") item.optString("text").takeIf { it.isNotBlank() }?.let { pieces.add(it) }
+                    collect(item.optJSONArray("content"))
+                }
+            }
+            collect(response.optJSONArray("output"))
+            if (pieces.isEmpty()) collect(response.optJSONArray("steps"))
+            return pieces.joinToString("\n")
+        }
+
+        private fun deliverAiResult(requestId: String, success: Boolean, message: String) {
+            val idJson = JSONObject.quote(requestId)
+            val messageJson = JSONObject.quote(message)
+            runOnUiThread {
+                if (::webView.isInitialized) {
+                    webView.evaluateJavascript("window.onNativeAiResponse && window.onNativeAiResponse($idJson, $success, $messageJson)", null)
+                }
             }
         }
 
