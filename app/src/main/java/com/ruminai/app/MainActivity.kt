@@ -96,7 +96,6 @@ class MainActivity : ComponentActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
             }
         }
-    }
 
         @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
             runOnUiThread {
