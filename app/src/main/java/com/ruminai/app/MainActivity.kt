@@ -96,6 +96,51 @@ class MainActivity : ComponentActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
             }
         }
+
+        @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
+            runOnUiThread {
+                try {
+                    val intent = when (action) {
+                        "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                            putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
+                            putExtra(android.provider.AlarmClock.EXTRA_MINUTES, second.toInt())
+                            putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                        }
+                        "timer" -> Intent(android.provider.AlarmClock.ACTION_SET_TIMER).apply {
+                            putExtra(android.provider.AlarmClock.EXTRA_LENGTH, first.toInt())
+                            putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, second.ifBlank { "RUMI AI Timer" })
+                            putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                        }
+                        "showalarms" -> Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
+                        "showtimers" -> Intent(android.provider.AlarmClock.ACTION_SHOW_TIMERS)
+                        "call" -> Intent(Intent.ACTION_DIAL, Uri.parse("tel:$first"))
+                        "sms" -> Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$first")).apply {
+                            putExtra("sms_body", second)
+                        }
+                        "dialer" -> Intent(Intent.ACTION_DIAL)
+                        else -> null
+                    }
+                    if (intent == null) {
+                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কমান্ডটি সমর্থিত নয়')", null)
+                        return@runOnUiThread
+                    }
+                    startActivity(intent)
+                    val message = when (action) {
+                        "alarm" -> "অ্যালার্ম অ্যাপে সময়টি সেট করার জন্য পাঠানো হয়েছে।"
+                        "timer" -> "টাইমার অ্যাপে টাইমারটি সেট করার জন্য পাঠানো হয়েছে।"
+                        "call" -> "ফোন ডায়ালার খোলা হয়েছে; কল করার আগে নম্বরটি যাচাই করুন।"
+                        "sms" -> "মেসেজ অ্যাপ খোলা হয়েছে; পাঠানোর আগে মেসেজটি যাচাই করুন।"
+                        "showalarms" -> "অ্যালার্ম অ্যাপ খোলা হয়েছে।"
+                        "showtimers" -> "টাইমার অ্যাপ খোলা হয়েছে।"
+                        else -> "ফোন ডায়ালার খোলা হয়েছে।"
+                    }
+                    webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
+                } catch (e: Exception) {
+                    val message = org.json.JSONObject.quote("কমান্ড চালানো যায়নি: " + (e.message ?: "অজানা সমস্যা"))
+                    webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, $message)", null)
+                }
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
