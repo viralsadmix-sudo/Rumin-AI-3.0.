@@ -311,7 +311,8 @@ class MainActivity : ComponentActivity() {
                         "camera" -> Intent("android.media.action.IMAGE_CAPTURE")
                         "contacts" -> Intent(Intent.ACTION_VIEW, Uri.parse("content://contacts/people/"))
                         "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
-                        "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { setPackage("com.google.android.youtube") }
+                        "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { setPackage("com.google.android.youtube") },
+                        "facebook" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com")).apply { setPackage("com.facebook.katana") }
                         else -> null
                     }
                     if (intent == null) {
@@ -334,7 +335,8 @@ class MainActivity : ComponentActivity() {
                         "camera" -> "ক্যামেরা খুলেছি।"
                         "contacts" -> "কন্টাক্টস খুলেছি।"
                         "browser" -> "ব্রাউজার খুলেছি।"
-                        "youtube" -> "YouTube খুলেছি।"
+                        "youtube" -> "YouTube খুলেছি।",
+                        "facebook" -> "Facebook খুলেছি।"
                         else -> "ফোন ডায়ালার খোলা হয়েছে।"
                     }
                     webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
