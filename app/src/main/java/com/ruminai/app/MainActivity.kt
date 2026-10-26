@@ -165,6 +165,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun stopSpeaking() { runOnUiThread { textToSpeech?.stop() } }
+
         @JavascriptInterface fun stopSpeechRecognition() { runOnUiThread { continuousListening = false; continuousRecognizer?.cancel(); continuousRecognizer?.destroy(); continuousRecognizer = null; textToSpeech?.stop() } }
 
         @JavascriptInterface fun startSpeechRecognition() {
