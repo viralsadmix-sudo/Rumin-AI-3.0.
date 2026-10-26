@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
     private var pendingNativeSpeech = false
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
+    private var pendingLiveKey: String? = null
+    @Volatile private var liveVoiceSession: GeminiLiveVoice? = null
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val request = pendingPermissionRequest
@@ -44,6 +46,12 @@ class MainActivity : ComponentActivity() {
             pendingNativeSpeech = false
             if (granted) startContinuousListening()
             else webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('Microphone permission দিন')", null)
+        }
+        val liveKey = pendingLiveKey
+        pendingLiveKey = null
+        if (liveKey != null) {
+            if (granted) startLiveVoiceInternal(liveKey)
+            else reportLiveVoice("মাইক্রোফোনের অনুমতি দিন", "stopped")
         }
     }
 
@@ -153,6 +161,27 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class NativeBridge {
+        @JavascriptInterface fun startLiveVoice(key: String) {
+            runOnUiThread {
+                if (key.isBlank()) {
+                    reportLiveVoice("Settings থেকে Gemini API Key সেভ করুন", "stopped")
+                    return@runOnUiThread
+                }
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    pendingLiveKey = key
+                    micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                } else startLiveVoiceInternal(key)
+            }
+        }
+
+        @JavascriptInterface fun stopLiveVoice() {
+            runOnUiThread {
+                liveVoiceSession?.stop()
+                liveVoiceSession = null
+                reportLiveVoice("লাইভ ভয়েস বন্ধ করা হয়েছে", "stopped")
+            }
+        }
+
         @JavascriptInterface fun speakText(text: String) {
             runOnUiThread {
                 val tts = textToSpeech
@@ -356,7 +385,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    private fun reportLiveVoice(message: String, state: String) {
+        if (!::webView.isInitialized) return
+        runOnUiThread {
+            webView.evaluateJavascript("window.onLiveVoiceStatus && window.onLiveVoiceStatus(" + JSONObject.quote(message) + ", " + JSONObject.quote(state) + ")", null)
+        }
+    }
+
+    private fun startLiveVoiceInternal(key: String) {
+        liveVoiceSession?.stop()
+        val session = GeminiLiveVoice(this,
+            { message, state -> reportLiveVoice(message, state) },
+            { userText, assistantText -> runOnUiThread {
+                webView.evaluateJavascript("window.onLiveVoiceTurn && window.onLiveVoiceTurn(" + JSONObject.quote(userText) + ", " + JSONObject.quote(assistantText) + ")", null)
+            } }
+        )
+        liveVoiceSession = session
+        reportLiveVoice("Gemini Live-এ সংযোগ করছি…", "connecting")
+        session.start(key)
+    }
+
     override fun onDestroy() {
+        liveVoiceSession?.stop()
+        liveVoiceSession = null
         textToSpeech?.stop()
         continuousListening = false
         continuousRecognizer?.destroy()
