@@ -44,6 +44,14 @@ class GeminiLiveVoice(
                 .build()
             socket = client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    onStatus("Gemini Live সার্ভারে সংযোগ হয়েছে; সেশন প্রস্তুত হচ্ছে…", "connecting")
+                    Thread {
+                        try { Thread.sleep(12000) } catch (_: InterruptedException) { return@Thread }
+                        if (active.get() && !setupDone) {
+                            onStatus("Live সেশন প্রস্তুত হয়নি: ১২ সেকেন্ডেও setupComplete আসেনি। নেটওয়ার্ক/API অনুমতি বা সার্ভারের উত্তর পরীক্ষা দরকার।", "stopped")
+                            stop()
+                        }
+                    }.start()
                     val setup = JSONObject()
                         .put("model", "models/gemini-3.8-live")
                         .put("generationConfig", JSONObject()
@@ -119,7 +127,8 @@ class GeminiLiveVoice(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     if (active.get()) {
-                        onStatus("লাইভ সংযোগ ব্যর্থ: " + (t.message ?: "নেটওয়ার্ক বা API Key পরীক্ষা করুন"), "stopped")
+                        val http = response?.code?.let { " (HTTP $it)" }.orEmpty()
+                        onStatus("লাইভ WebSocket সংযোগ ব্যর্থ$http: " + (t.message ?: "নেটওয়ার্ক/API সংযোগ ত্রুটি"), "stopped")
                         stop()
                     }
                 }
