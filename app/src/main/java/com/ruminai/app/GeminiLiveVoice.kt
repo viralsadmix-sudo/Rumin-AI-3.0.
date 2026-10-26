@@ -41,7 +41,7 @@ class GeminiLiveVoice(
         try {
             val encodedKey = URLEncoder.encode(apiKey, "UTF-8")
             val request = Request.Builder()
-                .url("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + encodedKey)
+                .url("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodedKey)
                 .build()
             socket = client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
