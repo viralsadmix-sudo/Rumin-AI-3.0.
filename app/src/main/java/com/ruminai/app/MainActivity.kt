@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.RecognitionListener
 import android.speech.tts.TextToSpeech
 import java.util.Locale
 import android.webkit.JavascriptInterface
@@ -30,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingNativeSpeech = false
+    private var continuousRecognizer: SpeechRecognizer? = null
+    private var continuousListening = false
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val request = pendingPermissionRequest
@@ -39,7 +42,7 @@ class MainActivity : ComponentActivity() {
         }
         if (pendingNativeSpeech) {
             pendingNativeSpeech = false
-            if (granted) launchSpeech()
+            if (granted) startContinuousListening()
             else webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('Microphone permission দিন')", null)
         }
     }
@@ -61,6 +64,11 @@ class MainActivity : ComponentActivity() {
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) tts?.setLanguage(Locale("bn", "IN"))
                 tts?.setSpeechRate(0.96f)
                 tts?.setPitch(1.12f)
+                tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { runOnUiThread { if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeTtsDone && window.onNativeTtsDone()", null) } }
+                    @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) { runOnUiThread { if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeTtsDone && window.onNativeTtsDone()", null) } }
+                })
                 val femaleVoice = tts?.voices?.firstOrNull { voice -> voice.locale.language == "bn" && voice.name.contains("female", ignoreCase = true) }
                 if (femaleVoice != null) tts?.voice = femaleVoice
             }
@@ -84,6 +92,46 @@ class MainActivity : ComponentActivity() {
             }
         }
         webView.loadUrl("file:///android_asset/index.html")
+    }
+
+    private fun startContinuousListening() {
+        if (!continuousListening) return
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('এই ফোনে Speech Recognition সাপোর্ট নেই')", null)
+            return
+        }
+        continuousRecognizer?.destroy()
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        continuousRecognizer = recognizer
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                if (continuousListening) runOnUiThread {
+                    webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('শোনা বন্ধ হয়েছে, আবার শুনছি…')", null)
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                runOnUiThread {
+                    webView.evaluateJavascript("window.onNativeSpeechResult && window.onNativeSpeechResult(${JSONObject.quote(text)})", null)
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+        }
+        try { recognizer.startListening(intent) } catch (_: Exception) {
+            webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('ভয়েস চালু করা যায়নি')", null)
+        }
     }
 
     private fun launchSpeech() {
@@ -117,12 +165,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun stopSpeechRecognition() { runOnUiThread { continuousListening = false; continuousRecognizer?.cancel(); continuousRecognizer?.destroy(); continuousRecognizer = null; textToSpeech?.stop() } }
+
         @JavascriptInterface fun startSpeechRecognition() {
             runOnUiThread {
+                continuousListening = true
                 if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     pendingNativeSpeech = true
                     micPermission.launch(Manifest.permission.RECORD_AUDIO)
-                } else launchSpeech()
+                } else startContinuousListening()
             }
         }
         @JavascriptInterface fun openUrl(url: String) {
@@ -258,13 +309,14 @@ class MainActivity : ComponentActivity() {
                         "camera" -> Intent("android.media.action.IMAGE_CAPTURE")
                         "contacts" -> Intent(Intent.ACTION_VIEW, Uri.parse("content://contacts/people/"))
                         "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+                        "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { setPackage("com.google.android.youtube") }
                         else -> null
                     }
                     if (intent == null) {
                         webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কমান্ডটি সমর্থিত নয়')", null)
                         return@runOnUiThread
                     }
-                    startActivity(intent)
+                    try { startActivity(intent) } catch (first: Exception) { if (action == "youtube") startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))) else throw first }
                     val message = when (action) {
                         "alarm" -> "অ্যালার্ম অ্যাপে সময়টি সেট করার জন্য পাঠানো হয়েছে।"
                         "timer" -> "টাইমার অ্যাপে টাইমারটি সেট করার জন্য পাঠানো হয়েছে।"
@@ -280,6 +332,7 @@ class MainActivity : ComponentActivity() {
                         "camera" -> "ক্যামেরা খুলেছি।"
                         "contacts" -> "কন্টাক্টস খুলেছি।"
                         "browser" -> "ব্রাউজার খুলেছি।"
+                        "youtube" -> "YouTube খুলেছি।"
                         else -> "ফোন ডায়ালার খোলা হয়েছে।"
                     }
                     webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
@@ -293,6 +346,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         textToSpeech?.stop()
+        continuousListening = false
+        continuousRecognizer?.destroy()
+        continuousRecognizer = null
         textToSpeech?.shutdown()
         aiExecutor.shutdown()
         super.onDestroy()
