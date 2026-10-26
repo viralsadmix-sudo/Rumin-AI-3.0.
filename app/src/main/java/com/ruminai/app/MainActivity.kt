@@ -285,6 +285,12 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
             runOnUiThread {
                 try {
+                    if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
+                        val ok = RuminAccessibilityService.perform(action)
+                        val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult($ok, ${org.json.JSONObject.quote(message)})", null)
+                        return@runOnUiThread
+                    }
                     val intent = when (action) {
                         "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                             putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
@@ -303,6 +309,7 @@ class MainActivity : ComponentActivity() {
                             putExtra("sms_body", second)
                         }
                         "dialer" -> Intent(Intent.ACTION_DIAL)
+                        "accessibility" -> Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         "settings" -> Intent(android.provider.Settings.ACTION_SETTINGS)
                         "wifi" -> Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
                         "bluetooth" -> Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -327,6 +334,7 @@ class MainActivity : ComponentActivity() {
                         "sms" -> "মেসেজ অ্যাপ খোলা হয়েছে; পাঠানোর আগে মেসেজটি যাচাই করুন।"
                         "showalarms" -> "অ্যালার্ম অ্যাপ খোলা হয়েছে।"
                         "showtimers" -> "টাইমার অ্যাপ খোলা হয়েছে।"
+                        "accessibility" -> "Accessibility সেটিংস খুলেছি। সেখানে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন."
                         "settings" -> "ফোনের সেটিংস খুলেছি।"
                         "wifi" -> "Wi-Fi সেটিংস খুলেছি।"
                         "bluetooth" -> "Bluetooth সেটিংস খুলেছি।"
