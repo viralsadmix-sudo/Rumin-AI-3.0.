@@ -66,6 +66,15 @@ class GeminiLiveVoice(
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
                         val root = JSONObject(text)
+                        if (root.has("error")) {
+                            val error = root.optJSONObject("error")
+                            val message = error?.optString("message")?.takeIf { it.isNotBlank() }
+                                ?: root.optString("message").takeIf { it.isNotBlank() }
+                                ?: text.take(500)
+                            onStatus("Gemini Live API ত্রুটি: $message", "stopped")
+                            stop()
+                            return
+                        }
                         if (root.has("setupComplete")) {
                             setupDone = true
                             startAudio()
@@ -73,6 +82,9 @@ class GeminiLiveVoice(
                             return
                         }
                         val content = root.optJSONObject("serverContent") ?: return
+                        if (content.optJSONObject("inputTranscription")?.optString("text").orEmpty().isNotBlank()) {
+                            onStatus("আপনার কথা শুনেছি, উত্তর তৈরি হচ্ছে…", "thinking")
+                        }
                         if (content.optBoolean("interrupted", false)) {
                             playbackQueue.clear()
                             player?.let { try { it.pause(); it.flush(); it.play() } catch (_: Exception) {} }
