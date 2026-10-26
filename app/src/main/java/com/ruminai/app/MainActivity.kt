@@ -268,7 +268,7 @@ class MainActivity : ComponentActivity() {
                         val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
                             ?: response.optString("message").takeIf { it.isNotBlank() }
                             ?: "HTTP $status"
-                        throw IllegalStateException(message)
+                        throw IllegalStateException("HTTP $status — $message")
                     }
                     val reply = if (isGroq) {
                         response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
@@ -278,8 +278,15 @@ class MainActivity : ComponentActivity() {
                     if (reply.isBlank()) throw IllegalStateException("AI থেকে ফাঁকা উত্তর এসেছে")
                     deliverAiResult(requestId, true, reply)
                 } catch (e: Exception) {
-                    deliverAiResult(requestId, false, e.message ?: "AI সংযোগে অজানা সমস্যা")
-                } finally {
+                    val detail = when (e) {
+                        is java.net.UnknownHostException -> "ইন্টারনেট/DNS সংযোগ নেই (UnknownHostException): ${e.message ?: "হোস্ট খুঁজে পাওয়া যায়নি"}"
+                        is java.net.SocketTimeoutException -> "API উত্তর দিতে সময় নিয়েছে; নেটওয়ার্ক বা সার্ভার ধীর (Timeout): ${e.message ?: "সময় শেষ"}"
+                        is javax.net.ssl.SSLException -> "নিরাপদ HTTPS সংযোগ ব্যর্থ (SSL): ${e.message ?: "SSL ত্রুটি"}"
+                        is java.net.SocketException -> "নেটওয়ার্ক সংযোগ মাঝপথে বন্ধ হয়েছে (SocketException): ${e.message ?: "সংযোগ বন্ধ"}"
+                        else -> "${e.javaClass.simpleName}: ${e.message ?: "অজানা সমস্যা"}"
+                    }
+                    deliverAiResult(requestId, false, detail)
+                }                } finally {
                     connection?.disconnect()
                 }
             }
