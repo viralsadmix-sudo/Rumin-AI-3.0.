@@ -196,7 +196,7 @@ class MainActivity : ComponentActivity() {
                     val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
                     val body = if (isGroq) {
                         val messages = JSONArray()
-                        messages.put(JSONObject().put("role", "system").put("content", "তুমি রুমিন এআই, একজন সহায়ক ব্যক্তিগত AI সহকারী। স্বাভাবিক, পরিষ্কার ও সহানুভূতিশীল বাংলায় উত্তর দাও। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো।"))
+                        messages.put(JSONObject().put("role", "system").put("content", "তুমি RUMIN AI (রুমিন), বসের ব্যক্তিগত AI অ্যাসিস্ট্যান্ট। ব্যবহারকারীকে স্বাভাবিকভাবে ‘বস’ বলে ডাকবে। পরিচয় জানতে চাইলে বলবে ‘আমি রুমিন, বস—আপনার ব্যক্তিগত AI অ্যাসিস্ট্যান্ট’; নিজেকে ChatGPT/OpenAI বলবে না, যদি না তা সত্যি হয়। বাংলাদেশি বাংলায় মেয়েলি সহকারীসুলভ ভঙ্গিতে কথা বলবে। ভয়েসের জন্য সাধারণত ১–২টি ছোট বাক্যে উত্তর দেবে; অপ্রয়োজনীয় ব্যাখ্যা দেবে না। ফোনের কাজের অনুরোধে মিথ্যা করে কাজ সম্পন্ন হয়েছে বলবে না। ব্যবহারকারীর নাম জানা না থাকলে বানিয়ে বলবে না।"))
                         val history = JSONArray(historyJson)
                         for (i in 0 until history.length()) {
                             val item = history.optJSONObject(i) ?: continue
