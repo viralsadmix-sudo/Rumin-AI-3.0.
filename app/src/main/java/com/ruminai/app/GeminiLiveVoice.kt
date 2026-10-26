@@ -35,6 +35,7 @@ class GeminiLiveVoice(
     private val inputTranscript = StringBuilder()
     private val outputTranscript = StringBuilder()
     @Volatile private var setupDone = false
+    @Volatile private var lastServerEvent = "সার্ভার থেকে কোনো বার্তা আসেনি"
 
     fun start(apiKey: String) {
         try {
@@ -48,7 +49,7 @@ class GeminiLiveVoice(
                     Thread {
                         try { Thread.sleep(12000) } catch (_: InterruptedException) { return@Thread }
                         if (active.get() && !setupDone) {
-                            onStatus("Live সেশন প্রস্তুত হয়নি: ১২ সেকেন্ডেও setupComplete আসেনি। নেটওয়ার্ক/API অনুমতি বা সার্ভারের উত্তর পরীক্ষা দরকার।", "stopped")
+                            onStatus("Live সেশন প্রস্তুত হয়নি: ১২ সেকেন্ডে setupComplete আসেনি। শেষ সার্ভার বার্তা: $lastServerEvent।", "stopped")
                             stop()
                         }
                     }.start()
@@ -68,12 +69,14 @@ class GeminiLiveVoice(
                                 .put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
                                 .put("silenceDurationMs", 500))
                             .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
-                    webSocket.send(JSONObject().put("setup", setup).toString())
+                    val sent = webSocket.send(JSONObject().put("setup", setup).toString())
+                    if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
                         val root = JSONObject(text)
+                        lastServerEvent = root.keys().asSequence().toList().joinToString(",").ifBlank { "খালি server message" }
                         if (root.has("error")) {
                             val error = root.optJSONObject("error")
                             val message = error?.optString("message")?.takeIf { it.isNotBlank() }
@@ -132,8 +135,11 @@ class GeminiLiveVoice(
                         stop()
                     }
                 }
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    if (active.get()) onStatus("Gemini Live সংযোগ বন্ধ করার সংকেত দিয়েছে (code $code): " + reason.ifBlank { "কারণ দেওয়া হয়নি" }, "stopped")
+                }
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    if (active.get()) onStatus("লাইভ সংযোগ বন্ধ হয়েছে: " + reason, "stopped")
+                    if (active.get()) onStatus("লাইভ সংযোগ বন্ধ হয়েছে (code $code): " + reason.ifBlank { "সার্ভার কারণ দেয়নি" }, "stopped")
                 }
             })
         } catch (e: Exception) {
