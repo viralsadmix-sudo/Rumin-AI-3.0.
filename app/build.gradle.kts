@@ -16,8 +16,8 @@ android {
         applicationId = "com.ruminai.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 24
+        versionName = "3.0.24"
     }
     buildTypes {
         getByName("release") {
