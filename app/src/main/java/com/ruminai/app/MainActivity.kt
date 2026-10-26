@@ -286,7 +286,7 @@ class MainActivity : ComponentActivity() {
                         else -> "${e.javaClass.simpleName}: ${e.message ?: "অজানা সমস্যা"}"
                     }
                     deliverAiResult(requestId, false, detail)
-                }                } finally {
+                } finally {
                     connection?.disconnect()
                 }
             }
