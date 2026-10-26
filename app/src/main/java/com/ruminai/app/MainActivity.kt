@@ -250,6 +250,14 @@ class MainActivity : ComponentActivity() {
                             putExtra("sms_body", second)
                         }
                         "dialer" -> Intent(Intent.ACTION_DIAL)
+                        "settings" -> Intent(android.provider.Settings.ACTION_SETTINGS)
+                        "wifi" -> Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                        "bluetooth" -> Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+                        "display" -> Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS)
+                        "sound" -> Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
+                        "camera" -> Intent("android.media.action.IMAGE_CAPTURE")
+                        "contacts" -> Intent(Intent.ACTION_VIEW, Uri.parse("content://contacts/people/"))
+                        "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
                         else -> null
                     }
                     if (intent == null) {
@@ -264,6 +272,14 @@ class MainActivity : ComponentActivity() {
                         "sms" -> "মেসেজ অ্যাপ খোলা হয়েছে; পাঠানোর আগে মেসেজটি যাচাই করুন।"
                         "showalarms" -> "অ্যালার্ম অ্যাপ খোলা হয়েছে।"
                         "showtimers" -> "টাইমার অ্যাপ খোলা হয়েছে।"
+                        "settings" -> "ফোনের সেটিংস খুলেছি।"
+                        "wifi" -> "Wi-Fi সেটিংস খুলেছি।"
+                        "bluetooth" -> "Bluetooth সেটিংস খুলেছি।"
+                        "display" -> "ডিসপ্লে সেটিংস খুলেছি।"
+                        "sound" -> "সাউন্ড সেটিংস খুলেছি।"
+                        "camera" -> "ক্যামেরা খুলেছি।"
+                        "contacts" -> "কন্টাক্টস খুলেছি।"
+                        "browser" -> "ব্রাউজার খুলেছি।"
                         else -> "ফোন ডায়ালার খোলা হয়েছে।"
                     }
                     webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
