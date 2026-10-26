@@ -6,7 +6,7 @@ on:
     branches: ["main"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,7 +24,18 @@ jobs:
         with:
           gradle-version: "8.9"
           arguments: assembleRelease
-      - name: Upload installable APK
+      - name: Publish APK as GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.0.${{ github.run_number }}
+          name: RUMIN AI 3.0 - Build ${{ github.run_number }}
+          body: |
+            RUMIN AI 3.0 Android APK release.
+            Built automatically from the main branch.
+          files: app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true
+          make_latest: true
+      - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Rumin-AI-3.0-APK
