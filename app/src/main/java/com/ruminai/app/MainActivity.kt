@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity() {
                         lines.add("ব্যবহারকারী: " + currentText)
                         // Use the documented minimal Interactions API request shape for Gemini 3.8 Flash.
                         JSONObject()
-                            .put("model", "gemini-3.8-flash")
+                            .put("model", "gemini-3.6-flash")
                             .put("input", lines.joinToString("\n"))
                     }
                     connection = (URL(url).openConnection() as HttpURLConnection).apply {
