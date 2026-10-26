@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -24,6 +26,8 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private lateinit var webView: WebView
+    private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingNativeSpeech = false
 
@@ -49,6 +53,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        textToSpeech = TextToSpeech(this) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                val tts = textToSpeech
+                val result = tts?.setLanguage(Locale("bn", "BD")) ?: TextToSpeech.LANG_NOT_SUPPORTED
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) tts?.setLanguage(Locale("bn", "IN"))
+                tts?.setSpeechRate(0.96f)
+                tts?.setPitch(1.12f)
+                val femaleVoice = tts?.voices?.firstOrNull { voice -> voice.locale.language == "bn" && voice.name.contains("female", ignoreCase = true) }
+                if (femaleVoice != null) tts?.voice = femaleVoice
+            }
+        }
         webView = WebView(this)
         setContentView(webView)
         webView.settings.javaScriptEnabled = true
@@ -89,6 +105,18 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class NativeBridge {
+        @JavascriptInterface fun speakText(text: String) {
+            runOnUiThread {
+                val tts = textToSpeech
+                if (tts == null || !ttsReady) {
+                    webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। Settings থেকে Bengali voice data ইনস্টল করুন।')", null)
+                    return@runOnUiThread
+                }
+                val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "rumin_answer")
+                if (result == TextToSpeech.ERROR) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ভয়েস চালু করা যায়নি। ফোনের Text-to-Speech সেটিংস পরীক্ষা করুন।')", null)
+            }
+        }
+
         @JavascriptInterface fun startSpeechRecognition() {
             runOnUiThread {
                 if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -245,6 +273,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        aiExecutor.shutdown()
+        super.onDestroy()
     }
 
     @Suppress("DEPRECATION")
