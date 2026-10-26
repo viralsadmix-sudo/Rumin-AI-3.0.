@@ -14,6 +14,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 import java.net.URLEncoder
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -49,8 +50,14 @@ class GeminiLiveVoice(
                     Thread {
                         try { Thread.sleep(12000) } catch (_: InterruptedException) { return@Thread }
                         if (active.get() && !setupDone) {
-                            onStatus("Live সেশন প্রস্তুত হয়নি: ১২ সেকেন্ডে setupComplete আসেনি। শেষ সার্ভার বার্তা: $lastServerEvent।", "stopped")
-                            stop()
+                            val serverName = response.header("server") ?: "অজানা"
+                            val requestId = response.header("x-goog-request-id")
+                                ?: response.header("x-request-id")
+                                ?: "পাওয়া যায়নি"
+                            onStatus(
+                                "Live setup-এর উত্তর ১২ সেকেন্ডেও আসেনি। WebSocket HTTP ${response.code}; setup পাঠানো হয়েছে; server=$serverName; requestId=$requestId; শেষ বার্তা: $lastServerEvent। সংযোগটি ডায়াগনস্টিকের জন্য খোলা রাখা হয়েছে।",
+                                "connecting"
+                            )
                         }
                     }.start()
                     val setup = JSONObject()
@@ -71,6 +78,11 @@ class GeminiLiveVoice(
                             .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
                     if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
+                }
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    // Decode binary frames too; server payload is JSON.
+                    onMessage(webSocket, bytes.utf8())
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
