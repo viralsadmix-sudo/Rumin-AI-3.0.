@@ -127,15 +127,16 @@ class MainActivity : ComponentActivity() {
                     } else {
                         val history = JSONArray(historyJson)
                         val lines = mutableListOf<String>()
+                        lines.add("নির্দেশনা: তুমি রুমিন এআই, একজন সহায়ক ব্যক্তিগত AI সহকারী। স্বাভাবিক ও পরিষ্কার বাংলায় উত্তর দাও। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো।")
                         for (i in 0 until history.length()) {
                             val item = history.optJSONObject(i) ?: continue
                             val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
+                        // Use the documented minimal Interactions API request shape for Gemini 3.8 Flash.
                         JSONObject()
                             .put("model", "gemini-3.8-flash")
-                            .put("system_instruction", "তুমি রুমিন এআই, একজন সহায়ক ব্যক্তিগত AI সহকারী। স্বাভাবিক ও পরিষ্কার বাংলায় উত্তর দাও। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো।")
                             .put("input", lines.joinToString("\n"))
                     }
                     connection = (URL(url).openConnection() as HttpURLConnection).apply {
