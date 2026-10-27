@@ -6,6 +6,8 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.NoiseSuppressor
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,6 +32,8 @@ class GeminiLiveVoice(
     private val client = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).pingInterval(20, TimeUnit.SECONDS).build()
     private var socket: WebSocket? = null
     @Volatile private var recorder: AudioRecord? = null
+    @Volatile private var echoCanceler: AcousticEchoCanceler? = null
+    @Volatile private var noiseSuppressor: NoiseSuppressor? = null
     @Volatile private var player: AudioTrack? = null
     private val playbackQueue = LinkedBlockingQueue<ByteArray>()
     private val stopMarker = ByteArray(0)
@@ -72,9 +76,9 @@ class GeminiLiveVoice(
                         .put("outputAudioTranscription", JSONObject())
                         .put("realtimeInputConfig", JSONObject()
                             .put("automaticActivityDetection", JSONObject()
-                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
-                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
-                                .put("silenceDurationMs", 500))
+                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW")
+                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
+                                .put("silenceDurationMs", 900))
                             .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
                     if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
@@ -186,6 +190,13 @@ class GeminiLiveVoice(
             val audioRecorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min * 2, 6400))
             recorder = audioRecorder
+            // Reduce speaker-to-microphone feedback so Rumin does not hear its own voice as user speech.
+            if (AcousticEchoCanceler.isAvailable()) {
+                echoCanceler = AcousticEchoCanceler.create(audioRecorder.audioSessionId)?.apply { enabled = true }
+            }
+            if (NoiseSuppressor.isAvailable()) {
+                noiseSuppressor = NoiseSuppressor.create(audioRecorder.audioSessionId)?.apply { enabled = true }
+            }
             audioRecorder.startRecording()
             Thread {
                 val buffer = ByteArray(640)
@@ -210,6 +221,10 @@ class GeminiLiveVoice(
         try { recorder?.stop() } catch (_: Exception) {}
         try { recorder?.release() } catch (_: Exception) {}
         recorder = null
+        try { echoCanceler?.release() } catch (_: Exception) {}
+        echoCanceler = null
+        try { noiseSuppressor?.release() } catch (_: Exception) {}
+        noiseSuppressor = null
         playbackQueue.clear()
         playbackQueue.offer(stopMarker)
         try { player?.pause(); player?.flush(); player?.stop() } catch (_: Exception) {}
