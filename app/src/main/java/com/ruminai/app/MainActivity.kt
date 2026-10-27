@@ -344,7 +344,9 @@ class MainActivity : ComponentActivity() {
                             Manifest.permission.READ_SMS,
                             Manifest.permission.SEND_SMS,
                             Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.BLUETOOTH_SCAN
                         )
                         phonePermissions.launch(needed)
                         return@runOnUiThread
@@ -375,6 +377,7 @@ class MainActivity : ComponentActivity() {
                         "dialer" -> Intent(Intent.ACTION_DIAL)
                         "requestpermissions" -> null
                         "accessibility" -> Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        "writesettings" -> Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))
                         "notificationaccess" -> Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                         "apppermissions" -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
                         "ttssettings" -> Intent("com.android.settings.TTS_SETTINGS")
@@ -403,6 +406,7 @@ class MainActivity : ComponentActivity() {
                         "showalarms" -> "অ্যালার্ম অ্যাপ খোলা হয়েছে।"
                         "showtimers" -> "টাইমার অ্যাপ খোলা হয়েছে।"
                         "accessibility" -> "Accessibility সেটিংস খুলেছি। সেখানে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        "writesettings" -> "System settings পরিবর্তনের অনুমতি পেজ খুলেছি। দরকার হলে অনুমতি দিন।"
                         "notificationaccess" -> "Notification Access সেটিংস খুলেছি। অনুমতি প্রয়োজন হলে RUMIN AI নির্বাচন করুন।"
                         "apppermissions" -> "RUMIN AI-এর App Info খুলেছি। Permissions থেকে প্রয়োজনীয় অনুমতি দিন।"
                         "ttssettings" -> "Text-to-Speech সেটিংস খুলেছি। পছন্দের ভয়েস ও ভাষা পরীক্ষা করুন।"
