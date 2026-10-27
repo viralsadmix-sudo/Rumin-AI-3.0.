@@ -36,6 +36,21 @@ class MainActivity : ComponentActivity() {
     private var pendingLiveKey: String? = null
     @Volatile private var liveVoiceSession: GeminiLiveVoice? = null
 
+    private val phonePermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        val granted = results.filterValues { it }.keys
+        val denied = results.filterValues { !it }.keys
+        val message = buildString {
+            append("অনুমতি পরীক্ষা সম্পন্ন। অনুমোদিত: ")
+            append(if (granted.isEmpty()) "কোনোটিই নয়" else granted.joinToString(", "))
+            if (denied.isNotEmpty()) {
+                append(". অনুমতি মেলেনি: ")
+                append(denied.joinToString(", "))
+            }
+            append(". Accessibility ও Notification Access আলাদা Settings থেকে চালু করতে হবে।")
+        }
+        if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${JSONObject.quote(message)})", null)
+    }
+
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val request = pendingPermissionRequest
         pendingPermissionRequest = null
@@ -321,6 +336,19 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
             runOnUiThread {
                 try {
+                    if (action == "requestpermissions") {
+                        val needed = arrayOf(
+                            Manifest.permission.READ_CONTACTS,
+                            Manifest.permission.WRITE_CONTACTS,
+                            Manifest.permission.CALL_PHONE,
+                            Manifest.permission.READ_SMS,
+                            Manifest.permission.SEND_SMS,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        )
+                        phonePermissions.launch(needed)
+                        return@runOnUiThread
+                    }
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
                         val ok = RuminAccessibilityService.perform(action)
                         val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
@@ -345,6 +373,7 @@ class MainActivity : ComponentActivity() {
                             putExtra("sms_body", second)
                         }
                         "dialer" -> Intent(Intent.ACTION_DIAL)
+                        "requestpermissions" -> null
                         "accessibility" -> Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         "notificationaccess" -> Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                         "apppermissions" -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
