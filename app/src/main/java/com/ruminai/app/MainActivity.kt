@@ -346,6 +346,9 @@ class MainActivity : ComponentActivity() {
                         }
                         "dialer" -> Intent(Intent.ACTION_DIAL)
                         "accessibility" -> Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        "notificationaccess" -> Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        "apppermissions" -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                        "ttssettings" -> Intent("com.android.settings.TTS_SETTINGS")
                         "settings" -> Intent(android.provider.Settings.ACTION_SETTINGS)
                         "wifi" -> Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
                         "bluetooth" -> Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -370,7 +373,10 @@ class MainActivity : ComponentActivity() {
                         "sms" -> "মেসেজ অ্যাপ খোলা হয়েছে; পাঠানোর আগে মেসেজটি যাচাই করুন।"
                         "showalarms" -> "অ্যালার্ম অ্যাপ খোলা হয়েছে।"
                         "showtimers" -> "টাইমার অ্যাপ খোলা হয়েছে।"
-                        "accessibility" -> "Accessibility সেটিংস খুলেছি। সেখানে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন."
+                        "accessibility" -> "Accessibility সেটিংস খুলেছি। সেখানে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        "notificationaccess" -> "Notification Access সেটিংস খুলেছি। অনুমতি প্রয়োজন হলে RUMIN AI নির্বাচন করুন।"
+                        "apppermissions" -> "RUMIN AI-এর App Info খুলেছি। Permissions থেকে প্রয়োজনীয় অনুমতি দিন।"
+                        "ttssettings" -> "Text-to-Speech সেটিংস খুলেছি। পছন্দের ভয়েস ও ভাষা পরীক্ষা করুন।"
                         "settings" -> "ফোনের সেটিংস খুলেছি।"
                         "wifi" -> "Wi-Fi সেটিংস খুলেছি।"
                         "bluetooth" -> "Bluetooth সেটিংস খুলেছি।"
