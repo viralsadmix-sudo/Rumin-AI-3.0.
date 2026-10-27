@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
                     val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
                     val body = if (isGroq) {
                         val messages = JSONArray()
-                        messages.put(JSONObject().put("role", "system").put("content", "তুমি RUMIN AI (রুমিন), বসের ব্যক্তিগত AI অ্যাসিস্ট্যান্ট। ব্যবহারকারীকে স্বাভাবিকভাবে ‘বস’ বলে ডাকবে। পরিচয় জানতে চাইলে বলবে ‘আমি রুমিন, বস—আপনার ব্যক্তিগত AI অ্যাসিস্ট্যান্ট’; নিজেকে ChatGPT/OpenAI বলবে না, যদি না তা সত্যি হয়। বাংলাদেশি বাংলায় মেয়েলি সহকারীসুলভ ভঙ্গিতে কথা বলবে। ভয়েসের জন্য সাধারণত ১–২টি ছোট বাক্যে উত্তর দেবে; অপ্রয়োজনীয় ব্যাখ্যা দেবে না। ফোনের কাজের অনুরোধে মিথ্যা করে কাজ সম্পন্ন হয়েছে বলবে না। ব্যবহারকারীর নাম জানা না থাকলে বানিয়ে বলবে না।"))
+                        messages.put(JSONObject().put("role", "system").put("content", "তুমি RUMIN AI (রুমিন), বসের ব্যক্তিগত AI অ্যাসিস্ট্যান্ট। ব্যবহারকারীকে স্বাভাবিকভাবে ‘বস’ বলে ডাকবে। পরিচয় জানতে চাইলে বলবে ‘আমি রুমিন, বস—আপনার ব্যক্তিগত AI অ্যাসিস্ট্যান্ট’। বাংলাদেশি বাংলায় মেয়েলি সহকারীসুলভ ভঙ্গিতে কথা বলবে। ফোনের কাজের অনুরোধে কখনো শুধু ‘আমি ফোনের কাজ করতে পারি না’ বলে থেমে যাবে না: নির্দিষ্ট কমান্ডটি অ্যাপের সমর্থিত কমান্ড কি না বুঝে নেবে; কাজ সমর্থিত না হলে স্পষ্টভাবে বলবে কোন কাজ সমর্থিত নয় এবং সমর্থিত কমান্ডের উদাহরণ চাইবে। ফোনে কাজ সত্যি সম্পন্ন হয়েছে এমন দাবি করবে না যদি Native command result তা নিশ্চিত না করে। ব্যবহারকারীর নাম জানা না থাকলে বানিয়ে বলবে না।"))
                         val history = JSONArray(historyJson)
                         for (i in 0 until history.length()) {
                             val item = history.optJSONObject(i) ?: continue
@@ -399,13 +399,18 @@ class MainActivity : ComponentActivity() {
                         "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
                         "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { setPackage("com.google.android.youtube") }
                         "facebook" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com")).apply { setPackage("com.facebook.katana") }
+                        "whatsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/")).apply { setPackage("com.whatsapp") }
+                        "instagram" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com")).apply { setPackage("com.instagram.android") }
+                        "gmail" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com")).apply { setPackage("com.google.android.gm") }
+                        "playstore" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store")).apply { setPackage("com.android.vending") }
+                        "maps" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps")).apply { setPackage("com.google.android.apps.maps") }
                         else -> null
                     }
                     if (intent == null) {
                         webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কমান্ডটি সমর্থিত নয়')", null)
                         return@runOnUiThread
                     }
-                    try { startActivity(intent) } catch (first: Exception) { if (action == "youtube") startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))) else throw first }
+                    try { startActivity(intent) } catch (first: Exception) { when (action) { "youtube" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))); "whatsapp" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))); "instagram" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))); "gmail" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))); "playstore" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))); "maps" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))); else -> throw first } }
                     val message = when (action) {
                         "alarm" -> "অ্যালার্ম অ্যাপে সময়টি সেট করার জন্য পাঠানো হয়েছে।"
                         "timer" -> "টাইমার অ্যাপে টাইমারটি সেট করার জন্য পাঠানো হয়েছে।"
@@ -428,6 +433,11 @@ class MainActivity : ComponentActivity() {
                         "browser" -> "ব্রাউজার খুলেছি।"
                         "youtube" -> "YouTube খুলেছি।"
                         "facebook" -> "Facebook খুলেছি।"
+                        "whatsapp" -> "WhatsApp খুলেছি।"
+                        "instagram" -> "Instagram খুলেছি।"
+                        "gmail" -> "Gmail খুলেছি।"
+                        "playstore" -> "Play Store খুলেছি।"
+                        "maps" -> "Google Maps খুলেছি।"
                         else -> "ফোন ডায়ালার খোলা হয়েছে।"
                     }
                     webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
