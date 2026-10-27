@@ -337,18 +337,26 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 try {
                     if (action == "requestpermissions") {
-                        val needed = arrayOf(
+                        // Request only runtime permissions supported by this Android version.
+                        // Microphone was missing from the original bulk permission flow.
+                        val needed = mutableListOf(
+                            Manifest.permission.RECORD_AUDIO,
                             Manifest.permission.READ_CONTACTS,
                             Manifest.permission.WRITE_CONTACTS,
                             Manifest.permission.CALL_PHONE,
                             Manifest.permission.READ_SMS,
                             Manifest.permission.SEND_SMS,
                             Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.BLUETOOTH_CONNECT,
-                            Manifest.permission.BLUETOOTH_SCAN
+                            Manifest.permission.ACCESS_FINE_LOCATION
                         )
-                        phonePermissions.launch(needed)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            needed.add(Manifest.permission.BLUETOOTH_CONNECT)
+                            needed.add(Manifest.permission.BLUETOOTH_SCAN)
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        phonePermissions.launch(needed.distinct().toTypedArray())
                         return@runOnUiThread
                     }
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
