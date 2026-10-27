@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
             }
             append(". Accessibility ও Notification Access আলাদা Settings থেকে চালু করতে হবে।")
         }
-        if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${JSONObject.quote(message)})", null)
+        if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(${denied.isEmpty()}, ${JSONObject.quote(message)})", null)
     }
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
