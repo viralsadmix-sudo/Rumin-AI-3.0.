@@ -71,13 +71,13 @@ class GeminiLiveVoice(
                             .put("speechConfig", JSONObject().put("voiceConfig",
                                 JSONObject().put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Kore")))))
                         .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text",
-                            "তুমি রুমিন, বসের ব্যক্তিগত AI সহকারী। স্বাভাবিক বাংলাদেশি বাংলায় কথা বলবে, বন্ধুসুলভ ও সংক্ষিপ্ত উত্তর দেবে। ব্যবহারকারী কথা বললে সরাসরি কণ্ঠে উত্তর দাও। ব্যবহারকারী মাঝখানে কথা বললে থেমে তার কথা শোনো। নিজেকে ChatGPT বলে পরিচয় দেবে না।"))))
+                            "তুমি রুমিন, বসের ব্যক্তিগত AI সহকারী। স্বাভাবিক বাংলাদেশি বাংলায় কথা বলবে, বন্ধুসুলভ ও সংক্ষিপ্ত উত্তর দেবে। ব্যবহারকারী কথা বললে সরাসরি কণ্ঠে উত্তর দাও। ব্যবহারকারী মাঝখানে কথা বললে থেমে তার কথা শোনো। ব্যবহারকারীর কথা স্পষ্টভাবে শনাক্ত হলে অবশ্যই প্রাসঙ্গিক কণ্ঠের উত্তর দেবে; শুধু নীরবতা থাকলে উত্তর তৈরি করবে না। নিজেকে ChatGPT বলে পরিচয় দেবে না।"))))
                         .put("inputAudioTranscription", JSONObject())
                         .put("outputAudioTranscription", JSONObject())
                         .put("realtimeInputConfig", JSONObject()
                             .put("automaticActivityDetection", JSONObject()
-                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW")
-                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
+                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
+                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
                                 .put("silenceDurationMs", 900))
                             .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
