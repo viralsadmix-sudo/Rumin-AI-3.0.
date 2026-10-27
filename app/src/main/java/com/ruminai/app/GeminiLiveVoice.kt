@@ -218,20 +218,31 @@ class GeminiLiveVoice(
 
     fun stop() {
         if (!active.compareAndSet(true, false)) return
-        try { recorder?.stop() } catch (_: Exception) {}
-        try { recorder?.release() } catch (_: Exception) {}
-        recorder = null
-        try { echoCanceler?.release() } catch (_: Exception) {}
-        echoCanceler = null
-        try { noiseSuppressor?.release() } catch (_: Exception) {}
-        noiseSuppressor = null
+
+        // Stop the WebSocket promptly, but never release audio devices or shut down
+        // OkHttp on the Android/WebView UI thread. AudioRecord/AudioTrack cleanup
+        // can block on some devices and otherwise freezes every app button.
+        val ws = socket
+        socket = null
+        try { ws?.cancel() } catch (_: Exception) {}
+
         playbackQueue.clear()
         playbackQueue.offer(stopMarker)
-        try { player?.pause(); player?.flush(); player?.stop() } catch (_: Exception) {}
-        try { player?.release() } catch (_: Exception) {}
-        player = null
-        socket?.close(1000, "User stopped live voice")
-        socket = null
-        client.dispatcher.executorService.shutdown()
+
+        Thread({
+            try { recorder?.stop() } catch (_: Exception) {}
+            try { recorder?.release() } catch (_: Exception) {}
+            recorder = null
+            try { echoCanceler?.release() } catch (_: Exception) {}
+            echoCanceler = null
+            try { noiseSuppressor?.release() } catch (_: Exception) {}
+            noiseSuppressor = null
+            try { player?.pause(); player?.flush(); player?.stop() } catch (_: Exception) {}
+            try { player?.release() } catch (_: Exception) {}
+            player = null
+            try { client.dispatcher.cancelAll() } catch (_: Exception) {}
+            try { client.dispatcher.executorService.shutdown() } catch (_: Exception) {}
+            try { client.connectionPool.evictAll() } catch (_: Exception) {}
+        }, "Rumin-LiveVoice-Stop").start()
     }
 }
