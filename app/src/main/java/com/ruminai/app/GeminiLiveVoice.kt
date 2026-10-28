@@ -205,15 +205,61 @@ class GeminiLiveVoice(
             }
             audioRecorder.startRecording()
             Thread {
-                val buffer = ByteArray(640)
+                val buffer = ByteArray(640) // 20 ms of mono PCM16 at 16 kHz
+                var lastDiagnosticAt = System.currentTimeMillis()
+                var totalBytes = 0L
+                var latestRms = 0
+                var quietReads = 0
                 while (active.get()) {
-                    val count = try { audioRecorder.read(buffer, 0, buffer.size) } catch (_: Exception) { -1 }
+                    val count = try { audioRecorder.read(buffer, 0, buffer.size) } catch (e: Exception) {
+                        if (active.get()) onStatus("মাইক্রোফোন পড়তে সমস্যা: ${e.message ?: "অজানা ত্রুটি"}", "stopped")
+                        -1
+                    }
                     if (count > 0 && active.get() && setupDone) {
+                        // Measure real microphone signal so a silent AudioRecord is not mistaken for a working voice session.
+                        var sumSquares = 0.0
+                        var samples = 0
+                        var i = 0
+                        while (i + 1 < count) {
+                            val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xff)).toShort().toInt()
+                            sumSquares += sample.toDouble() * sample.toDouble()
+                            samples++
+                            i += 2
+                        }
+                        latestRms = if (samples > 0) kotlin.math.sqrt(sumSquares / samples).toInt() else 0
+                        if (latestRms < 80) quietReads++ else quietReads = 0
+                        totalBytes += count.toLong()
+
                         val bytes = if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count)
                         val blob = JSONObject().put("mimeType", "audio/pcm;rate=16000")
                             .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
-                        socket?.send(JSONObject().put("realtimeInput", JSONObject().put("audio", blob)).toString())
-                    } else if (count < 0) break
+                        val ws = socket
+                        val sent = try {
+                            ws != null && ws.send(JSONObject().put("realtimeInput", JSONObject().put("audio", blob)).toString())
+                        } catch (_: Exception) { false }
+                        if (!sent) {
+                            onStatus("মাইক্রোফোন অডিও Gemini-তে পাঠানো যাচ্ছে না—WebSocket সংযোগ পরীক্ষা করুন।", "stopped")
+                            break
+                        }
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastDiagnosticAt >= 2500) {
+                            val signal = when {
+                                latestRms < 80 -> "খুব কম/নীরব"
+                                latestRms < 500 -> "কম"
+                                else -> "পাওয়া যাচ্ছে"
+                            }
+                            val seconds = totalBytes / 32000.0
+                            val serverHint = if (lastServerEvent.contains("voiceActivity", true) ||
+                                lastServerEvent.contains("serverContent", true)) "সার্ভারের ইভেন্ট এসেছে" else "সার্ভারের কথা-শনাক্তকরণ এখনও আসেনি"
+                            val quietHint = if (quietReads > 80) " ফোনের মাইক/অডিও সোর্স পরীক্ষা করুন।" else ""
+                            onStatus("মাইক পরীক্ষা: শব্দ $signal (RMS $latestRms); পাঠানো অডিও ${"%.1f".format(java.util.Locale.US, seconds)} সেকেন্ড; $serverHint.$quietHint", "listening")
+                            lastDiagnosticAt = now
+                        }
+                    } else if (count < 0) {
+                        if (active.get()) onStatus("মাইক্রোফোন থেকে অডিও পড়া বন্ধ হয়েছে (read=$count)।", "stopped")
+                        break
+                    }
                 }
             }.start()
         } catch (e: Exception) {
