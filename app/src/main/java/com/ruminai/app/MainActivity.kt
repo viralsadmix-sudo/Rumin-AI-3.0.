@@ -494,8 +494,21 @@ class MainActivity : ComponentActivity() {
         liveVoiceSession?.stop()
         val session = GeminiLiveVoice(this,
             { message, state -> reportLiveVoice(message, state) },
-            { userText, assistantText -> runOnUiThread {
+            { userText, assistantText, audioReceived -> runOnUiThread {
                 webView.evaluateJavascript("window.onLiveVoiceTurn && window.onLiveVoiceTurn(" + JSONObject.quote(userText) + ", " + JSONObject.quote(assistantText) + ")", null)
+                // If Gemini returned text but no audio chunk, speak the answer locally instead of staying silent.
+                if (assistantText.isNotBlank() && !audioReceived) {
+                    val tts = textToSpeech
+                    if (tts != null && ttsReady) {
+                        val languageResult = tts.setLanguage(Locale("bn", "BD"))
+                        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            tts.setLanguage(Locale("bn", "IN"))
+                        }
+                        tts.speak(assistantText, TextToSpeech.QUEUE_FLUSH, null, "rumin_live_fallback")
+                    } else {
+                        reportLiveVoice("Gemini উত্তর দিয়েছে, কিন্তু অডিও আসেনি এবং ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। TTS সেটিংসে বাংলা কণ্ঠ ইনস্টল করুন।", "stopped")
+                    }
+                }
             } }
         )
         liveVoiceSession = session
