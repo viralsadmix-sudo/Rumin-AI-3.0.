@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GeminiLiveVoice(
     context: Context,
     private val onStatus: (String, String) -> Unit,
-    private val onTurn: (String, String) -> Unit
+    private val onTurn: (String, String, Boolean) -> Unit
 ) {
     private val appContext = context.applicationContext
     private val active = AtomicBoolean(true)
@@ -41,6 +41,7 @@ class GeminiLiveVoice(
     private val outputTranscript = StringBuilder()
     @Volatile private var setupDone = false
     @Volatile private var lastServerEvent = "সার্ভার থেকে কোনো বার্তা আসেনি"
+    @Volatile private var turnHadAudio = false
 
     fun start(apiKey: String) {
         try {
@@ -127,6 +128,7 @@ class GeminiLiveVoice(
                             if (encoded.isNotBlank()) {
                                 try {
                                     playbackQueue.put(Base64.decode(encoded, Base64.DEFAULT))
+                                    turnHadAudio = true
                                     onStatus("রুমিন উত্তর দিচ্ছে… কথা বললে থেমে যাবে", "speaking")
                                 } catch (_: Exception) {}
                             }
@@ -137,7 +139,11 @@ class GeminiLiveVoice(
                             val assistantText = outputTranscript.toString().trim()
                             inputTranscript.setLength(0)
                             outputTranscript.setLength(0)
-                            if (userText.isNotBlank() || assistantText.isNotBlank()) onTurn(userText, assistantText)
+                            val audioReceived = turnHadAudio
+                            turnHadAudio = false
+                            if (userText.isNotBlank() || assistantText.isNotBlank()) onTurn(userText, assistantText, audioReceived)
+                            if (assistantText.isBlank() && !audioReceived && userText.isNotBlank()) onStatus("আপনার কথা শনাক্ত হয়েছে, কিন্তু Gemini উত্তর পাঠায়নি। আবার একটু স্পষ্ট করে বলুন বা API Key/মডেল অ্যাক্সেস পরীক্ষা করুন।", "listening")
+                            else if (assistantText.isNotBlank() && !audioReceived) onStatus("উত্তরের লেখা এসেছে; কণ্ঠের অডিও আসেনি—ফোনের কণ্ঠে বলছি…", "speaking")
                         }
                     } catch (_: Exception) {
                         onStatus("লাইভ অডিও বার্তা পড়তে সমস্যা হয়েছে", "listening")
