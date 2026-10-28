@@ -80,7 +80,7 @@ class GeminiLiveVoice(
                             .put("automaticActivityDetection", JSONObject()
                                 .put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW")
                                 .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
-                                .put("silenceDurationMs", 1200))
+                                .put("silenceDurationMs", 700))
                             .put("activityHandling", "NO_INTERRUPTION"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
                     if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
@@ -205,29 +205,21 @@ class GeminiLiveVoice(
             val min = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             if (min <= 0) throw IllegalStateException("ফোনের মাইক্রোফোন চালুর উপযোগী buffer পাওয়া যায়নি (minBuffer=$min)")
             val bufferSize = maxOf(min * 2, 12800)
-            // Some Android ROMs return zero-length reads with MIC but work with VOICE_RECOGNITION.
-            // Try the speech-optimized source first, then fall back to the standard microphone.
-            var audioRecorder: AudioRecord? = null
-            var sourceUsed = -1
-            val sources = intArrayOf(MediaRecorder.AudioSource.VOICE_RECOGNITION, MediaRecorder.AudioSource.MIC)
-            for (source in sources) {
-                var candidate: AudioRecord? = null
-                try {
-                    candidate = AudioRecord(source, 16000, AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT, bufferSize)
-                    if (candidate.state == AudioRecord.STATE_INITIALIZED) {
-                        candidate.startRecording()
-                        if (candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                            audioRecorder = candidate
-                            sourceUsed = source
-                            break
-                        }
-                    }
-                } catch (_: Exception) { }
-                try { candidate?.release() } catch (_: Exception) { }
+            // Restore the known-working Build 99 microphone route: standard MIC source.
+            // Build 100's VOICE_RECOGNITION-first selection could initialize successfully
+            // while returning silent PCM on this device, so do not prefer it automatically.
+            val sourceUsed = MediaRecorder.AudioSource.MIC
+            val activeRecorder = AudioRecord(sourceUsed, 16000, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, bufferSize)
+            if (activeRecorder.state != AudioRecord.STATE_INITIALIZED) {
+                activeRecorder.release()
+                throw IllegalStateException("ফোনের MIC অডিও সোর্স চালু হয়নি।")
             }
-            val activeRecorder = audioRecorder ?: throw IllegalStateException(
-                "VOICE_RECOGNITION ও MIC—দুই অডিও সোর্সেই recording চালু হয়নি। মাইক্রোফোন অনুমতি, Android-এর Mic access এবং অন্য অ্যাপ পরীক্ষা করুন।")
+            activeRecorder.startRecording()
+            if (activeRecorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                activeRecorder.release()
+                throw IllegalStateException("ফোনের MIC রেকর্ডিং শুরু হয়নি।")
+            }
             recorder = activeRecorder
             onStatus("ফোনের মাইক্রোফোন চালু হয়েছে (source=$sourceUsed); অডিও পরীক্ষা করছি…", "connecting")
             // Reduce speaker-to-microphone feedback so Rumin does not hear its own voice as user speech.
