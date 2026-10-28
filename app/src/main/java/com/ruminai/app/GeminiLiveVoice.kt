@@ -193,7 +193,7 @@ class GeminiLiveVoice(
 
             val min = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             if (min <= 0) throw IllegalStateException("ফোনের মাইক্রোফোন চালু করা যায়নি")
-            val audioRecorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
+            val audioRecorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min * 2, 6400))
             recorder = audioRecorder
             // Reduce speaker-to-microphone feedback so Rumin does not hear its own voice as user speech.
@@ -210,6 +210,7 @@ class GeminiLiveVoice(
                 var totalBytes = 0L
                 var latestRms = 0
                 var quietReads = 0
+                var zeroReads = 0
                 while (active.get()) {
                     val count = try { audioRecorder.read(buffer, 0, buffer.size) } catch (e: Exception) {
                         if (active.get()) onStatus("মাইক্রোফোন পড়তে সমস্যা: ${e.message ?: "অজানা ত্রুটি"}", "stopped")
@@ -228,6 +229,7 @@ class GeminiLiveVoice(
                         }
                         latestRms = if (samples > 0) kotlin.math.sqrt(sumSquares / samples).toInt() else 0
                         if (latestRms < 80) quietReads++ else quietReads = 0
+                        zeroReads = 0
                         totalBytes += count.toLong()
 
                         val bytes = if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count)
@@ -256,6 +258,15 @@ class GeminiLiveVoice(
                             onStatus("মাইক পরীক্ষা: শব্দ $signal (RMS $latestRms); পাঠানো অডিও ${"%.1f".format(java.util.Locale.US, seconds)} সেকেন্ড; $serverHint.$quietHint", "listening")
                             lastDiagnosticAt = now
                         }
+                    } else if (count == 0) {
+                        zeroReads++
+                        val now = System.currentTimeMillis()
+                        if (now - lastDiagnosticAt >= 2500) {
+                            val hint = if (zeroReads > 100) "AudioRecord বারবার 0 বাইট দিচ্ছে; ফোনের মাইক/অন্য অ্যাপের মাইক ব্যবহার পরীক্ষা করুন।" else "মাইক্রোফোনের ডেটা আসার অপেক্ষায়…"
+                            onStatus("মাইক পরীক্ষা: নতুন অডিও আসছে না। মোট পাঠানো অডিও " + String.format(java.util.Locale.US, "%.1f", totalBytes / 32000.0) + " সেকেন্ড। " + hint, "listening")
+                            lastDiagnosticAt = now
+                        }
+                        try { Thread.sleep(10) } catch (_: InterruptedException) { break }
                     } else if (count < 0) {
                         if (active.get()) onStatus("মাইক্রোফোন থেকে অডিও পড়া বন্ধ হয়েছে (read=$count)।", "stopped")
                         break
