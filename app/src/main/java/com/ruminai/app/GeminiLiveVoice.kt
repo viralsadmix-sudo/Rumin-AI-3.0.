@@ -203,18 +203,40 @@ class GeminiLiveVoice(
             }.start()
 
             val min = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-            if (min <= 0) throw IllegalStateException("ফোনের মাইক্রোফোন চালু করা যায়নি")
-            val audioRecorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min * 2, 6400))
-            recorder = audioRecorder
+            if (min <= 0) throw IllegalStateException("ফোনের মাইক্রোফোন চালুর উপযোগী buffer পাওয়া যায়নি (minBuffer=$min)")
+            val bufferSize = maxOf(min * 2, 12800)
+            // Some Android ROMs return zero-length reads with MIC but work with VOICE_RECOGNITION.
+            // Try the speech-optimized source first, then fall back to the standard microphone.
+            var audioRecorder: AudioRecord? = null
+            var sourceUsed = -1
+            val sources = intArrayOf(MediaRecorder.AudioSource.VOICE_RECOGNITION, MediaRecorder.AudioSource.MIC)
+            for (source in sources) {
+                var candidate: AudioRecord? = null
+                try {
+                    candidate = AudioRecord(source, 16000, AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT, bufferSize)
+                    if (candidate.state == AudioRecord.STATE_INITIALIZED) {
+                        candidate.startRecording()
+                        if (candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            audioRecorder = candidate
+                            sourceUsed = source
+                            break
+                        }
+                    }
+                } catch (_: Exception) { }
+                try { candidate?.release() } catch (_: Exception) { }
+            }
+            val activeRecorder = audioRecorder ?: throw IllegalStateException(
+                "VOICE_RECOGNITION ও MIC—দুই অডিও সোর্সেই recording চালু হয়নি। মাইক্রোফোন অনুমতি, Android-এর Mic access এবং অন্য অ্যাপ পরীক্ষা করুন।")
+            recorder = activeRecorder
+            onStatus("ফোনের মাইক্রোফোন চালু হয়েছে (source=$sourceUsed); অডিও পরীক্ষা করছি…", "connecting")
             // Reduce speaker-to-microphone feedback so Rumin does not hear its own voice as user speech.
             if (AcousticEchoCanceler.isAvailable()) {
-                echoCanceler = AcousticEchoCanceler.create(audioRecorder.audioSessionId)?.apply { enabled = true }
+                echoCanceler = AcousticEchoCanceler.create(activeRecorder.audioSessionId)?.apply { enabled = true }
             }
             if (NoiseSuppressor.isAvailable()) {
-                noiseSuppressor = NoiseSuppressor.create(audioRecorder.audioSessionId)?.apply { enabled = true }
+                noiseSuppressor = NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true }
             }
-            audioRecorder.startRecording()
             Thread {
                 val buffer = ByteArray(640) // 20 ms of mono PCM16 at 16 kHz
                 var lastDiagnosticAt = System.currentTimeMillis()
@@ -223,7 +245,7 @@ class GeminiLiveVoice(
                 var quietReads = 0
                 var zeroReads = 0
                 while (active.get()) {
-                    val count = try { audioRecorder.read(buffer, 0, buffer.size) } catch (e: Exception) {
+                    val count = try { activeRecorder.read(buffer, 0, buffer.size) } catch (e: Exception) {
                         if (active.get()) onStatus("মাইক্রোফোন পড়তে সমস্যা: ${e.message ?: "অজানা ত্রুটি"}", "stopped")
                         -1
                     }
@@ -276,7 +298,11 @@ class GeminiLiveVoice(
                         zeroReads++
                         val now = System.currentTimeMillis()
                         if (now - lastDiagnosticAt >= 2500) {
-                            val hint = if (zeroReads > 100) "AudioRecord বারবার 0 বাইট দিচ্ছে; ফোনের মাইক/অন্য অ্যাপের মাইক ব্যবহার পরীক্ষা করুন।" else "মাইক্রোফোনের ডেটা আসার অপেক্ষায়…"
+                            val hint = if (zeroReads > 100) {
+                                val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                                if (am.isMicrophoneMute) "Android-এ microphone mute চালু আছে। Quick Settings থেকে Mic access চালু করুন।"
+                                else "অডিও সোর্স চালু দেখালেও ডেটা আসছে না। Android Quick Settings-এর Mic access, অন্য অ্যাপের microphone use, এবং ফোন restart পরীক্ষা করুন।"
+                            } else "মাইক্রোফোনের ডেটা আসার অপেক্ষায়…"
                             onStatus("মাইক পরীক্ষা: নতুন অডিও আসছে না। মোট পাঠানো অডিও " + String.format(java.util.Locale.US, "%.1f", totalBytes / 32000.0) + " সেকেন্ড। " + hint, "listening")
                             lastDiagnosticAt = now
                         }
