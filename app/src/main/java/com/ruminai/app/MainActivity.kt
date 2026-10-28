@@ -398,6 +398,18 @@ class MainActivity : ComponentActivity() {
                         }
                         return@runOnUiThread
                     }
+                    if (action == "volumeup" || action == "volumedown" || action == "volumemute" || action == "volumeunmute") {
+                        val audio = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+                        when (action) {
+                            "volumeup" -> audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, android.media.AudioManager.FLAG_SHOW_UI)
+                            "volumedown" -> audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI)
+                            "volumemute" -> audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, android.media.AudioManager.FLAG_SHOW_UI)
+                            "volumeunmute" -> audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, android.media.AudioManager.FLAG_SHOW_UI)
+                        }
+                        val message = when (action) { "volumeup" -> "মিডিয়া ভলিউম বাড়ানো হয়েছে।"; "volumedown" -> "মিডিয়া ভলিউম কমানো হয়েছে।"; "volumemute" -> "মিডিয়া ভলিউম মিউট করা হয়েছে।"; else -> "মিডিয়া ভলিউম চালু করা হয়েছে।" }
+                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, " + org.json.JSONObject.quote(message) + ")", null)
+                        return@runOnUiThread
+                    }
                     val intent = when (action) {
                         "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                             putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
