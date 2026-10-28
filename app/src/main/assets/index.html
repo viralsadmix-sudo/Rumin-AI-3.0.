@@ -81,6 +81,12 @@ body{background:#030821;color:#f7f6ff;padding-bottom:88px;background-image:radia
 @media(min-width:600px){#aiOrb.avatar.orb3d{height:520px!important}}
 
 
+/* Home portrait fallback: keep a visible premium Rumin visual if embedded portrait fails to decode. */
+#aiOrb.avatar.orb3d{isolation:isolate;background:radial-gradient(circle at 50% 42%,#253e9b 0%,#09153f 42%,#030821 74%)!important}
+#aiOrb.avatar.orb3d:has(.portrait-hero-image:not([src])):after,
+#aiOrb.avatar.orb3d:has(.portrait-hero-image[src=""]):after{content:"R";display:grid;place-items:center;position:absolute;inset:22%;border-radius:50%;font-size:100px;font-weight:900;color:#fff;text-shadow:0 0 24px #00dfff;background:radial-gradient(circle at 30% 25%,#2348aa,#070d2b 72%);border:3px solid #ff35e8;box-shadow:0 0 35px #1c66ff;z-index:0}
+#aiOrb .portrait-hero-image{position:relative;z-index:1;min-height:100%;object-fit:cover!important;object-position:center 35%!important}
+
 /* Premium polish: lightweight CSS only; live-voice JavaScript is untouched. */
 body{background:radial-gradient(ellipse at 50% -12%,#33205b 0%,#0b0716 54%);background-attachment:fixed}
 .top{background:linear-gradient(110deg,#120c20ee,#21123aee);backdrop-filter:blur(14px);border-bottom-color:#8b5bd455}
@@ -114,7 +120,7 @@ function tab(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggl
 function external(url){if(window.RuminNative&&RuminNative.openUrl)RuminNative.openUrl(url);else window.open(url,'_blank')}
 function chooseBengaliFemaleVoice(){if(!('speechSynthesis'in window))return null;const voices=speechSynthesis.getVoices();return voices.find(v=>/^bn(-|_)?(BD|IN)?/i.test(v.lang)&&/(female|woman|google বাংলা|bangla female|bengali female)/i.test(v.name))||voices.find(v=>/^bn(-|_)?(BD|IN)?/i.test(v.lang))||voices.find(v=>/female|woman/i.test(v.name)&&/^en/i.test(v.lang))||null}
 function speak(t){if(window.RuminNative&&RuminNative.speakText){setOrbState('speaking');RuminNative.speakText(String(t));return}if(!('speechSynthesis'in window)){alert('এই ফোনে Text-to-Speech নেই');return}speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(t);u.lang='bn-BD';u.rate=.98;u.pitch=1.18;const v=chooseBengaliFemaleVoice();if(v)u.voice=v;setOrbState('speaking');u.onend=()=>setOrbState('');u.onerror=()=>setOrbState('');speechSynthesis.speak(u)}
-window.onNativeSpeechResult=function(t){document.getElementById('mic').classList.remove('listening');document.getElementById('status').textContent=t?'আপনি বলেছেন: '+t:'কিছু শোনা যায়নি';if(t){setOrbState('thinking');document.getElementById('chatInput').value=t;tab('chat');send()}else {setOrbState('');if(continuousVoice)scheduleVoiceRestart();else speakAfterAnswer('বস, আপনার কথা বুঝতে পারিনি। আরেকবার বলুন।')}}
+window.onNativeSpeechResult=function(t){document.getElementById('mic').classList.remove('listening');document.getElementById('status').textContent=t?'আপনি বলেছেন: '+t:'কিছু শোনা যায়নি';if(t){setOrbState('thinking');if(runLocalCommand(t)){if(continuousVoice&&!speechInProgress)scheduleVoiceRestart();return}document.getElementById('chatInput').value=t;tab('chat');send()}else {setOrbState('');if(continuousVoice)scheduleVoiceRestart();else speakAfterAnswer('বস, আপনার কথা বুঝতে পারিনি। আরেকবার বলুন।')}}
 window.onNativeSpeechError=function(t){document.getElementById('mic').classList.remove('listening');setOrbState('');document.getElementById('status').textContent=t||'ভয়েসে সমস্যা হয়েছে';if(/permission|অনুমতি|সাপোর্ট নেই|support নেই/i.test(t||'')){continuousVoice=false;document.getElementById('mic').textContent='🎙';return}if(continuousVoice)scheduleVoiceRestart()};
 window.onNativeTtsDone=function(){speechInProgress=false;setOrbState('');document.getElementById('mic').classList.remove('listening');if(continuousVoice){document.getElementById('mic').classList.add('listening');document.getElementById('mic').textContent='⏹';scheduleVoiceRestart()}else{document.getElementById('mic').textContent='🎙'}};
 window.onNativeTtsError=function(message){speechInProgress=false;setOrbState('');document.getElementById('status').textContent=message||'বাংলা কণ্ঠে উত্তর দেওয়া যায়নি';if(continuousVoice){document.getElementById('mic').classList.add('listening');document.getElementById('mic').textContent='⏹';scheduleVoiceRestart()}else{document.getElementById('mic').textContent='🎙'}};
