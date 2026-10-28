@@ -42,6 +42,7 @@ class GeminiLiveVoice(
     @Volatile private var setupDone = false
     @Volatile private var lastServerEvent = "সার্ভার থেকে কোনো বার্তা আসেনি"
     @Volatile private var turnHadAudio = false
+    @Volatile private var assistantSpeaking = false
 
     fun start(apiKey: String) {
         try {
@@ -77,10 +78,10 @@ class GeminiLiveVoice(
                         .put("outputAudioTranscription", JSONObject())
                         .put("realtimeInputConfig", JSONObject()
                             .put("automaticActivityDetection", JSONObject()
-                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
-                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
-                                .put("silenceDurationMs", 900))
-                            .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
+                                .put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW")
+                                .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
+                                .put("silenceDurationMs", 1200))
+                            .put("activityHandling", "NO_INTERRUPTION"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
                     if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
                 }
@@ -127,6 +128,7 @@ class GeminiLiveVoice(
                             val encoded = inline.optString("data")
                             if (encoded.isNotBlank()) {
                                 try {
+                                    assistantSpeaking = true
                                     playbackQueue.put(Base64.decode(encoded, Base64.DEFAULT))
                                     turnHadAudio = true
                                     onStatus("রুমিন উত্তর দিচ্ছে… কথা বললে থেমে যাবে", "speaking")
@@ -182,10 +184,19 @@ class GeminiLiveVoice(
                     try {
                         val chunk = playbackQueue.take()
                         if (chunk.isEmpty()) {
+                            assistantSpeaking = false
                             onStatus("বস, আমি শুনছি—আবার বলুন", "listening")
                             continue
                         }
-                        player?.write(chunk, 0, chunk.size)
+                        val track = player
+                        if (track != null) {
+                            var offset = 0
+                            while (offset < chunk.size && active.get()) {
+                                val written = track.write(chunk, offset, chunk.size - offset)
+                                if (written <= 0) break
+                                offset += written
+                            }
+                        }
                     } catch (_: InterruptedException) { break }
                     catch (_: Exception) { if (active.get()) onStatus("অডিও চালাতে সমস্যা হয়েছে", "listening") }
                 }
@@ -232,9 +243,12 @@ class GeminiLiveVoice(
                         zeroReads = 0
                         totalBytes += count.toLong()
 
-                        val bytes = if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count)
+                        // Do not feed the assistant speaker output back into the Live session as user speech.
+                        // Send same-duration silence while a response is playing, preventing echo-triggered
+                        // interruptions and repeated partial responses with apparent voice changes.
+                        val sourceBytes = if (assistantSpeaking) ByteArray(count) else buffer.copyOf(count)
                         val blob = JSONObject().put("mimeType", "audio/pcm;rate=16000")
-                            .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                            .put("data", Base64.encodeToString(sourceBytes, Base64.NO_WRAP))
                         val ws = socket
                         val sent = try {
                             ws != null && ws.send(JSONObject().put("realtimeInput", JSONObject().put("audio", blob)).toString())
