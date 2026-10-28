@@ -365,6 +365,39 @@ class MainActivity : ComponentActivity() {
                         webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult($ok, ${org.json.JSONObject.quote(message)})", null)
                         return@runOnUiThread
                     }
+                    if (action == "writesettings") {
+                        val settingsIntent = Intent(
+                            android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                            Uri.parse("package:$packageName")
+                        )
+                        try {
+                            if (settingsIntent.resolveActivity(packageManager) != null) {
+                                startActivity(settingsIntent)
+                            } else {
+                                startActivity(Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName")
+                                ))
+                            }
+                            val granted = android.provider.Settings.System.canWrite(this@MainActivity)
+                            val message = if (granted) {
+                                "RUMIN AI-কে System Settings পরিবর্তনের অনুমতি আগে থেকেই দেওয়া আছে।"
+                            } else {
+                                "System Settings অনুমতি পেজ খোলার চেষ্টা করেছি। Pixel Experience-এ পেজ না এলে App Info-তে Special app access/Modify system settings খুঁজুন। অপশন না থাকলে ROM সেটিংস থেকে অনুমতি দিতে হতে পারে।"
+                            }
+                            webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
+                        } catch (e: Exception) {
+                            val message = "System Settings অনুমতি পেজ খোলা যায়নি। App Info খুলে Permissions বা Special app access পরীক্ষা করুন।"
+                            try {
+                                startActivity(Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName")
+                                ))
+                            } catch (_: Exception) { }
+                            webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, ${org.json.JSONObject.quote(message)})", null)
+                        }
+                        return@runOnUiThread
+                    }
                     val intent = when (action) {
                         "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                             putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
