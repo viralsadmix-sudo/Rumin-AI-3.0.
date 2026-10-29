@@ -81,7 +81,7 @@ class GeminiLiveVoice(
                                 .put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW")
                                 .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
                                 .put("silenceDurationMs", 700))
-                            .put("activityHandling", "NO_INTERRUPTION"))
+                            .put("activityHandling", "START_OF_ACTIVITY_INTERRUPTS"))
                     val sent = webSocket.send(JSONObject().put("setup", setup).toString())
                     if (!sent) onStatus("Gemini Live setup পাঠানো যায়নি: WebSocket বার্তাটি গ্রহণ করেনি।", "stopped")
                 }
