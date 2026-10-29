@@ -28,7 +28,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Capture build diagnostics
+      - name: Set up Gradle\n        uses: gradle/actions/setup-gradle@v4\n        with:\n          gradle-version: "8.9"\n      - name: Capture build diagnostics
         id: diagnostics
         continue-on-error: true
         run: |
