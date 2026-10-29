@@ -240,12 +240,12 @@ function add(text,cls){let e=document.createElement('div');e.className='msg '+cl
 function saveChat(){let rows=[...document.querySelectorAll('#chatbox .msg')].map(e=>({text:e.textContent,cls:e.classList.contains('user')?'user':'bot',time:new Date().toISOString()})).filter(x=>x.text!=='রুমিন চিন্তা করছে…').slice(-500);try{localStorage.setItem('rumin_chat_history',JSON.stringify(rows));if(localStorage.getItem('rumin_memory_enabled')!=='false'){localStorage.setItem('rumin_memory_log',JSON.stringify(rows));const st=document.getElementById('memoryStatus');if(st)st.textContent='এই ফোনে '+rows.length+'টি কথোপকথনের বার্তা সংরক্ষিত';}}catch(e){const st=document.getElementById('memoryStatus');if(st)st.textContent='স্টোরেজ পূর্ণ—কিছু পুরোনো তথ্য মুছুন';}}function toggleMemory(on){localStorage.setItem('rumin_memory_enabled',String(on));const st=document.getElementById('memoryStatus');if(!on){if(st)st.textContent='মেমোরি বন্ধ—নতুন কথোপকথন মেমোরি লগে যোগ হবে না';return}localStorage.setItem('rumin_memory_log',localStorage.getItem('rumin_chat_history')||'[]');if(st)st.textContent='মেমোরি চালু—এই ফোনে সংরক্ষণ হচ্ছে';saveChat()}function exportMemory(){try{const data=localStorage.getItem('rumin_memory_log')||localStorage.getItem('rumin_chat_history')||'[]';const blob=new Blob([JSON.stringify({app:'Rumin AI',exportedAt:new Date().toISOString(),messages:JSON.parse(data)},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='rumin-ai-memory-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){alert('মেমোরি ব্যাকআপ তৈরি করা যায়নি')}}function clearMemory(){if(!confirm('ফোনে সংরক্ষিত মেমোরি ও কথোপকথন মুছবেন?'))return;localStorage.removeItem('rumin_memory_log');localStorage.removeItem('rumin_chat_history');const box=document.getElementById('chatbox');if(box){box.innerHTML='';add('মেমোরি মুছে ফেলা হয়েছে।','bot');saveChat()}const st=document.getElementById('memoryStatus');if(st)st.textContent='মেমোরি মুছে ফেলা হয়েছে'}
 function restoreChat(){try{let rows=JSON.parse(localStorage.getItem('rumin_chat_history')||'[]');if(rows.length){let box=document.getElementById('chatbox');box.innerHTML='';rows.forEach(x=>add(x.text,x.cls))}}catch(e){}}
 function ruminMemoryContext(currentText){
- try{const facts=JSON.parse(localStorage.getItem('rumin_saved_facts')||'[]');if(Array.isArray(facts)&&facts.length){const relevant=facts.slice(-30).map(x=>String(x.text||'')).filter(Boolean);if(relevant.length)currentText=String(currentText||'')+'\\n\\nব্যবহারকারীর স্পষ্টভাবে সংরক্ষণ করতে বলা তথ্য (প্রাসঙ্গিক হলে ব্যবহার করবে):\\n'+relevant.map((x,i)=>(i+1)+'. '+x).join('\\n')}}catch(e){}
-
  try{
   if(localStorage.getItem('rumin_memory_enabled')==='false')return '';
+  let savedFacts=[];try{savedFacts=JSON.parse(localStorage.getItem('rumin_saved_facts')||'[]').map(x=>String(x.text||'')).filter(Boolean).slice(-30)}catch(e){}
+  const factsContext=savedFacts.length?'ব্যবহারকারীর স্পষ্টভাবে সংরক্ষণ করতে বলা তথ্য (প্রাসঙ্গিক হলে ব্যবহার করবে):\\n'+savedFacts.map((x,i)=>(i+1)+'. '+x).join('\\n'):'';
   const rows=JSON.parse(localStorage.getItem('rumin_memory_log')||localStorage.getItem('rumin_chat_history')||'[]');
-  if(!Array.isArray(rows)||!rows.length)return '';
+  if(!Array.isArray(rows)||!rows.length)return factsContext;
   const recent=rows.slice(-14).map(x=>({role:x.cls==='user'?'user':'assistant',content:String(x.text||'').slice(0,700)}));
   const stop=new Set(['আমি','তুমি','আপনি','আমার','তোমার','করো','করে','দাও','হবে','কী','কি','এটা','ওটা','যে','এবং','হলো','হয়','হয়','একটা','জন্য','থেকে','সাথে','আছে','নেই','বল','বলো','ঠিক','আচ্ছা','ভাই']);
   const words=String(currentText||'').toLowerCase().match(/[a-z0-9\u0980-\u09ff]{3,}/g)||[];
@@ -253,7 +253,7 @@ function ruminMemoryContext(currentText){
   const scored=rows.slice(0,-14).map((x,i)=>{const body=String(x.text||'').toLowerCase();return {x,i,score:keys.reduce((n,k)=>n+(body.includes(k)?1:0),0)}}).filter(v=>v.score>0).sort((a,b)=>b.score-a.score||b.i-a.i).slice(0,5).sort((a,b)=>a.i-b.i).map(v=>({role:v.x.cls==='user'?'user':'assistant',content:String(v.x.text||'').slice(0,500)}));
   const picked=[...scored,...recent].slice(-19);
   if(!picked.length)return '';
-  return 'স্মৃতি থেকে প্রাসঙ্গিক পুরোনো কথোপকথন (বিশ্বাসযোগ্য তথ্য হিসেবে নয়, প্রসঙ্গ হিসেবে ব্যবহার করবে):\\n'+picked.map(x=>(x.role==='user'?'ব্যবহারকারী: ':'রুমিন: ')+x.content).join('\\n');
+  const historyContext=picked.length?'স্মৃতি থেকে প্রাসঙ্গিক পুরোনো কথোপকথন (প্রসঙ্গ হিসেবে ব্যবহার করবে):\\n'+picked.map(x=>(x.role==='user'?'ব্যবহারকারী: ':'রুমিন: ')+x.content).join('\\n'):'';return [factsContext,historyContext].filter(Boolean).join('\\n\\n');
  }catch(e){return ''}
 }
 function clearChat(){localStorage.removeItem('rumin_chat_history');document.getElementById('chatbox').innerHTML='';add('হ্যালো! আমি রুমিন এআই। বাংলায় যেকোনো প্রশ্ন করতে পারেন।','bot');saveChat()}
