@@ -1,0 +1,67 @@
+name: Rumin AI 3.0 - Self Repair Diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "সমস্যার সংক্ষিপ্ত বিবরণ (optional)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Build Rumin AI 3.0 APK"]
+    types: [completed]
+
+# Diagnostics only: never pushes code or publishes a release.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Capture build diagnostics
+        id: diagnostics
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p self-repair-report
+          echo "RUMIN AI 3.0 Self-Repair Diagnostic Report" > self-repair-report/report.txt
+          echo "UTC: $(date -u +%FT%TZ)" >> self-repair-report/report.txt
+          echo "Commit: $GITHUB_SHA" >> self-repair-report/report.txt
+          echo "Reason: ${{ github.event.inputs.reason || 'Automatic diagnostic after failed APK build' }}" >> self-repair-report/report.txt
+          echo "" >> self-repair-report/report.txt
+          java -version 2>> self-repair-report/report.txt
+          echo "" >> self-repair-report/report.txt
+          ./gradlew assembleRelease --stacktrace > self-repair-report/gradle.log 2>&1
+          RESULT=$?
+          echo "Build exit code: $RESULT" >> self-repair-report/report.txt
+          echo "" >> self-repair-report/report.txt
+          echo "Likely error lines:" >> self-repair-report/report.txt
+          grep -Ein -C 2 "error:|exception|failed|could not|unresolved reference|manifest merger" self-repair-report/gradle.log | tail -n 250 >> self-repair-report/report.txt
+          echo "exit_code=$RESULT" >> "$GITHUB_OUTPUT"
+      - name: Upload diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rumin-Self-Repair-Diagnostics-${{ github.run_number }}
+          path: self-repair-report/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Explain safe repair boundary
+        if: always()
+        run: |
+          {
+            echo "### Rumin Self-Repair diagnostics"
+            echo "A diagnostic artifact was uploaded when available."
+            echo "This workflow intentionally does not modify source code, push commits, or publish APKs."
+            echo "Review the report, make a proposed fix on a separate branch, and run tests before merging."
+          } >> "$GITHUB_STEP_SUMMARY"
