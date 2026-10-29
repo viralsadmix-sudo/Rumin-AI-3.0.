@@ -41,7 +41,8 @@ jobs:
           echo "" >> self-repair-report/report.txt
           java -version 2>> self-repair-report/report.txt
           echo "" >> self-repair-report/report.txt
-          ./gradlew assembleRelease --stacktrace > self-repair-report/gradle.log 2>&1
+          gradle --version >> self-repair-report/gradle.log 2>&1
+          gradle assembleRelease --stacktrace > self-repair-report/gradle.log 2>&1
           RESULT=$?
           echo "Build exit code: $RESULT" >> self-repair-report/report.txt
           echo "" >> self-repair-report/report.txt
