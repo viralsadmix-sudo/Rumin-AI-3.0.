@@ -260,7 +260,7 @@ class GeminiLiveVoice(
                         // Do not feed the assistant speaker output back into the Live session as user speech.
                         // Send same-duration silence while a response is playing, preventing echo-triggered
                         // interruptions and repeated partial responses with apparent voice changes.
-                        val sourceBytes = if (assistantSpeaking) ByteArray(count) else buffer.copyOf(count)
+                        val sourceBytes = buffer.copyOf(count)
                         val blob = JSONObject().put("mimeType", "audio/pcm;rate=16000")
                             .put("data", Base64.encodeToString(sourceBytes, Base64.NO_WRAP))
                         val ws = socket
