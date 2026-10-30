@@ -27,6 +27,7 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
+    private val memoryManager by lazy { MemoryManager(applicationContext) }
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
@@ -330,6 +331,73 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (::webView.isInitialized) {
                     webView.evaluateJavascript("window.onNativeAiResponse && window.onNativeAiResponse($idJson, $success, $messageJson)", null)
+                }
+            }
+        }
+
+        @JavascriptInterface fun saveMemoryFact(text: String, requestId: String) {
+            aiExecutor.execute {
+                try {
+                    val saved = memoryManager.saveFact(text)
+                    deliverMemoryResult(requestId, true, saved.toString())
+                } catch (e: Exception) {
+                    deliverMemoryResult(requestId, false, e.message ?: "মেমোরিতে সংরক্ষণ করা যায়নি।")
+                }
+            }
+        }
+
+        @JavascriptInterface fun getMemoryFacts(requestId: String) {
+            aiExecutor.execute {
+                try {
+                    deliverMemoryResult(requestId, true, memoryManager.getFacts().toString())
+                } catch (e: Exception) {
+                    deliverMemoryResult(requestId, false, e.message ?: "মেমোরি পড়া যায়নি।")
+                }
+            }
+        }
+
+        @JavascriptInterface fun importLegacyMemoryFacts(rawJson: String, requestId: String) {
+            aiExecutor.execute {
+                try {
+                    val count = memoryManager.importLegacyFacts(rawJson)
+                    deliverMemoryResult(requestId, true, JSONObject().put("imported", count).toString())
+                } catch (e: Exception) {
+                    deliverMemoryResult(requestId, false, e.message ?: "পুরোনো মেমোরি আমদানি করা যায়নি।")
+                }
+            }
+        }
+
+        @JavascriptInterface fun deleteMemoryFact(id: String, requestId: String) {
+            aiExecutor.execute {
+                try {
+                    val deleted = memoryManager.deleteFact(id.toLongOrNull() ?: -1L)
+                    deliverMemoryResult(requestId, true, JSONObject().put("deleted", deleted).toString())
+                } catch (e: Exception) {
+                    deliverMemoryResult(requestId, false, e.message ?: "মেমোরি মুছতে সমস্যা হয়েছে।")
+                }
+            }
+        }
+
+        @JavascriptInterface fun clearMemoryFacts(requestId: String) {
+            aiExecutor.execute {
+                try {
+                    val count = memoryManager.clearFacts()
+                    deliverMemoryResult(requestId, true, JSONObject().put("deletedCount", count).toString())
+                } catch (e: Exception) {
+                    deliverMemoryResult(requestId, false, e.message ?: "মেমোরি মুছতে সমস্যা হয়েছে।")
+                }
+            }
+        }
+
+        private fun deliverMemoryResult(requestId: String, ok: Boolean, payload: String) {
+            val safeId = JSONObject.quote(requestId)
+            val safePayload = JSONObject.quote(payload)
+            runOnUiThread {
+                if (::webView.isInitialized) {
+                    webView.evaluateJavascript(
+                        "window.onNativeMemoryResult && window.onNativeMemoryResult($safeId, $ok, $safePayload)",
+                        null
+                    )
                 }
             }
         }
