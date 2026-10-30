@@ -48,9 +48,32 @@ class RuminAccessibilityService : AccessibilityService() {
                 "click_text" -> {
                     val root = rootInActiveWindow
                     val nodes = root?.findAccessibilityNodeInfosByText(value)
-                    val target = nodes?.firstOrNull { it.isClickable } ?: nodes?.firstOrNull()
+                    var target = nodes?.firstOrNull { it.isClickable }
+                    if (target == null) {
+                        var node = nodes?.firstOrNull()
+                        while (node != null && !node.isClickable) node = node.parent
+                        target = node
+                    }
                     val ok = target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                     JSONObject().put("ok", ok).put("message", if (ok) "‘$value’ লেখা উপাদানে চাপ দেওয়া হয়েছে।" else "‘$value’ লেখা উপাদান পাওয়া যায়নি বা চাপ দেওয়া যায়নি।")
+                }
+                "type_text" -> {
+                    val root = rootInActiveWindow
+                    fun findEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+                        if (node == null) return null
+                        if (node.isFocused && node.isEditable) return node
+                        for (i in 0 until node.childCount) {
+                            val found = findEditable(node.getChild(i))
+                            if (found != null) return found
+                        }
+                        return null
+                    }
+                    val field = findEditable(root)
+                    val args = android.os.Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+                    }
+                    val ok = field?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true
+                    JSONObject().put("ok", ok).put("message", if (ok) "নির্বাচিত ইনপুট ঘরে লেখা বসানো হয়েছে।" else "ফোকাস করা লেখার ঘর পাওয়া যায়নি। আগে ইনপুট ঘরটি নির্বাচন করুন।")
                 }
                 "scroll_down", "scroll_up" -> {
                     val root = rootInActiveWindow
