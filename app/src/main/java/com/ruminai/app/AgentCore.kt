@@ -125,5 +125,5 @@ class AgentCore {
     fun complete(taskId: String, ok: Boolean, message: String): Boolean =
         executor.complete(taskId, ok, message)
 
-    fun recentEvents(): List<AgentLogEvent> = executor.recentEvents()
+    internal fun recentEvents(): List<AgentLogEvent> = executor.recentEvents()
 }
