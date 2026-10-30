@@ -333,6 +333,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun performNativeAction(action: String, value: String) {
+            runOnUiThread {
+                val result = RuminAccessibilityService.nativeAction(action, value)
+                val safe = JSONObject.quote(result.toString())
+                webView.evaluateJavascript("window.onNativeActionResult && window.onNativeActionResult($safe)", null)
+            }
+        }
+
         @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
             runOnUiThread {
                 try {
