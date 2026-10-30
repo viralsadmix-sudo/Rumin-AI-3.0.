@@ -46,7 +46,7 @@ jobs:
             echo "RUMIN AI 3.0 Self-Repair Diagnostic Report"
             echo "UTC: $(date -u +%FT%TZ)"
             echo "Commit: $GITHUB_SHA"
-            printf 'Reason: %s\\n' "$DIAGNOSTIC_REASON"
+            printf 'Reason: %s\n' "$DIAGNOSTIC_REASON"
             echo ""
             java -version 2>&1
           } > self-repair-report/report.txt
