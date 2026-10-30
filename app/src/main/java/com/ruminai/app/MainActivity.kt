@@ -442,13 +442,13 @@ class MainActivity : ComponentActivity() {
                         "camera" -> Intent("android.media.action.IMAGE_CAPTURE")
                         "contacts" -> Intent(Intent.ACTION_VIEW, Uri.parse("content://contacts/people/"))
                         "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
-                        "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { setPackage("com.google.android.youtube") }
-                        "facebook" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com")).apply { setPackage("com.facebook.katana") }
-                        "whatsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/")).apply { setPackage("com.whatsapp") }
-                        "instagram" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com")).apply { setPackage("com.instagram.android") }
-                        "gmail" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com")).apply { setPackage("com.google.android.gm") }
-                        "playstore" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store")).apply { setPackage("com.android.vending") }
-                        "maps" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps")).apply { setPackage("com.google.android.apps.maps") }
+                        "youtube" -> packageManager.getLaunchIntentForPackage("com.google.android.youtube") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))
+                        "facebook" -> packageManager.getLaunchIntentForPackage("com.facebook.katana") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com"))
+                        "whatsapp" -> packageManager.getLaunchIntentForPackage("com.whatsapp") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))
+                        "instagram" -> packageManager.getLaunchIntentForPackage("com.instagram.android") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))
+                        "gmail" -> packageManager.getLaunchIntentForPackage("com.google.android.gm") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))
+                        "playstore" -> packageManager.getLaunchIntentForPackage("com.android.vending") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))
+                        "maps" -> packageManager.getLaunchIntentForPackage("com.google.android.apps.maps") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))
                         else -> null
                     }
                     if (intent == null) {
