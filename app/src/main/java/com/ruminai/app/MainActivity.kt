@@ -407,7 +407,7 @@ class MainActivity : ComponentActivity() {
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
                         val ok = RuminAccessibilityService.perform(action)
                         val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
-                        deliverCommandResult($ok, message, taskId)
+                        deliverCommandResult(ok, message, taskId)
                         return@runOnUiThread
                     }
                     if (action == "writesettings") {
@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
                                     Uri.parse("package:$packageName")
                                 ))
                             } catch (_: Exception) { }
-                            webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, ${org.json.JSONObject.quote(message)})", null)
+                            deliverCommandResult(false, message, taskId)
                         }
                         return@runOnUiThread
                     }
@@ -532,7 +532,6 @@ class MainActivity : ComponentActivity() {
                     }
                     deliverCommandResult(true, message, taskId)
                 } catch (e: Exception) {
-                    val message = org.json.JSONObject.quote("কমান্ড চালানো যায়নি: " + (e.message ?: "অজানা সমস্যা"))
                     deliverCommandResult(false, "কমান্ড চালানো যায়নি: " + (e.message ?: "অজানা সমস্যা"), taskId)
                 }
             }
