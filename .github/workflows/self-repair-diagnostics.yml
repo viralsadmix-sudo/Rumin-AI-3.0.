@@ -20,6 +20,9 @@ jobs:
   diagnose:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DIAGNOSTIC_REASON: ${{ github.event.inputs.reason || 'Automatic diagnostic after failed APK build' }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -28,26 +31,34 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Set up Gradle\n        uses: gradle/actions/setup-gradle@v4\n        with:\n          gradle-version: "8.9"\n      - name: Capture build diagnostics
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Capture build diagnostics
         id: diagnostics
         continue-on-error: true
+        shell: bash
         run: |
           set +e
           mkdir -p self-repair-report
-          echo "RUMIN AI 3.0 Self-Repair Diagnostic Report" > self-repair-report/report.txt
-          echo "UTC: $(date -u +%FT%TZ)" >> self-repair-report/report.txt
-          echo "Commit: $GITHUB_SHA" >> self-repair-report/report.txt
-          echo "Reason: ${{ github.event.inputs.reason || 'Automatic diagnostic after failed APK build' }}" >> self-repair-report/report.txt
-          echo "" >> self-repair-report/report.txt
-          java -version 2>> self-repair-report/report.txt
-          echo "" >> self-repair-report/report.txt
-          gradle --version >> self-repair-report/gradle.log 2>&1
+          {
+            echo "RUMIN AI 3.0 Self-Repair Diagnostic Report"
+            echo "UTC: $(date -u +%FT%TZ)"
+            echo "Commit: $GITHUB_SHA"
+            printf 'Reason: %s\n' "$DIAGNOSTIC_REASON"
+            echo ""
+            java -version 2>&1
+          } > self-repair-report/report.txt
+          gradle --version > self-repair-report/gradle-version.txt 2>&1
           gradle assembleRelease --stacktrace > self-repair-report/gradle.log 2>&1
           RESULT=$?
           echo "Build exit code: $RESULT" >> self-repair-report/report.txt
-          echo "" >> self-repair-report/report.txt
-          echo "Likely error lines:" >> self-repair-report/report.txt
-          grep -Ein -C 2 "error:|exception|failed|could not|unresolved reference|manifest merger" self-repair-report/gradle.log | tail -n 250 >> self-repair-report/report.txt
+          {
+            echo ""
+            echo "Likely error lines:"
+            grep -Ein -C 2 "error:|exception|failed|could not|unresolved reference|manifest merger" self-repair-report/gradle.log | tail -n 250
+          } >> self-repair-report/report.txt
           echo "exit_code=$RESULT" >> "$GITHUB_OUTPUT"
       - name: Upload diagnostic report
         if: always()

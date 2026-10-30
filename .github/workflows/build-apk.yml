@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
 
 permissions:
   contents: write
@@ -25,6 +27,7 @@ jobs:
           gradle-version: "8.9"
           arguments: assembleRelease
       - name: Publish APK as GitHub Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v3.0.${{ github.run_number }}

@@ -26,6 +26,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
+    private val agentCore = AgentCore()
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
@@ -333,6 +334,42 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun executeAgentTool(action: String, first: String, second: String, taskId: String) {
+            val accessibility = action.startsWith("accessibility:")
+            val actualAction = if (accessibility) action.removePrefix("accessibility:") else action
+            val category = if (accessibility) "accessibility" else "command"
+            if (!accessibility && actualAction == "requestpermissions") {
+                performCommand(actualAction, first, second, "")
+                return
+            }
+            if (!agentCore.begin(actualAction, first, second, category, taskId)) {
+                runOnUiThread { deliverCommandResult(false, "এই Tool Registry-তে কমান্ডটি নেই: $actualAction", taskId) }
+                return
+            }
+            runOnUiThread {
+                if (accessibility) {
+                    val result = RuminAccessibilityService.nativeAction(actualAction, first)
+                    val raw = result.toString()
+                    val verified = AgentVerifier.verifyNativeJson(raw)
+                    agentCore.complete(taskId, verified, result.optString("message"))
+                    webView.evaluateJavascript(
+                        "window.onNativeActionResult && window.onNativeActionResult(${JSONObject.quote(raw)}, ${JSONObject.quote(taskId)})",
+                        null
+                    )
+                } else {
+                    performCommand(actualAction, first, second, taskId)
+                }
+            }
+        }
+
+        private fun deliverCommandResult(ok: Boolean, message: String, taskId: String) {
+            if (taskId.isNotBlank()) agentCore.complete(taskId, ok, message)
+            webView.evaluateJavascript(
+                "window.onNativeCommandResult && window.onNativeCommandResult($ok, ${JSONObject.quote(message)}, ${JSONObject.quote(taskId)})",
+                null
+            )
+        }
+
         @JavascriptInterface fun performNativeAction(action: String, value: String) {
             runOnUiThread {
                 val result = RuminAccessibilityService.nativeAction(action, value)
@@ -341,7 +378,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun performCommand(action: String, first: String, second: String) {
+        @JavascriptInterface fun performCommand(action: String, first: String, second: String, taskId: String = "") {
             runOnUiThread {
                 try {
                     if (action == "requestpermissions") {
@@ -370,7 +407,7 @@ class MainActivity : ComponentActivity() {
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
                         val ok = RuminAccessibilityService.perform(action)
                         val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
-                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult($ok, ${org.json.JSONObject.quote(message)})", null)
+                        deliverCommandResult(ok, message, taskId)
                         return@runOnUiThread
                     }
                     if (action == "writesettings") {
@@ -393,7 +430,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 "System Settings অনুমতি পেজ খোলার চেষ্টা করেছি। Pixel Experience-এ পেজ না এলে App Info-তে Special app access/Modify system settings খুঁজুন। অপশন না থাকলে ROM সেটিংস থেকে অনুমতি দিতে হতে পারে।"
                             }
-                            webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
+                            deliverCommandResult(true, message, taskId)
                         } catch (e: Exception) {
                             val message = "System Settings অনুমতি পেজ খোলা যায়নি। App Info খুলে Permissions বা Special app access পরীক্ষা করুন।"
                             try {
@@ -402,7 +439,7 @@ class MainActivity : ComponentActivity() {
                                     Uri.parse("package:$packageName")
                                 ))
                             } catch (_: Exception) { }
-                            webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, ${org.json.JSONObject.quote(message)})", null)
+                            deliverCommandResult(false, message, taskId)
                         }
                         return@runOnUiThread
                     }
@@ -415,7 +452,7 @@ class MainActivity : ComponentActivity() {
                             "volumeunmute" -> audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, android.media.AudioManager.FLAG_SHOW_UI)
                         }
                         val message = when (action) { "volumeup" -> "মিডিয়া ভলিউম বাড়ানো হয়েছে।"; "volumedown" -> "মিডিয়া ভলিউম কমানো হয়েছে।"; "volumemute" -> "মিডিয়া ভলিউম মিউট করা হয়েছে।"; else -> "মিডিয়া ভলিউম চালু করা হয়েছে।" }
-                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, " + org.json.JSONObject.quote(message) + ")", null)
+                        deliverCommandResult(true, message, taskId)
                         return@runOnUiThread
                     }
                     val intent = when (action) {
@@ -460,7 +497,7 @@ class MainActivity : ComponentActivity() {
                         else -> null
                     }
                     if (intent == null) {
-                        webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, 'এই কমান্ডটি সমর্থিত নয়')", null)
+                        deliverCommandResult(false, "এই কমান্ডটি সমর্থিত নয়", taskId)
                         return@runOnUiThread
                     }
                     try { startActivity(intent) } catch (first: Exception) { when (action) { "youtube" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))); "whatsapp" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))); "instagram" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))); "gmail" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))); "playstore" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))); "maps" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))); else -> throw first } }
@@ -493,10 +530,9 @@ class MainActivity : ComponentActivity() {
                         "maps" -> "Google Maps খুলেছি।"
                         else -> "ফোন ডায়ালার খোলা হয়েছে।"
                     }
-                    webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(true, ${org.json.JSONObject.quote(message)})", null)
+                    deliverCommandResult(true, message, taskId)
                 } catch (e: Exception) {
-                    val message = org.json.JSONObject.quote("কমান্ড চালানো যায়নি: " + (e.message ?: "অজানা সমস্যা"))
-                    webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(false, $message)", null)
+                    deliverCommandResult(false, "কমান্ড চালানো যায়নি: " + (e.message ?: "অজানা সমস্যা"), taskId)
                 }
             }
         }
