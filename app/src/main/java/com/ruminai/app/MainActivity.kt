@@ -70,7 +70,9 @@ class MainActivity : ComponentActivity() {
         val ok = try {
             if (uri == null || data == null) false
             else {
-                contentResolver.openOutputStream(uri)?.use { it.write(data.toByteArray(Charsets.UTF_8)) }
+                val output = contentResolver.openOutputStream(uri)
+                    ?: throw IllegalStateException("ব্যাকআপ ফাইল খোলা যায়নি")
+                output.use { it.write(data.toByteArray(Charsets.UTF_8)) }
                 true
             }
         } catch (_: Exception) { false }
