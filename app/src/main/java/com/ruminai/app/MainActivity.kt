@@ -244,6 +244,10 @@ class MainActivity : ComponentActivity() {
             return GeminiAgentRunner(this@MainActivity, agentCore).clearAuditLog().toString()
         }
 
+        @JavascriptInterface fun getGitHubStatus(): String {
+            return GitHubAgent().repoStatus().toString()
+        }
+
         @JavascriptInterface fun openUrl(url: String) {
             runOnUiThread {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
