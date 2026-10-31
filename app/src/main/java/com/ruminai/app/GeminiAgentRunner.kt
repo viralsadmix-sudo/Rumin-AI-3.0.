@@ -43,6 +43,13 @@ internal class GeminiAgentRunner(
         put(tool("open_app", "Open one allow-listed app only when the user asks. This does not perform actions inside that app.",
             schema("app" to enum("App identifier", "youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github"), required = listOf("app"))))
         put(tool("inspect_screen", "Read visible screen text only. Never click or type. Sensitive-looking values are redacted.", schema()))
+        put(tool("screen_interact", "Only when the user explicitly asks for this exact screen action: click an exact visible label, type into the currently focused editable field, or scroll. Never interact with payment, purchase, delete, send, or permission-grant controls.", schema(
+            "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up"),
+            "text" to string("Exact visible label to click or text for the already-focused input; max 1000 characters"),
+            required = listOf("action")
+        )))
+        put(tool("get_recent_actions", "Read recent redacted Rumin task states for recovery and diagnostics. Does not replay actions.", schema()))
+        put(tool("github_repo_status", "Read public status of the configured Rumin GitHub repository and open pull requests. Read-only; cannot edit files or branches.", schema()))
         put(tool("phone_navigation", "Perform one basic navigation action when explicitly requested. Requires RUMIN Accessibility service.",
             schema("action" to enum("Navigation action", "back", "home", "recents", "notifications", "quicksettings"), required = listOf("action"))))
         put(tool("adjust_volume", "Adjust media volume one step, mute, or unmute when explicitly requested.",
@@ -114,6 +121,10 @@ internal class GeminiAgentRunner(
     }
 
     internal fun executeTool(name: String, args: JSONObject): JSONObject {
+        // Read-only diagnostics do not enter the Native action lifecycle.
+        if (name == "get_recent_actions") return recentAuditJsonObject()
+        if (name == "github_repo_status") return GitHubAgent().repoStatus()
+
         val taskId = "rumin-tool-${taskIds.incrementAndGet()}"
         val action: String
         val category: String
@@ -126,6 +137,21 @@ internal class GeminiAgentRunner(
                 if (first !in ALLOWED_APPS) return fail("এই অ্যাপটি অনুমোদিত তালিকায় নেই।", "rejected")
             }
             "inspect_screen" -> { action = "inspect_screen"; category = "accessibility"; first = ""; second = "" }
+            "screen_interact" -> {
+                action = args.optString("action").trim().lowercase()
+                first = args.optString("text")
+                second = ""
+                if (action !in setOf("click_text", "type_text", "scroll_down", "scroll_up")) {
+                    return fail("এই screen action অনুমোদিত নয়।", "rejected")
+                }
+                if (action == "click_text" && (first.isBlank() || first.length > 120)) {
+                    return fail("চাপ দেওয়ার জন্য নির্দিষ্ট দৃশ্যমান লেখা দিন (সর্বোচ্চ ১২০ অক্ষর)।", "invalid_arguments")
+                }
+                if (action == "type_text" && (first.isBlank() || first.length > 1000)) {
+                    return fail("ফোকাস করা ইনপুটে লেখার জন্য ১–১০০০ অক্ষরের টেক্সট দিন।", "invalid_arguments")
+                }
+                category = "accessibility"
+            }
             "phone_navigation" -> {
                 first = args.optString("action").trim().lowercase()
                 action = mapOf("back" to "back", "home" to "home", "recents" to "recents", "notifications" to "notifications", "quicksettings" to "quicksettings")[first]
@@ -195,6 +221,7 @@ internal class GeminiAgentRunner(
                 result.set(when (tool) {
                     "open_app" -> openApp(first)
                     "inspect_screen" -> inspectScreen()
+                    "screen_interact" -> RuminAccessibilityService.nativeAction(action, first).also { if (it.optBoolean("ok")) it.put("verification", "accessibility_action_acknowledged") }
                     "phone_navigation" -> {
                         val native = RuminAccessibilityService.nativeAction(action, "")
                         if (native.optBoolean("ok")) native.put("verification", "native_action_acknowledged")
@@ -335,6 +362,44 @@ internal class GeminiAgentRunner(
         activity.startActivity(intent)
         return JSONObject().put("ok", true).put("message", "SMS অ্যাপে খসড়া খুলেছি। বার্তা পাঠানো হয়নি; পাঠানোর আগে বস নিজে যাচাই করবেন.")
             .put("verification", "sms_draft_opened")
+    }
+
+    internal fun recentAuditJson(): String = recentAuditJsonObject().toString()
+
+    internal fun clearAuditLog(): JSONObject {
+        return try {
+            val prefs = auditPrefs()
+            val active = prefs.getString(KEY_ACTIVE_TASK, null)
+            val editor = prefs.edit().remove(KEY_EVENTS)
+            if (!active.isNullOrBlank()) {
+                editor.putString(KEY_EVENTS, JSONArray().put(
+                    JSONObject().put("time", System.currentTimeMillis())
+                        .put("task_id", active).put("action", "unknown").put("state", "running")
+                ).toString())
+            }
+            editor.apply()
+            JSONObject().put("ok", true).put("message", "Redacted agent log পরিষ্কার করা হয়েছে।")
+        } catch (e: Exception) {
+            JSONObject().put("ok", false).put("message", e.message ?: "Log clear failed")
+        }
+    }
+
+    private fun recentAuditJsonObject(): JSONObject {
+        val events = try { JSONArray(auditPrefs().getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+        val recent = JSONArray()
+        for (i in (events.length() - 30).coerceAtLeast(0) until events.length()) {
+            val item = events.optJSONObject(i) ?: continue
+            recent.put(JSONObject()
+                .put("time", item.optLong("time"))
+                .put("task_id", item.optString("task_id"))
+                .put("action", item.optString("action"))
+                .put("state", item.optString("state")))
+        }
+        val active = auditPrefs().getString(KEY_ACTIVE_TASK, null)
+        return JSONObject().put("ok", true).put("events", recent)
+            .put("active_task", active ?: JSONObject.NULL)
+            .put("message", "সর্বশেষ redacted action log পড়েছি; কোনো কাজ পুনরায় চালানো হয়নি।")
+            .put("verification", "audit_log_read")
     }
 
     private fun recoverInterruptedTask() {
