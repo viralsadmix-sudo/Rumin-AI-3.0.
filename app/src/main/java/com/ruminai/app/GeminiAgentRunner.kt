@@ -80,7 +80,7 @@ internal class GeminiAgentRunner(
             system_intent_dispatched মানে Settings পেজ খোলা; অনুমতি granted হয়েছে এমন দাবি করবে না।
             outcome_unknown পেলে একই কাজ আবার চালাবে না; বসকে ফোনে ফলাফল পরীক্ষা করতে বলবে।
             inspect_screen শুধু দৃশ্যমান লেখা পড়ে; সংবেদনশীল অংশ আড়াল করা হয়। স্ক্রিনে যা নেই তা অনুমান করবে না।
-            generic tap/type, arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
+            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
             Tool নেই বা অনুমতি নেই হলে সীমাবদ্ধতা ও সেটি চালু করার পথ স্পষ্ট করে বলবে।
             আইডিয়া চাইলে বাস্তবসম্মত বিকল্প, সুবিধা-অসুবিধা ও পরবর্তী পদক্ষেপ দেবে; অনুমানকে তথ্য হিসেবে বলবে না।
             ভেতরে পরিকল্পনা করো, কিন্তু গোপন chain-of-thought প্রকাশ করবে না; দরকার হলে সংক্ষিপ্ত কারণ ও ফলাফল বলবে।
