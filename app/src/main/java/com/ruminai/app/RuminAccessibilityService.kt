@@ -57,19 +57,19 @@ class RuminAccessibilityService : AccessibilityService() {
                         software = source?.copy(Bitmap.Config.ARGB_8888, false)
                         val bitmap = software ?: return
                         val maxDimension = 1280
-                        scaled = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                        val outputBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
                             val ratio = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
                             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt().coerceAtLeast(1),
-                                (bitmap.height * ratio).toInt().coerceAtLeast(1), true)
+                                (bitmap.height * ratio).toInt().coerceAtLeast(1), true).also { scaled = it }
                         } else bitmap
                         val output = ByteArrayOutputStream()
-                        if (scaled.compress(Bitmap.CompressFormat.JPEG, 68, output)) {
+                        if (outputBitmap.compress(Bitmap.CompressFormat.JPEG, 68, output)) {
                             encoded.set(Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP))
                         }
                     } catch (_: Exception) {
                         encoded.set(null)
                     } finally {
-                        if (scaled !== software) scaled?.recycle()
+                        scaled?.recycle()
                         software?.recycle()
                         source?.recycle()
                         try { screenshot.hardwareBuffer.close() } catch (_: Exception) {}
