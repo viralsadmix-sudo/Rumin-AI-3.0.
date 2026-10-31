@@ -42,10 +42,17 @@ internal class GeminiAgentRunner(
     private val tools = JSONArray().apply {
         put(tool("open_app", "Open one allow-listed app only when the user asks. This does not perform actions inside that app.",
             schema("app" to enum("App identifier", "youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github", "messages"), required = listOf("app"))))
-        put(tool("inspect_screen", "Read visible screen text only. Never click or type. Sensitive-looking values are redacted.", schema()))
+        put(tool("inspect_screen", "Read visible screen text from the active app. When the user explicitly asks what is on the screen, the current screen image is also attached to the request for visual understanding. Sensitive-looking text values from the accessibility tree are redacted.", schema()))
         put(tool("screen_interact", "Only when the user explicitly asks for this exact screen action: click an exact visible label, type into the currently focused editable field, or scroll the current app. Scroll uses the largest visible scroll container and falls back to a swipe gesture when needed. Never interact with payment, purchase, delete, send, or permission-grant controls.", schema(
-            "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up"),
+            "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe"),
             "text" to string("Exact visible label to click or text for the already-focused input; max 1000 characters"),
+            "x" to integer("Normalized tap X coordinate, 0 to 1000; tap_at only"),
+            "y" to integer("Normalized tap Y coordinate, 0 to 1000; tap_at only"),
+            "x1" to integer("Normalized swipe start X coordinate, 0 to 1000; swipe only"),
+            "y1" to integer("Normalized swipe start Y coordinate, 0 to 1000; swipe only"),
+            "x2" to integer("Normalized swipe end X coordinate, 0 to 1000; swipe only"),
+            "y2" to integer("Normalized swipe end Y coordinate, 0 to 1000; swipe only"),
+            "duration_ms" to integer("Swipe duration 150 to 1200 milliseconds; optional"),
             required = listOf("action")
         )))
         put(tool("get_recent_actions", "Read recent redacted Rumin task states for recovery and diagnostics. Does not replay actions.", schema()))
@@ -79,8 +86,8 @@ internal class GeminiAgentRunner(
             dialer_opened মানে শুধু ডায়ালার খোলা; কল করা হয়নি। sms_draft_opened মানে খসড়া খোলা; SMS পাঠানো হয়নি। বস SMS করতে বললে প্রাপক ও বার্তার লেখা না থাকলে আগে জিজ্ঞেস করবে; দুটো জানা থাকলে SMS draft খুলবে, কিন্তু Send চাপবে না।
             system_intent_dispatched মানে Settings পেজ খোলা; অনুমতি granted হয়েছে এমন দাবি করবে না।
             outcome_unknown পেলে একই কাজ আবার চালাবে না; বসকে ফোনে ফলাফল পরীক্ষা করতে বলবে।
-            inspect_screen শুধু দৃশ্যমান লেখা পড়ে; সংবেদনশীল অংশ আড়াল করা হয়। স্ক্রিনে যা নেই তা অনুমান করবে না।
-            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; Facebook/অন্যান্য feed-এ স্ক্রল চাইলে scroll_down/scroll_up ব্যবহার করবে এবং প্রতিটি action-এর ফল দেখে পরের ধাপ নেবে। payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
+            inspect_screen-এর জন্য বস যখন স্ক্রিন দেখতে বলবে, সংযুক্ত স্ক্রিনশটের ছবি এবং accessibility text দুটোই ব্যবহার করবে। ছবি না থাকলে স্ক্রিন দেখা হয়েছে বলে দাবি করবে না। স্ক্রিনশটে ব্যক্তিগত তথ্য থাকতে পারে; অপ্রয়োজনীয়ভাবে তা পুনরাবৃত্তি করবে না।
+            generic বা অনির্দিষ্ট tap/type করবে না। বসের স্পষ্ট নির্দেশে screen_interact-এর মাধ্যমে exact visible label click, focused field-এ লেখা, scroll, দৃশ্যমান labeled control-এ tap_at এবং swipe করতে পারবে। tap_at শুধু accessibility tree-তে চেনা labeled clickable control-এ কাজ করবে; unlabeled control ও send/delete/payment/purchase/transfer control ব্লক করবে। প্রতিটি UI action-এর পর নতুন স্ক্রিন দেখে পরের ধাপ নেবে। payment, purchase, delete, send বা permission-grant control কখনো চাপবে না. arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
             Tool নেই বা অনুমতি নেই হলে সীমাবদ্ধতা ও সেটি চালু করার পথ স্পষ্ট করে বলবে।
             আইডিয়া চাইলে বাস্তবসম্মত বিকল্প, সুবিধা-অসুবিধা ও পরবর্তী পদক্ষেপ দেবে; অনুমানকে তথ্য হিসেবে বলবে না।
             ভেতরে পরিকল্পনা করো, কিন্তু গোপন chain-of-thought প্রকাশ করবে না; দরকার হলে সংক্ষিপ্ত কারণ ও ফলাফল বলবে।
@@ -90,8 +97,19 @@ internal class GeminiAgentRunner(
             ${prompt.replace("\\n", "\n")}
         """.trimIndent()
 
-        val input = JSONArray().put(JSONObject().put("type", "user_input")
-            .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))))
+        val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
+        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "screen", "display").any { latestRequest.contains(it) }
+        val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
+        if (screenRequested) {
+            val screenshot = RuminAccessibilityService.captureScreenJpegBase64()
+            if (!screenshot.isNullOrBlank()) {
+                initialContent.put(JSONObject().put("type", "image").put("mime_type", "image/jpeg").put("data", screenshot))
+            } else {
+                initialContent.put(JSONObject().put("type", "text").put("text",
+                    "স্ক্রিনের ছবি নেওয়া যায়নি। Accessibility Service চালু আছে কি না, Android 11 বা পরের সংস্করণ কি না, এবং স্ক্রিনটি secure/protected কি না যাচাই করো। স্ক্রিন দেখেছ বলে দাবি করবে না।"))
+            }
+        }
+        val input = JSONArray().put(JSONObject().put("type", "user_input").put("content", initialContent))
         var response = post(apiKey, JSONObject().put("model", MODEL).put("store", false).put("input", input).put("tools", tools))
 
         repeat(MAX_TOOL_ROUNDS) {
@@ -102,6 +120,7 @@ internal class GeminiAgentRunner(
 
             // Stateless mode requires the initial user_input plus every model step verbatim.
             modelSteps.forEach { input.put(it) }
+            var screenMayHaveChanged = false
             calls.forEachIndexed { index, call ->
                 val name = call.optString("name")
                 val callId = call.optString("id").ifBlank { call.optString("call_id") }
@@ -110,8 +129,22 @@ internal class GeminiAgentRunner(
                     index >= MAX_CALLS_PER_ROUND -> fail("এক উত্তরে Tool call-এর সীমা অতিক্রম করেছে।", "tool_limit")
                     else -> executeTool(name, parseArgs(call.opt("arguments")))
                 }
+                if (name == "screen_interact" || name == "open_app" || name == "phone_navigation" || name == "open_settings") {
+                    screenMayHaveChanged = true
+                }
                 input.put(JSONObject().put("type", "function_result").put("name", name).put("call_id", callId)
                     .put("result", JSONArray().put(JSONObject().put("type", "text").put("text", result.toString()))))
+            }
+            if (screenMayHaveChanged) {
+                val updatedScreen = RuminAccessibilityService.captureScreenJpegBase64()
+                if (!updatedScreen.isNullOrBlank()) {
+                    input.put(JSONObject().put("type", "user_input").put("content", JSONArray()
+                        .put(JSONObject().put("type", "text").put("text", "সর্বশেষ UI action-এর পরের বর্তমান স্ক্রিন। আগের action-এর ফল যাচাই করে তারপর পরবর্তী কাজ বেছে নাও।"))
+                        .put(JSONObject().put("type", "image").put("mime_type", "image/jpeg").put("data", updatedScreen))))
+                } else {
+                    input.put(JSONObject().put("type", "user_input").put("content", JSONArray().put(
+                        JSONObject().put("type", "text").put("text", "UI action-এর পর নতুন screenshot পাওয়া যায়নি। ফলাফল নিশ্চিত বলে ধরে নিও না; প্রয়োজনে inspect_screen দিয়ে দৃশ্যমান লেখা যাচাই করো।"))))
+                }
             }
             response = post(apiKey, JSONObject().put("model", MODEL).put("store", false).put("input", input).put("tools", tools))
         }
@@ -141,7 +174,7 @@ internal class GeminiAgentRunner(
                 action = args.optString("action").trim().lowercase()
                 first = args.optString("text")
                 second = ""
-                if (action !in setOf("click_text", "type_text", "scroll_down", "scroll_up")) {
+                if (action !in setOf("click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe")) {
                     return fail("এই screen action অনুমোদিত নয়।", "rejected")
                 }
                 if (action == "click_text" && (first.isBlank() || first.length > 120)) {
@@ -149,6 +182,16 @@ internal class GeminiAgentRunner(
                 }
                 if (action == "type_text" && (first.isBlank() || first.length > 1000)) {
                     return fail("ফোকাস করা ইনপুটে লেখার জন্য ১–১০০০ অক্ষরের টেক্সট দিন।", "invalid_arguments")
+                }
+                if (action == "tap_at") {
+                    val x = args.optInt("x", -1); val y = args.optInt("y", -1)
+                    if (x !in 0..1000 || y !in 0..1000) return fail("Tap coordinate ০–১০০০ সীমার মধ্যে দিতে হবে।", "invalid_arguments")
+                    first = "$x|$y"
+                }
+                if (action == "swipe") {
+                    val coords = listOf(args.optInt("x1", -1), args.optInt("y1", -1), args.optInt("x2", -1), args.optInt("y2", -1))
+                    if (coords.any { it !in 0..1000 }) return fail("Swipe-এর চারটি coordinate ০–১০০০ সীমার মধ্যে দিতে হবে।", "invalid_arguments")
+                    first = coords.joinToString("|") + "|" + args.optInt("duration_ms", 350).coerceIn(150, 1200)
                 }
                 category = "accessibility"
             }
