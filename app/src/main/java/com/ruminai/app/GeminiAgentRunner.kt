@@ -364,25 +364,6 @@ internal class GeminiAgentRunner(
             .put("verification", "sms_draft_opened")
     }
 
-    internal fun recentAuditJson(): String = recentAuditJsonObject().toString()
-
-    internal fun clearAuditLog(): JSONObject {
-        return try {
-            val prefs = auditPrefs()
-            val active = prefs.getString(KEY_ACTIVE_TASK, null)
-            val editor = prefs.edit().remove(KEY_EVENTS)
-            if (!active.isNullOrBlank()) {
-                editor.putString(KEY_EVENTS, JSONArray().put(
-                    JSONObject().put("time", System.currentTimeMillis())
-                        .put("task_id", active).put("action", "unknown").put("state", "running")
-                ).toString())
-            }
-            editor.apply()
-            JSONObject().put("ok", true).put("message", "Redacted agent log পরিষ্কার করা হয়েছে।")
-        } catch (e: Exception) {
-            JSONObject().put("ok", false).put("message", e.message ?: "Log clear failed")
-        }
-    }
 
     private fun recentAuditJsonObject(): JSONObject {
         val events = try { JSONArray(auditPrefs().getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
@@ -484,6 +465,38 @@ internal class GeminiAgentRunner(
     }
 
     companion object {
+        fun readAuditJson(context: Context): String {
+            val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+            val events = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+            val recent = JSONArray()
+            for (i in (events.length() - 30).coerceAtLeast(0) until events.length()) {
+                val item = events.optJSONObject(i) ?: continue
+                recent.put(JSONObject().put("time", item.optLong("time"))
+                    .put("task_id", item.optString("task_id"))
+                    .put("action", item.optString("action"))
+                    .put("state", item.optString("state")))
+            }
+            return JSONObject().put("ok", true).put("events", recent)
+                .put("active_task", prefs.getString(KEY_ACTIVE_TASK, null) ?: JSONObject.NULL)
+                .put("message", "সর্বশেষ redacted action log পড়েছি; কোনো কাজ পুনরায় চালানো হয়নি।")
+                .put("verification", "audit_log_read").toString()
+        }
+
+        fun clearAuditLog(context: Context): JSONObject {
+            return try {
+                val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+                val active = prefs.getString(KEY_ACTIVE_TASK, null)
+                val editor = prefs.edit().remove(KEY_EVENTS)
+                if (!active.isNullOrBlank()) editor.putString(KEY_EVENTS, JSONArray().put(
+                    JSONObject().put("time", System.currentTimeMillis())
+                        .put("task_id", active).put("action", "unknown").put("state", "running")
+                ).toString())
+                editor.apply()
+                JSONObject().put("ok", true).put("message", "Redacted agent log পরিষ্কার করা হয়েছে।")
+            } catch (e: Exception) {
+                JSONObject().put("ok", false).put("message", e.message ?: "Log clear failed")
+            }
+        }
         private const val MODEL = "gemini-3.8-flash"
         private const val INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
         private const val MAX_TOOL_ROUNDS = 4
