@@ -161,7 +161,7 @@ internal class GeminiAgentRunner(
         val taskId = "rumin-tool-${taskIds.incrementAndGet()}"
         val action: String
         val category: String
-        val first: String
+        var first: String
         val second: String
 
         when (name) {
