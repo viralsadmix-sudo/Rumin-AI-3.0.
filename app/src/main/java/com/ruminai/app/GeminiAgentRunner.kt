@@ -80,7 +80,7 @@ internal class GeminiAgentRunner(
         val safePrompt = """
             তুমি RUMIN AI 3.0-এর Agent brain; ব্যবহারকারীকে 'বস' বলবে এবং স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
             কাজের আগে ব্যবহারকারীর কথার অর্থ বোঝো—একই কাজের ভিন্ন বাংলা/ইংরেজি বাক্যকে একই intent হিসেবে ধরো; শুধু নির্দিষ্ট keyword মিলিয়ে সিদ্ধান্ত নিও না।
-            উদাহরণ: "ফেসবুক খোলো", "ফেসবুকে নিয়ে চলো", "ফেসবুকটা চালু করো" = open_app(app="Facebook"); "একটু পেছনে যাও", "আগের পেজে ফেরত যাও" = phone_navigation(back); "হোমে যাও", "মূল স্ক্রিনে ফেরত যাও" = phone_navigation(home); "ভলিউম বাড়াও/শব্দ বাড়াও" = adjust_volume(up); "স্ক্রিনে কী আছে", "এখানে কী দেখাচ্ছে", "সামনে কী দেখছ", "এই পেজটা পড়ে বলো", "হোমটা দেখে বলো" = inspect_screen।
+            উদাহরণ: "ফেসবুক খোলো", "ফেসবুকে নিয়ে চলো", "ফেসবুকটা চালু করো" = open_app(app="Facebook"); "একটু পেছনে যাও", "আগের পেজে ফেরত যাও" = phone_navigation(back); "হোমে যাও", "মূল স্ক্রিনে ফেরত যাও" = phone_navigation(home); "ভলিউম বাড়াও/শব্দ বাড়াও" = adjust_volume(up); "একটু নিচে নামো/নিচে স্ক্রল করো" = screen_interact(scroll_down); "উপরে ওঠো/আগের অংশ দেখাও" = screen_interact(scroll_up); "স্ক্রিনে কী আছে", "এখানে কী দেখাচ্ছে", "সামনে কী দেখছ", "এই পেজটা পড়ে বলো", "এখানে কী লেখা", "হোমটা দেখে বলো" = inspect_screen। কোনো বাটনের নাম না বলে শুধু "ওটা চাপো" বললে লক্ষ্য নিশ্চিত না হওয়া পর্যন্ত প্রশ্ন করবে।
             উদ্দেশ্য, লক্ষ্য অ্যাপ/লেখা, সময়, নম্বর বা বার্তার মতো প্রয়োজনীয় তথ্য আলাদা করে বের করো। একাধিক সম্ভাব্য অ্যাপ/বাটন থাকলে বা নির্দেশ অস্পষ্ট হলে একটি নির্দিষ্ট প্রশ্ন করো; কখনো নিজে থেকে নাম/সময়/লক্ষ্য বানিয়ে নিও না।
             কাজটি স্পষ্ট ও সমর্থিত হলে ঘোষিত Function Tool নির্বাচন করো; Native layer তা যাচাই করে চালায়।
             শুধু Tool result-এর প্রমাণ অনুযায়ী কাজের অবস্থা জানাবে। activity_launch_accepted মানে Android অ্যাপ খোলার অনুরোধ গ্রহণ করেছে, অ্যাপের ভেতরের লক্ষ্য পূরণ নয়।
@@ -101,11 +101,15 @@ internal class GeminiAgentRunner(
 
         val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
         val screenIntents = listOf(
-            "স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display",
-            "এখানে কী", "এখানে কি", "কি দেখাচ্ছে", "কী দেখাচ্ছে", "কী দেখা যাচ্ছে", "কি দেখা যাচ্ছে",
-            "সামনে কী", "সামনে কি", "কী দেখছ", "কি দেখছ", "দেখে বল", "দেখে বলো",
-            "পড়ে বল", "পড়ে বল", "পেজটা", "এই পেজ", "বর্তমান পেজ", "হোমটা",
-            "স্ক্রল", "scroll", "ট্যাপ", "tap", "ক্লিক", "click", "swipe", "টাইপ", "type"
+            "স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display", "screenshot",
+            "এখানে কী", "এখানে কি", "এখানে কী লেখা", "এখানে কি লেখা", "কি দেখাচ্ছে", "কী দেখাচ্ছে",
+            "কী দেখা যাচ্ছে", "কি দেখা যাচ্ছে", "এখন কী দেখাচ্ছে", "এখন কি দেখাচ্ছে",
+            "সামনে কী", "সামনে কি", "সামনে কী আছে", "সামনে কি আছে", "কী দেখছ", "কি দেখছ",
+            "দেখে বল", "দেখে বলো", "এইটা দেখে", "এটা দেখে", "এই পেজ", "পেজটা", "বর্তমান পেজ",
+            "হোমটা", "কোন পেজ", "কোন অ্যাপ", "কী লেখা আছে", "কি লেখা আছে",
+            "লেখাগুলো পড়", "লেখাগুলো পড়", "উপরে কী", "নিচে কী", "ছবিটা", "এই ছবিতে",
+            "স্ক্রল", "scroll", "নিচে নামাও", "নিচে যাও", "উপরে যাও", "ট্যাপ", "tap",
+            "ক্লিক", "click", "swipe", "টাইপ", "type"
         )
         val screenRequested = screenIntents.any { latestRequest.contains(it) }
         val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
@@ -138,7 +142,7 @@ internal class GeminiAgentRunner(
                     index >= MAX_CALLS_PER_ROUND -> fail("এক উত্তরে Tool call-এর সীমা অতিক্রম করেছে।", "tool_limit")
                     else -> executeTool(name, parseArgs(call.opt("arguments")))
                 }
-                if (name == "screen_interact" || name == "open_app" || name == "phone_navigation" || name == "open_settings") {
+                if (name == "inspect_screen" || name == "screen_interact" || name == "open_app" || name == "phone_navigation" || name == "open_settings") {
                     screenMayHaveChanged = true
                 }
                 input.put(JSONObject().put("type", "function_result").put("name", name).put("call_id", callId)
