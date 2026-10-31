@@ -249,7 +249,7 @@ class MainActivity : ComponentActivity() {
                         lines.add(label + item.optString("content"))
                     }
                     lines.add("ব্যবহারকারী: " + currentText)
-                    val prompt = lines.joinToString("\\n")
+                    val prompt = lines.joinToString("\n")
                     nativeRunner = GeminiAgentRunner(this@MainActivity, agentCore)
                     val reply = if (provider == "groq") {
                         GroqAgentRunner(nativeRunner!!).run(key, prompt)
