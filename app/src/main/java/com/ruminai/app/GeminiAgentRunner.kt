@@ -152,7 +152,7 @@ internal class GeminiAgentRunner(
             - Tool argument অবশ্যই schema অনুযায়ী হবে; প্রয়োজনীয় তথ্য অনুপস্থিত হলে নিজে থেকে বানাবে না।
 
             ## বর্তমান ব্যবহারকারীর অনুরোধ ও কথোপকথনের প্রেক্ষাপট
-            \${prompt.replace("\\n", "\n")}
+            ${prompt.replace("\\n", "\n")}
         """.trimIndent()
 
         val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
