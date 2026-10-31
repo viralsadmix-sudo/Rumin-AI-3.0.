@@ -24,11 +24,13 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
     private val nativeMemoryStore by lazy { NativeMemoryStore(this) }
+    private val taskActionNames = ConcurrentHashMap<String, String>()
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
@@ -365,12 +367,16 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread { deliverCommandResult(false, "এই Tool Registry-তে কমান্ডটি নেই: $actualAction", taskId) }
                 return
             }
+            taskActionNames[taskId] = actualAction
+            GeminiAgentRunner.recordAudit(this@MainActivity, taskId, actualAction, "running")
             runOnUiThread {
                 if (accessibility) {
                     val result = RuminAccessibilityService.nativeAction(actualAction, first)
                     val raw = result.toString()
                     val verified = AgentVerifier.verifyNativeJson(raw)
                     agentCore.complete(taskId, verified, result.optString("message"))
+                    GeminiAgentRunner.recordAudit(this@MainActivity, taskId, actualAction, if (verified) "succeeded" else "failed")
+                    taskActionNames.remove(taskId)
                     webView.evaluateJavascript(
                         "window.onNativeActionResult && window.onNativeActionResult(${JSONObject.quote(raw)}, ${JSONObject.quote(taskId)})",
                         null
@@ -382,7 +388,11 @@ class MainActivity : ComponentActivity() {
         }
 
         private fun deliverCommandResult(ok: Boolean, message: String, taskId: String) {
-            if (taskId.isNotBlank()) agentCore.complete(taskId, ok, message)
+            if (taskId.isNotBlank()) {
+                agentCore.complete(taskId, ok, message)
+                val action = taskActionNames.remove(taskId) ?: "native_command"
+                GeminiAgentRunner.recordAudit(this@MainActivity, taskId, action, if (ok) "succeeded" else "failed")
+            }
             webView.evaluateJavascript(
                 "window.onNativeCommandResult && window.onNativeCommandResult($ok, ${JSONObject.quote(message)}, ${JSONObject.quote(taskId)})",
                 null
