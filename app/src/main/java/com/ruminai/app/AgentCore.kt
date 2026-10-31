@@ -29,7 +29,7 @@ internal data class AgentLogEvent(
 
 internal class AgentToolRegistry {
     private val commandTools = setOf(
-        "home", "back", "recents", "notifications", "quicksettings", "power",
+        "home", "back", "recents", "notifications", "quicksettings", "power", "open_app",
         "writesettings", "volumeup", "volumedown", "volumemute", "volumeunmute",
         "alarm", "timer", "showalarms", "showtimers", "call", "sms", "dialer",
         "accessibility", "notificationaccess", "apppermissions", "ttssettings",
