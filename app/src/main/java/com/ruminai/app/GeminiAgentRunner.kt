@@ -221,7 +221,7 @@ internal class GeminiAgentRunner(
                 result.set(when (tool) {
                     "open_app" -> openApp(first)
                     "inspect_screen" -> inspectScreen()
-                    "screen_interact" -> RuminAccessibilityService.nativeAction(action, first).also { if (it.optBoolean("ok")) it.put("verification", "accessibility_action_acknowledged") }
+                    "screen_interact" -> RuminAccessibilityService.nativeAction(action, first).also { if (it.optBoolean("ok") && it.optString("verification").isBlank()) it.put("verification", "accessibility_action_acknowledged") }
                     "phone_navigation" -> {
                         val native = RuminAccessibilityService.nativeAction(action, "")
                         if (native.optBoolean("ok")) native.put("verification", "native_action_acknowledged")
