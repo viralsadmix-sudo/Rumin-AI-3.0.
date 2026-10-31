@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    @Volatile private var pendingMemoryBackupJson: String? = null
     private var pendingNativeSpeech = false
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
@@ -61,6 +62,24 @@ class MainActivity : ComponentActivity() {
         val callback = pendingFileChooser
         pendingFileChooser = null
         callback?.onReceiveValue(if (uri == null) null else arrayOf(uri))
+    }
+
+    private val memoryBackupSaver = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val data = pendingMemoryBackupJson
+        pendingMemoryBackupJson = null
+        val ok = try {
+            if (uri == null || data == null) false
+            else {
+                contentResolver.openOutputStream(uri)?.use { it.write(data.toByteArray(Charsets.UTF_8)) }
+                true
+            }
+        } catch (_: Exception) { false }
+        if (::webView.isInitialized) runOnUiThread {
+            webView.evaluateJavascript(
+                "window.onMemoryBackupExport && window.onMemoryBackupExport($ok, " + JSONObject.quote(if (ok) "ব্যাকআপ ফাইল সংরক্ষণ হয়েছে" else "ব্যাকআপ সংরক্ষণ করা যায়নি") + ")",
+                null
+            )
+        }
     }
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -256,6 +275,13 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun clearNativeMemory(): String {
             return nativeMemoryStore.clear().toString()
+        }
+
+        @JavascriptInterface fun exportMemoryBackup(snapshotJson: String): Boolean {
+            if (snapshotJson.length > 2_000_000) return false
+            pendingMemoryBackupJson = snapshotJson
+            runOnUiThread { memoryBackupSaver.launch("rumin-ai-memory-backup.json") }
+            return true
         }
 
         @JavascriptInterface fun getAgentLogs(): String {
