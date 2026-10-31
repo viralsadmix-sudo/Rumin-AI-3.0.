@@ -48,6 +48,7 @@ class RuminAccessibilityService : AccessibilityService() {
                 "click_text" -> {
                     val root = rootInActiveWindow
                     val nodes = root?.findAccessibilityNodeInfosByText(value)
+                        ?.filter { node -> (node.text ?: node.contentDescription)?.toString()?.trim() == value.trim() }
                     var target = nodes?.firstOrNull { it.isClickable }
                     if (target == null) {
                         var node = nodes?.firstOrNull()
