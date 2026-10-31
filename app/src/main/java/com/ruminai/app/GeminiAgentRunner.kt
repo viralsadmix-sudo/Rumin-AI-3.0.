@@ -22,6 +22,22 @@ internal class GeminiAgentRunner(
     private val agentCore: AgentCore
 ) {
     private val taskIds = AtomicLong(System.currentTimeMillis())
+    @Volatile private var nativeActionAttempted = false
+
+    internal fun hasNativeActionAttempted(): Boolean = nativeActionAttempted
+
+    internal fun openAiToolDefinitions(): JSONArray {
+        val result = JSONArray()
+        for (i in 0 until tools.length()) {
+            val source = tools.optJSONObject(i) ?: continue
+            val function = JSONObject()
+                .put("name", source.optString("name"))
+                .put("description", source.optString("description"))
+                .put("parameters", source.optJSONObject("parameters") ?: JSONObject())
+            result.put(JSONObject().put("type", "function").put("function", function))
+        }
+        return result
+    }
 
     private val tools = JSONArray().apply {
         put(tool("open_app", "Open one allow-listed app only when the user asks. This does not perform actions inside that app.",
@@ -46,6 +62,7 @@ internal class GeminiAgentRunner(
     init { recoverInterruptedTask() }
 
     fun run(apiKey: String, prompt: String): String {
+        nativeActionAttempted = false
         val safePrompt = """
             তুমি RUMIN AI 3.0-এর Agent brain; ব্যবহারকারীকে 'বস' বলবে এবং স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
             কাজের আগে উদ্দেশ্য বোঝো। নির্দেশ অস্পষ্ট বা গুরুত্বপূর্ণ তথ্য অনুপস্থিত হলে একটি স্পষ্ট প্রশ্ন করো।
@@ -96,8 +113,8 @@ internal class GeminiAgentRunner(
         }
     }
 
-    private fun executeTool(name: String, args: JSONObject): JSONObject {
-        val taskId = "gemini-tool-${taskIds.incrementAndGet()}"
+    internal fun executeTool(name: String, args: JSONObject): JSONObject {
+        val taskId = "rumin-tool-${taskIds.incrementAndGet()}"
         val action: String
         val category: String
         val first: String
@@ -158,6 +175,7 @@ internal class GeminiAgentRunner(
             return fail("Agent Tool Registry এই কাজটি অনুমোদন করেনি।", "registry_rejected")
         }
         audit(taskId, action, "running")
+        nativeActionAttempted = true
         val result = dispatch(taskId, name, action, first, second)
         val verified = result.optBoolean("ok", false) && result.optString("verification").isNotBlank()
         agentCore.complete(taskId, verified, result.optString("message"))
