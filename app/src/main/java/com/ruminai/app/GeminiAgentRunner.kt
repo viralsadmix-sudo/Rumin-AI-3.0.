@@ -40,8 +40,8 @@ internal class GeminiAgentRunner(
     }
 
     private val tools = JSONArray().apply {
-        put(tool("open_app", "Open one allow-listed app only when the user asks. This does not perform actions inside that app.",
-            schema("app" to enum("App identifier", "youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github", "messages"), required = listOf("app"))))
+        put(tool("open_app", "Open any installed app that has a launcher icon when the user asks. Resolve by visible app name; ask if the name is ambiguous. This does not itself complete an action inside that app.",
+            schema("app" to string("Visible name of any installed launcher app, such as Facebook, YouTube, Photos, or Messages"), required = listOf("app"))))
         put(tool("inspect_screen", "Read visible screen text from the active app. When the user explicitly asks what is on the screen, the current screen image is also attached to the request for visual understanding. Sensitive-looking text values from the accessibility tree are redacted.", schema()))
         put(tool("screen_interact", "Only when the user explicitly asks for an in-app action: exact visible-label click, focused-field text entry, scroll, swipe, or tap a visible labeled clickable control using coordinates from the current screenshot. Coordinate taps are rejected for unlabeled or sensitive controls. Never interact with send, delete, payment, purchase, transfer, or permission-grant controls.", schema(
             "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe"),
@@ -168,8 +168,8 @@ internal class GeminiAgentRunner(
 
         when (name) {
             "open_app" -> {
-                action = "open_app"; category = "command"; first = args.optString("app").trim().lowercase(); second = ""
-                if (first !in ALLOWED_APPS) return fail("এই অ্যাপটি অনুমোদিত তালিকায় নেই।", "rejected")
+                action = "open_app"; category = "command"; first = args.optString("app").trim(); second = ""
+                if (first.isBlank() || first.length > 80) return fail("অ্যাপের দৃশ্যমান নাম ১–৮০ অক্ষরের মধ্যে দিন।", "invalid_arguments")
             }
             "inspect_screen" -> { action = "inspect_screen"; category = "accessibility"; first = ""; second = "" }
             "screen_interact" -> {
@@ -310,11 +310,33 @@ internal class GeminiAgentRunner(
             "messages" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.apps.messaging")
                 ?: activity.packageManager.getLaunchIntentForPackage("com.android.messaging")
                 ?: Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING)
-            else -> return fail("অ্যাপটি অনুমোদিত নয়।", "rejected")
+            else -> return openInstalledApp(app)
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         activity.startActivity(intent)
         return JSONObject().put("ok", true).put("message", "$app খোলার অনুরোধ Android গ্রহণ করেছে।").put("verification", "activity_launch_accepted")
+    }
+
+    private fun openInstalledApp(appName: String): JSONObject {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = activity.packageManager.queryIntentActivities(launcher, 0)
+        val exact = activities.filter { it.loadLabel(activity.packageManager).toString().equals(appName, ignoreCase = true) }
+        val matches = if (exact.isNotEmpty()) exact else activities.filter {
+            it.loadLabel(activity.packageManager).toString().contains(appName, ignoreCase = true)
+        }
+        if (matches.isEmpty()) return fail("‘$appName’ নামে launcher-এ থাকা কোনো ইনস্টল করা অ্যাপ পাওয়া যায়নি।", "app_not_found")
+        if (matches.size > 1) {
+            val labels = matches.take(6).joinToString(", ") { it.loadLabel(activity.packageManager).toString() }
+            return fail("‘$appName’ নামে একাধিক অ্যাপ আছে: $labels। সঠিক অ্যাপের নাম বলুন।", "ambiguous_app")
+        }
+        val packageName = matches.first().activityInfo.packageName
+        val intent = activity.packageManager.getLaunchIntentForPackage(packageName)
+            ?: return fail("‘$appName’ অ্যাপের launch intent পাওয়া যায়নি।", "app_not_launchable")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.startActivity(intent)
+        val label = matches.first().loadLabel(activity.packageManager).toString()
+        return JSONObject().put("ok", true).put("message", "‘$label’ খোলার অনুরোধ Android গ্রহণ করেছে।")
+            .put("verification", "activity_launch_accepted")
     }
 
     private fun inspectScreen(): JSONObject {
@@ -558,7 +580,6 @@ internal class GeminiAgentRunner(
         private const val KEY_EVENTS = "events"
         private const val KEY_ACTIVE_TASK = "active_task"
         private const val MAX_EVENTS = 120
-        private val ALLOWED_APPS = setOf("youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github", "messages")
         private val PHONE_PATTERN = Regex("^[+0-9*#]{3,20}$")
         private val PHONE_IN_TEXT = Regex("(?<!\\w)(?:\\+?\\d[\\d .()/-]{7,}\\d)(?!\\w)")
         private val EMAIL_PATTERN = Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", RegexOption.IGNORE_CASE)
