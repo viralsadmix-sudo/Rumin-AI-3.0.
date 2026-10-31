@@ -195,7 +195,7 @@ internal class GeminiAgentRunner(
                 val callId = call.optString("id").ifBlank { call.optString("call_id") }
                 val result = when {
                     callId.isBlank() -> fail("Gemini Tool call-এর ID নেই; চালানো হয়নি।", "invalid_call")
-                    index >= MAX_CALLS_PER_ROUND -> fail("এক উত্তরে Tool call-এর সীমা অতিক্রম করেছে।", "tool_limit")
+                    index >= MAX_CALLS_PER_ROUND -> fail("এক পর্যবেক্ষণ ধাপে একটিমাত্র Tool চালানো যায়; পরবর্তী কাজের আগে নতুন screen/context পর্যবেক্ষণ করতে হবে।", "tool_limit")
                     else -> executeTool(name, parseArgs(call.opt("arguments")))
                 }
                 if (name == "inspect_screen") screenWasInspected = true
@@ -649,8 +649,8 @@ internal class GeminiAgentRunner(
         }
         private const val MODEL = "gemini-3.8-flash"
         private const val INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
-        private const val MAX_TOOL_ROUNDS = 4
-        private const val MAX_CALLS_PER_ROUND = 4
+        private const val MAX_TOOL_ROUNDS = 8
+        private const val MAX_CALLS_PER_ROUND = 1
         private const val TOOL_TIMEOUT_SECONDS = 15L
         private const val AUDIT_PREFS = "rumin_agent_audit"
         private const val KEY_EVENTS = "events"
