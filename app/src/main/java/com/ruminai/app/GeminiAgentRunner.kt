@@ -55,6 +55,9 @@ internal class GeminiAgentRunner(
             "duration_ms" to integer("Swipe duration 150 to 1200 milliseconds; optional"),
             required = listOf("action")
         )))
+        put(tool("remember_fact", "Save a user fact or preference to encrypted on-device memory only when the user explicitly asks Rumin to remember it. Never save passwords, OTPs, phone numbers, email addresses, payment data, or other credentials.",
+            schema("fact" to string("One explicit user-approved preference or fact, 1-400 characters"), required = listOf("fact"))))
+        put(tool("recall_saved_facts", "Retrieve user-approved saved facts from encrypted on-device memory when the user asks what Rumin remembers or asks for a task to use their saved preferences. Do not call for unrelated requests.", schema()))
         put(tool("get_recent_actions", "Read recent redacted Rumin task states for recovery and diagnostics. Does not replay actions.", schema()))
         put(tool("github_repo_status", "Read public status of the configured Rumin GitHub repository and open pull requests. Read-only; cannot edit files or branches.", schema()))
         put(tool("phone_navigation", "Perform one basic navigation action when explicitly requested. Requires RUMIN Accessibility service.",
@@ -90,6 +93,9 @@ internal class GeminiAgentRunner(
             - অনুমান করলে সেটিকে অনুমান হিসেবে জানাবে; অনিশ্চিত তথ্যকে নিশ্চিত বলে উপস্থাপন করবে না।
 
             ## ২. Personal Memory
+            - ব্যবহারকারী স্পষ্টভাবে "মনে রাখো/মনে রেখো/remember this" বললে remember_fact ব্যবহার করবে; অনুমতি ছাড়া স্থায়ী তথ্য সংরক্ষণ করবে না।
+            - ব্যবহারকারী কী মনে আছে জানতে চাইলে বা নিজের সংরক্ষিত পছন্দ ব্যবহার করতে বললে recall_saved_facts ব্যবহার করবে; অন্য সাধারণ অনুরোধে অকারণে মেমোরি পড়বে না।
+            - মেমোরি বন্ধ, unreadable বা save ব্যর্থ হলে তা স্পষ্ট জানাবে; সংরক্ষিত হয়েছে বলে দাবি করবে না।
             - অ্যাপ থেকে বাস্তবে সরবরাহ করা saved memory বা conversation context থাকলে তা প্রাসঙ্গিকভাবে ব্যবহার করবে।
             - memory context না পেলে কোনো ব্যক্তিগত পছন্দ, অভ্যাস বা অতীত ঘটনা মনে আছে বলে দাবি করবে না।
             - ব্যবহারকারী স্পষ্টভাবে মনে রাখতে বললে কেবল অ্যাপে উপলভ্য ও অনুমোদিত memory-save ব্যবস্থা থাকলেই সংরক্ষণের চেষ্টা করবে; সফল save result না পেলে সংরক্ষিত হয়েছে বলবে না।
@@ -149,7 +155,7 @@ internal class GeminiAgentRunner(
             - "স্ক্রিনে কী আছে/এখানে কী দেখাচ্ছে/এই পেজটা পড়ে বলো/কোন বাটন আছে" = inspect_screen।
             - "অ্যালার্ম দাও" = create_alarm (সময় না জানলে জিজ্ঞেস করবে); "টাইমার চালু করো" = create_timer (সময় না জানলে জিজ্ঞেস করবে)।
             - "সেটিংস খোলো" = open_settings।
-            - Tool argument অবশ্যই schema অনুযায়ী হবে; প্রয়োজনীয় তথ্য অনুপস্থিত হলে নিজে থেকে বানাবে না।
+            - "এটা মনে রাখো/আমার পছন্দ মনে রেখো" = remember_fact(fact); "আমি তোমাকে কী কী মনে রাখতে বলেছি" = recall_saved_facts.\n            - Tool argument অবশ্যই schema অনুযায়ী হবে; প্রয়োজনীয় তথ্য অনুপস্থিত হলে নিজে থেকে বানাবে না।
 
             ## বর্তমান ব্যবহারকারীর অনুরোধ ও কথোপকথনের প্রেক্ষাপট
             ${prompt.replace("\\n", "\n")}
@@ -232,6 +238,12 @@ internal class GeminiAgentRunner(
 
     internal fun executeTool(name: String, args: JSONObject): JSONObject {
         // Read-only diagnostics do not enter the Native action lifecycle.
+        if (name == "remember_fact") {
+            val fact = args.optString("fact").trim()
+            if (fact.isBlank() || fact.length > 400) return fail("মনে রাখার তথ্য ১–৪০০ অক্ষরের মধ্যে হতে হবে।", "invalid_arguments")
+            return activity.nativeMemoryStore.rememberFact(fact)
+        }
+        if (name == "recall_saved_facts") return activity.nativeMemoryStore.recallSavedFacts()
         if (name == "get_recent_actions") return recentAuditJsonObject()
         if (name == "github_repo_status") return GitHubAgent().repoStatus()
 
