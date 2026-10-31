@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
-    private val nativeMemoryStore by lazy { NativeMemoryStore(this) }
+    internal val nativeMemoryStore by lazy { NativeMemoryStore(this) }
     private val taskActionNames = ConcurrentHashMap<String, String>()
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
