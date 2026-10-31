@@ -1,9 +1,6 @@
 name: Rumin Agent PR Validation
 
 on:
-  push:
-    branches:
-      - "agent/gemini-function-calling-v1"
   pull_request:
     branches:
       - "main"
