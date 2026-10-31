@@ -115,7 +115,7 @@ internal class GeminiAgentRunner(
                 initialContent.put(JSONObject().put("type", "image").put("mime_type", "image/jpeg").put("data", screenshot))
             } else {
                 initialContent.put(JSONObject().put("type", "text").put("text",
-                    "স্ক্রিনের ছবি নেওয়া যায়নি। Accessibility Service চালু আছে কি না, Android 11 বা পরের সংস্করণ কি না, এবং স্ক্রিনটি secure/protected কি না যাচাই করো। স্ক্রিন দেখেছ বলে দাবি করবে না।"))
+                    RuminAccessibilityService.screenshotStatus() + " স্ক্রিন দেখেছ বলে দাবি করবে না; accessibility text পাওয়া গেলে শুধু সেটুকু দিয়ে উত্তর দাও।"))
             }
         }
         val input = JSONArray().put(JSONObject().put("type", "user_input").put("content", initialContent))
