@@ -79,7 +79,9 @@ internal class GeminiAgentRunner(
         nativeActionAttempted = false
         val safePrompt = """
             তুমি RUMIN AI 3.0-এর Agent brain; ব্যবহারকারীকে 'বস' বলবে এবং স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
-            কাজের আগে উদ্দেশ্য বোঝো। নির্দেশ অস্পষ্ট বা গুরুত্বপূর্ণ তথ্য অনুপস্থিত হলে একটি স্পষ্ট প্রশ্ন করো।
+            কাজের আগে ব্যবহারকারীর কথার অর্থ বোঝো—একই কাজের ভিন্ন বাংলা/ইংরেজি বাক্যকে একই intent হিসেবে ধরো; শুধু নির্দিষ্ট keyword মিলিয়ে সিদ্ধান্ত নিও না।
+            উদাহরণ: "ফেসবুক খোলো", "ফেসবুকে নিয়ে চলো", "ফেসবুকটা চালু করো" = open_app(app="Facebook"); "একটু পেছনে যাও", "আগের পেজে ফেরত যাও" = phone_navigation(back); "হোমে যাও", "মূল স্ক্রিনে ফেরত যাও" = phone_navigation(home); "ভলিউম বাড়াও/শব্দ বাড়াও" = adjust_volume(up); "স্ক্রিনে কী আছে", "এখানে কী দেখাচ্ছে", "সামনে কী দেখছ", "এই পেজটা পড়ে বলো", "হোমটা দেখে বলো" = inspect_screen।
+            উদ্দেশ্য, লক্ষ্য অ্যাপ/লেখা, সময়, নম্বর বা বার্তার মতো প্রয়োজনীয় তথ্য আলাদা করে বের করো। একাধিক সম্ভাব্য অ্যাপ/বাটন থাকলে বা নির্দেশ অস্পষ্ট হলে একটি নির্দিষ্ট প্রশ্ন করো; কখনো নিজে থেকে নাম/সময়/লক্ষ্য বানিয়ে নিও না।
             কাজটি স্পষ্ট ও সমর্থিত হলে ঘোষিত Function Tool নির্বাচন করো; Native layer তা যাচাই করে চালায়।
             শুধু Tool result-এর প্রমাণ অনুযায়ী কাজের অবস্থা জানাবে। activity_launch_accepted মানে Android অ্যাপ খোলার অনুরোধ গ্রহণ করেছে, অ্যাপের ভেতরের লক্ষ্য পূরণ নয়।
             alarm_ui_opened বা timer_ui_opened মানে Clock UI খোলা হয়েছে; বস নিশ্চিত না করা পর্যন্ত সেট হয়েছে বলবে না।
@@ -98,7 +100,14 @@ internal class GeminiAgentRunner(
         """.trimIndent()
 
         val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
-        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display", "স্ক্রল", "scroll", "ট্যাপ", "tap", "ক্লিক", "click", "swipe", "টাইপ", "type").any { latestRequest.contains(it) }
+        val screenIntents = listOf(
+            "স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display",
+            "এখানে কী", "এখানে কি", "কি দেখাচ্ছে", "কী দেখাচ্ছে", "কী দেখা যাচ্ছে", "কি দেখা যাচ্ছে",
+            "সামনে কী", "সামনে কি", "কী দেখছ", "কি দেখছ", "দেখে বল", "দেখে বলো",
+            "পড়ে বল", "পড়ে বল", "পেজটা", "এই পেজ", "বর্তমান পেজ", "হোমটা",
+            "স্ক্রল", "scroll", "ট্যাপ", "tap", "ক্লিক", "click", "swipe", "টাইপ", "type"
+        )
+        val screenRequested = screenIntents.any { latestRequest.contains(it) }
         val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
         if (screenRequested) {
             val screenshot = RuminAccessibilityService.captureScreenJpegBase64()
