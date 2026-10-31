@@ -24,8 +24,15 @@ import java.util.concurrent.atomic.AtomicReference
 class RuminAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() = Unit
-    override fun onServiceConnected() { super.onServiceConnected(); instance = this }
-    override fun onDestroy() { if (instance === this) instance = null; super.onDestroy() }
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        lastScreenshotError = null
+    }
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
 
     fun runGlobalAction(name: String): Boolean {
         val action = when (name) {
@@ -78,6 +85,7 @@ class RuminAccessibilityService : AccessibilityService() {
                 }
 
                 override fun onFailure(errorCode: Int) {
+                    lastScreenshotError = "Android screenshot API ব্যর্থ হয়েছে (error code $errorCode)। Secure/protected window, screenshot interval, display বা system access সীমাবদ্ধতা হতে পারে।"
                     latch.countDown()
                 }
             })
@@ -265,11 +273,34 @@ class RuminAccessibilityService : AccessibilityService() {
 
     companion object {
         @Volatile private var instance: RuminAccessibilityService? = null
+        @Volatile private var lastScreenshotError: String? = null
+
+        fun isConnected(): Boolean = instance != null
+
+        fun screenshotStatus(): String = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R -> "স্ক্রিনশট API-এর জন্য Android 11 বা পরের সংস্করণ দরকার।"
+            instance == null -> "RUMIN Accessibility Service সেটিংসে ON থাকলেও সার্ভিসটি বর্তমানে অ্যাপে সংযুক্ত নয়। Accessibility বন্ধ করে আবার ON করুন, তারপর Rumin খুলুন।"
+            !lastScreenshotError.isNullOrBlank() -> lastScreenshotError.orEmpty()
+            else -> "স্ক্রিনশট পাওয়া যায়নি; Android-এর screenshot callback কোনো বিস্তারিত কারণ দেয়নি।"
+        }
+
         fun perform(name: String): Boolean = instance?.runGlobalAction(name) ?: false
         fun nativeAction(name: String, value: String): JSONObject =
             instance?.runNativeAction(name, value)
-                ?: JSONObject().put("ok", false).put("message", "RUMIN AI Accessibility Service চালু নেই।").put("verification", "accessibility_unavailable")
-        fun captureScreenJpegBase64(timeoutMs: Long = 5000): String? =
-            instance?.screenshotJpegBase64(timeoutMs)
+                ?: JSONObject().put("ok", false).put("message", "RUMIN AI Accessibility Service চালু নেই বা সংযুক্ত নয়।")
+                    .put("verification", "accessibility_unavailable")
+        fun captureScreenJpegBase64(timeoutMs: Long = 5000): String? {
+            val service = instance
+            if (service == null) {
+                lastScreenshotError = "RUMIN Accessibility Service বর্তমানে সংযুক্ত নয়।"
+                return null
+            }
+            lastScreenshotError = null
+            val image = service.screenshotJpegBase64(timeoutMs)
+            if (image.isNullOrBlank() && lastScreenshotError.isNullOrBlank()) {
+                lastScreenshotError = "৫ সেকেন্ডের মধ্যে screenshot callback সম্পন্ন হয়নি অথবা image encode করা যায়নি।"
+            }
+            return image
+        }
     }
 }
