@@ -17,7 +17,7 @@ internal class GroqAgentRunner(
             Tool result-এ যতটুকু প্রমাণ আছে শুধু ততটুকুই বলবে। অ্যাপ খোলার অনুরোধ গ্রহণ মানে অ্যাপের ভেতরের কাজ সম্পন্ন নয়।
             Alarm/Timer UI খোলা মানে সংরক্ষণ/চালু হওয়া নয়; Dialer খোলা মানে কল নয়; SMS draft মানে পাঠানো নয়।
             Settings page খোলা মানে permission granted নয়। outcome_unknown পেলে একই কাজ আবার চালাবে না।
-            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
+            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; Facebook/অন্যান্য feed-এ স্ক্রল চাইলে scroll_down/scroll_up ব্যবহার করবে এবং প্রতিটি action-এর ফল দেখে পরের ধাপ নেবে। SMS করতে বললে প্রাপক ও বার্তার লেখা না থাকলে আগে জিজ্ঞেস করবে; দুটো জানা থাকলে SMS draft খুলবে, কিন্তু Send চাপবে না। payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
             অস্পষ্ট নির্দেশ হলে প্রশ্ন করবে। কাজ না হলে সীমাবদ্ধতা পরিষ্কার বলবে; অনুমানকে তথ্য হিসেবে বলবে না।
         """.trimIndent()))
         messages.put(JSONObject().put("role", "user").put("content", prompt))
