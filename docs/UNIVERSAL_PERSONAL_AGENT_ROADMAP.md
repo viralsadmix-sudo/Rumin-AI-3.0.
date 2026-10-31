@@ -12,7 +12,7 @@ This roadmap extends the existing Gemini/Groq Agent Core. It does not replace th
 - Groq fallback adapter using the same tool definitions/executor.
 - User-enabled Accessibility Service for reading visible UI text, clicking exact labels, entering text in a focused field, scrolling, swiping, and supported global navigation.
 - Screenshot capture is request/action-scoped, not continuous; protected windows and some app surfaces may block it.
-- Encrypted app-private memory storage using Android Keystore AES-GCM, with chat history and explicitly saved facts in the WebView memory flow.
+- Encrypted app-private memory storage using Android Keystore AES-GCM, with chat history and explicitly saved facts in the WebView memory flow. Gemini and Groq now expose `remember_fact` and `recall_saved_facts` tools backed by that same store; memory is retrieved only when relevant/requested, not injected into every cloud prompt.
 - App launching, screen inspection/interactions, navigation, volume, Settings deep links, Clock alarm/timer prefill, dialer opening, and SMS draft composition.
 - Safety limits: no automatic calls, SMS sending, delete, payment, purchase, transfer, or permission granting.
 - Redacted bounded action audit and interrupted-task recovery without automatic replay.
@@ -25,7 +25,7 @@ This roadmap extends the existing Gemini/Groq Agent Core. It does not replace th
 
 ## Important current gaps (not yet implemented)
 
-- Native encrypted memory is not yet directly exposed to Gemini/Groq as structured read/write tools. The current WebView memory UI can save explicitly requested facts, but the agent does not yet have a safe native memory retrieval/write tool contract.
+- Automatic memory-based personalization is not yet always-on. The agent has explicit `remember_fact` and `recall_saved_facts` tools; it should call them only when the user asks to remember something or asks to use/recall saved preferences. Retrieved facts are sent to the selected AI provider for that request, so they should not be retrieved unnecessarily.
 - The current planner is still mostly model-led tool selection plus a one-active-action guard; it is not yet a durable dependency graph with resumable user-approved plans.
 - Action outcomes still need a formal state model: accepted, completed, verified, needs_confirmation, failed, and unknown. A non-empty verification label alone must not be treated as proof of task completion.
 - The current screen tools cover generic accessibility interactions, not every app-specific workflow. Some apps expose incomplete or no accessibility trees.
@@ -42,7 +42,7 @@ This roadmap extends the existing Gemini/Groq Agent Core. It does not replace th
 - Stop safely at missing permissions, ambiguous targets, or confirmation boundaries.
 
 ### Phase 2 — Personal memory integration
-- Add native tools to retrieve, explicitly save, and inspect user-approved facts from the encrypted store.
+- Extend tests and UI affordances for the native tools that now retrieve and explicitly save user-approved facts from the encrypted store.
 - Keep memory disabled when the user turns it off; do not silently infer permanent facts.
 - Add a separate, explicit setting controlling whether saved facts may be sent to the selected cloud AI provider as prompt context. Default that sharing setting to off.
 - Reject credentials, OTPs, payment data, and unnecessary sensitive personal data from saved facts.
