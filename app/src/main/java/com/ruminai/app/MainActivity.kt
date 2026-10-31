@@ -238,6 +238,24 @@ class MainActivity : ComponentActivity() {
                 var connection: HttpURLConnection? = null
                 try {
                     val isGroq = provider == "groq"
+                    if (!isGroq) {
+                        val history = JSONArray(historyJson)
+                        val lines = mutableListOf<String>()
+                        lines.add(
+                            "তুমি RUMIN AI 3.0, বসের ব্যক্তিগত বাংলা Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল। ব্যবহারকারীর নির্দেশ বুঝে কাজের প্রয়োজন হলে শুধু ঘোষিত Gemini Function Tools ব্যবহার করো। open_app কেবল অনুমোদিত অ্যাপ খুলতে পারে; inspect_screen শুধু বর্তমান দৃশ্যমান স্ক্রিনের লেখা পড়তে পারে, কোনো কিছুতে চাপ দিতে বা টাইপ করতে পারে না। Tool call নিজে Android-এ চলে না—Rumin-এর Native Agent তা যাচাই করে চালায়। Function result না পাওয়া পর্যন্ত কাজ হয়েছে বলবে না। অজানা কাজের জন্য Tool বানিয়ে নিও না। ঝুঁকিপূর্ণ কাজ, বার্তা পাঠানো, কল করা, মুছে ফেলা বা অর্থসংক্রান্ত কাজের আগে স্পষ্ট নিশ্চিতকরণ চাইবে। স্বাভাবিক বাংলাদেশি বাংলায় সংক্ষিপ্ত উত্তর দাও এবং ব্যবহারকারীকে বস বলে সম্বোধন করো।"
+                        )
+                        for (i in 0 until history.length()) {
+                            val item = history.optJSONObject(i) ?: continue
+                            val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
+                            lines.add(label + item.optString("content"))
+                        }
+                        lines.add("ব্যবহারকারী: " + currentText)
+                        val reply = GeminiAgentRunner(this@MainActivity, agentCore)
+                            .run(key, lines.joinToString("\\n"))
+                        if (reply.isBlank()) throw IllegalStateException("Gemini থেকে ফাঁকা উত্তর এসেছে")
+                        deliverAiResult(requestId, true, reply)
+                        return@execute
+                    }
                     val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
                     val body = if (isGroq) {
                         val messages = JSONArray()
