@@ -98,7 +98,7 @@ internal class GeminiAgentRunner(
         """.trimIndent()
 
         val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
-        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display").any { latestRequest.contains(it) }
+        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display", "স্ক্রল", "scroll", "ট্যাপ", "tap", "ক্লিক", "click", "swipe", "টাইপ", "type").any { latestRequest.contains(it) }
         val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
         if (screenRequested) {
             val screenshot = RuminAccessibilityService.captureScreenJpegBase64()
@@ -136,6 +136,8 @@ internal class GeminiAgentRunner(
                     .put("result", JSONArray().put(JSONObject().put("type", "text").put("text", result.toString()))))
             }
             if (screenMayHaveChanged) {
+                // Let the destination app render and respect Android's screenshot interval limit.
+                try { Thread.sleep(1100) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
                 val updatedScreen = RuminAccessibilityService.captureScreenJpegBase64()
                 if (!updatedScreen.isNullOrBlank()) {
                     input.put(JSONObject().put("type", "user_input").put("content", JSONArray()
