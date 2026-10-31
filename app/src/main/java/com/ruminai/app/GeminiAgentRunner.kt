@@ -41,9 +41,9 @@ internal class GeminiAgentRunner(
 
     private val tools = JSONArray().apply {
         put(tool("open_app", "Open one allow-listed app only when the user asks. This does not perform actions inside that app.",
-            schema("app" to enum("App identifier", "youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github"), required = listOf("app"))))
+            schema("app" to enum("App identifier", "youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github", "messages"), required = listOf("app"))))
         put(tool("inspect_screen", "Read visible screen text only. Never click or type. Sensitive-looking values are redacted.", schema()))
-        put(tool("screen_interact", "Only when the user explicitly asks for this exact screen action: click an exact visible label, type into the currently focused editable field, or scroll. Never interact with payment, purchase, delete, send, or permission-grant controls.", schema(
+        put(tool("screen_interact", "Only when the user explicitly asks for this exact screen action: click an exact visible label, type into the currently focused editable field, or scroll the current app. Scroll uses the largest visible scroll container and falls back to a swipe gesture when needed. Never interact with payment, purchase, delete, send, or permission-grant controls.", schema(
             "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up"),
             "text" to string("Exact visible label to click or text for the already-focused input; max 1000 characters"),
             required = listOf("action")
@@ -76,11 +76,11 @@ internal class GeminiAgentRunner(
             কাজটি স্পষ্ট ও সমর্থিত হলে ঘোষিত Function Tool নির্বাচন করো; Native layer তা যাচাই করে চালায়।
             শুধু Tool result-এর প্রমাণ অনুযায়ী কাজের অবস্থা জানাবে। activity_launch_accepted মানে Android অ্যাপ খোলার অনুরোধ গ্রহণ করেছে, অ্যাপের ভেতরের লক্ষ্য পূরণ নয়।
             alarm_ui_opened বা timer_ui_opened মানে Clock UI খোলা হয়েছে; বস নিশ্চিত না করা পর্যন্ত সেট হয়েছে বলবে না।
-            dialer_opened মানে শুধু ডায়ালার খোলা; কল করা হয়নি। sms_draft_opened মানে খসড়া খোলা; SMS পাঠানো হয়নি।
+            dialer_opened মানে শুধু ডায়ালার খোলা; কল করা হয়নি। sms_draft_opened মানে খসড়া খোলা; SMS পাঠানো হয়নি। বস SMS করতে বললে প্রাপক ও বার্তার লেখা না থাকলে আগে জিজ্ঞেস করবে; দুটো জানা থাকলে SMS draft খুলবে, কিন্তু Send চাপবে না।
             system_intent_dispatched মানে Settings পেজ খোলা; অনুমতি granted হয়েছে এমন দাবি করবে না।
             outcome_unknown পেলে একই কাজ আবার চালাবে না; বসকে ফোনে ফলাফল পরীক্ষা করতে বলবে।
             inspect_screen শুধু দৃশ্যমান লেখা পড়ে; সংবেদনশীল অংশ আড়াল করা হয়। স্ক্রিনে যা নেই তা অনুমান করবে না।
-            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
+            generic বা অনির্দিষ্ট tap/type করবে না। screen_interact কেবল বস স্পষ্টভাবে নির্দিষ্ট দৃশ্যমান লেখা চাপতে, ফোকাস করা ইনপুটে নির্দিষ্ট লেখা বসাতে, বা স্ক্রল করতে বললে ব্যবহার করবে; Facebook/অন্যান্য feed-এ স্ক্রল চাইলে scroll_down/scroll_up ব্যবহার করবে এবং প্রতিটি action-এর ফল দেখে পরের ধাপ নেবে। payment, purchase, delete, send বা permission-grant control কখনো চাপবে না। arbitrary shell/code/URL, payment, deletion, permission grant, call বা message send করার চেষ্টা করবে না।
             Tool নেই বা অনুমতি নেই হলে সীমাবদ্ধতা ও সেটি চালু করার পথ স্পষ্ট করে বলবে।
             আইডিয়া চাইলে বাস্তবসম্মত বিকল্প, সুবিধা-অসুবিধা ও পরবর্তী পদক্ষেপ দেবে; অনুমানকে তথ্য হিসেবে বলবে না।
             ভেতরে পরিকল্পনা করো, কিন্তু গোপন chain-of-thought প্রকাশ করবে না; দরকার হলে সংক্ষিপ্ত কারণ ও ফলাফল বলবে।
@@ -262,6 +262,9 @@ internal class GeminiAgentRunner(
             "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
             "playstore" -> activity.packageManager.getLaunchIntentForPackage("com.android.vending") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))
             "github" -> activity.packageManager.getLaunchIntentForPackage("com.github.android") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com"))
+            "messages" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.apps.messaging")
+                ?: activity.packageManager.getLaunchIntentForPackage("com.android.messaging")
+                ?: Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING)
             else -> return fail("অ্যাপটি অনুমোদিত নয়।", "rejected")
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -510,7 +513,7 @@ internal class GeminiAgentRunner(
         private const val KEY_EVENTS = "events"
         private const val KEY_ACTIVE_TASK = "active_task"
         private const val MAX_EVENTS = 120
-        private val ALLOWED_APPS = setOf("youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github")
+        private val ALLOWED_APPS = setOf("youtube", "facebook", "whatsapp", "instagram", "gmail", "maps", "camera", "settings", "browser", "playstore", "github", "messages")
         private val PHONE_PATTERN = Regex("^[+0-9*#]{3,20}$")
         private val PHONE_IN_TEXT = Regex("(?<!\\w)(?:\\+?\\d[\\d .()/-]{7,}\\d)(?!\\w)")
         private val EMAIL_PATTERN = Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", RegexOption.IGNORE_CASE)
