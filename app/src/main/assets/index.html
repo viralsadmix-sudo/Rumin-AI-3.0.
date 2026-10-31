@@ -326,7 +326,8 @@ function toggleMemory(on){
  const st=document.getElementById('memoryStatus');
  if(st)st.textContent=on?'মেমোরি চালু—এনক্রিপ্ট করে ফোনে সংরক্ষণ হচ্ছে':'মেমোরি বন্ধ—নতুন কথোপকথন মেমোরি লগে যোগ হবে না';
  if(on)saveChat()
-}function exportMemory(){try{const messages=getMemoryArray('memoryLog').length?getMemoryArray('memoryLog'):getMemoryArray('chatHistory');const facts=getMemoryArray('savedFacts');const blob=new Blob([JSON.stringify({app:'Rumin AI',exportedAt:new Date().toISOString(),messages,savedFacts:facts},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='rumin-ai-memory-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){alert('মেমোরি ব্যাকআপ তৈরি করা যায়নি')}}
+}function exportMemory(){try{const messages=getMemoryArray('memoryLog').length?getMemoryArray('memoryLog'):getMemoryArray('chatHistory');const facts=getMemoryArray('savedFacts');const payload={app:'Rumin AI',exportedAt:new Date().toISOString(),messages,savedFacts:facts};if(window.RuminNative&&RuminNative.exportMemoryBackup){if(!RuminNative.exportMemoryBackup(JSON.stringify(payload)))alert('ব্যাকআপ ফাইল তৈরি করা যায়নি');return}const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='rumin-ai-memory-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){alert('মেমোরি ব্যাকআপ তৈরি করা যায়নি')}}
+window.onMemoryBackupExport=function(ok,message){const st=document.getElementById('memoryStatus');if(st)st.textContent=message|| (ok?'ব্যাকআপ সংরক্ষিত':'ব্যাকআপ ব্যর্থ')}
 function importMemoryBackup(file){
  if(!file)return;
  const reader=new FileReader();
