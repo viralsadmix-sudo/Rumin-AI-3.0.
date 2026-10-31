@@ -236,6 +236,7 @@ class MainActivity : ComponentActivity() {
             }
             aiExecutor.execute {
                 var connection: HttpURLConnection? = null
+                var nativeRunner: GeminiAgentRunner? = null
                 try {
                     val history = JSONArray(historyJson)
                     val lines = mutableListOf<String>()
@@ -249,16 +250,24 @@ class MainActivity : ComponentActivity() {
                     }
                     lines.add("ব্যবহারকারী: " + currentText)
                     val prompt = lines.joinToString("\\n")
-                    val nativeRunner = GeminiAgentRunner(this@MainActivity, agentCore)
+                    nativeRunner = GeminiAgentRunner(this@MainActivity, agentCore)
                     val reply = if (provider == "groq") {
-                        GroqAgentRunner(nativeRunner).run(key, prompt)
+                        GroqAgentRunner(nativeRunner!!).run(key, prompt)
                     } else {
-                        nativeRunner.run(key, prompt)
+                        nativeRunner!!.run(key, prompt)
                     }
                     if (reply.isBlank()) throw IllegalStateException("AI থেকে ফাঁকা উত্তর এসেছে")
                     deliverAiResult(requestId, true, reply)
                     return@execute
                 } catch (e: Exception) {
+                    if (nativeRunner?.hasNativeActionAttempted() == true) {
+                        deliverAiResult(
+                            requestId,
+                            true,
+                            "বস, ফোনে Native action চালানোর চেষ্টা হয়েছে, কিন্তু AI-এর পরের উত্তর পাওয়া যায়নি। একই কাজ আবার চালাইনি—ফোনে ফলাফল পরীক্ষা করুন।"
+                        )
+                        return@execute
+                    }
                     val detail = when (e) {
                         is java.net.UnknownHostException -> "ইন্টারনেট/DNS সংযোগ নেই (UnknownHostException): ${e.message ?: "হোস্ট খুঁজে পাওয়া যায়নি"}"
                         is java.net.SocketTimeoutException -> "API উত্তর দিতে সময় নিয়েছে; নেটওয়ার্ক বা সার্ভার ধীর (Timeout): ${e.message ?: "সময় শেষ"}"
