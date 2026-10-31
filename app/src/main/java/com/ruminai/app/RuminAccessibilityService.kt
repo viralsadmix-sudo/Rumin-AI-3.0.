@@ -48,7 +48,10 @@ class RuminAccessibilityService : AccessibilityService() {
     }
 
     private fun screenshotJpegBase64(timeoutMs: Long): String? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            lastScreenshotError = "স্ক্রিনশটের জন্য Android 11 বা পরের সংস্করণ দরকার।"
+            return null
+        }
         val latch = CountDownLatch(1)
         val encoded = AtomicReference<String?>()
         try {
@@ -62,7 +65,10 @@ class RuminAccessibilityService : AccessibilityService() {
                     try {
                         source = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
                         software = source?.copy(Bitmap.Config.ARGB_8888, false)
-                        val bitmap = software ?: return
+                        val bitmap = software ?: run {
+                            lastScreenshotError = "Android screenshot পাওয়া গেছে, কিন্তু image decode করা যায়নি।"
+                            return
+                        }
                         val maxDimension = 1280
                         val outputBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
                             val ratio = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
@@ -72,9 +78,12 @@ class RuminAccessibilityService : AccessibilityService() {
                         val output = ByteArrayOutputStream()
                         if (outputBitmap.compress(Bitmap.CompressFormat.JPEG, 68, output)) {
                             encoded.set(Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP))
+                        } else {
+                            lastScreenshotError = "স্ক্রিনশট JPEG-এ রূপান্তর করা যায়নি।"
                         }
-                    } catch (_: Exception) {
+                    } catch (error: Exception) {
                         encoded.set(null)
+                        lastScreenshotError = "স্ক্রিনশট প্রসেস করতে সমস্যা হয়েছে: ${error.javaClass.simpleName}"
                     } finally {
                         scaled?.recycle()
                         software?.recycle()
@@ -89,9 +98,13 @@ class RuminAccessibilityService : AccessibilityService() {
                     latch.countDown()
                 }
             })
-            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) return null
+            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                lastScreenshotError = "Android screenshot callback ${timeoutMs} ms-এর মধ্যে উত্তর দেয়নি।"
+                return null
+            }
             return encoded.get()
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            lastScreenshotError = "Screenshot API চালু করতে সমস্যা হয়েছে: ${error.javaClass.simpleName}"
             return null
         }
     }
