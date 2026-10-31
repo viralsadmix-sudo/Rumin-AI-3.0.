@@ -15,6 +15,7 @@ import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
+    private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
     private var pendingNativeSpeech = false
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
@@ -51,6 +53,12 @@ class MainActivity : ComponentActivity() {
             append(". Accessibility ও Notification Access আলাদা Settings থেকে চালু করতে হবে।")
         }
         if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(${denied.isEmpty()}, ${JSONObject.quote(message)})", null)
+    }
+
+    private val memoryFilePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val callback = pendingFileChooser
+        pendingFileChooser = null
+        callback?.onReceiveValue(if (uri == null) null else arrayOf(uri))
     }
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -106,6 +114,18 @@ class MainActivity : ComponentActivity() {
         webView.addJavascriptInterface(NativeBridge(), "RuminNative")
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: WebChromeClient.FileChooserParams?
+            ): Boolean {
+                if (filePathCallback == null) return false
+                pendingFileChooser?.onReceiveValue(null)
+                pendingFileChooser = filePathCallback
+                memoryFilePicker.launch("application/json")
+                return true
+            }
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
                     if (request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
@@ -575,6 +595,8 @@ class MainActivity : ComponentActivity() {
         liveVoiceSession?.stop()
         liveVoiceSession = null
         textToSpeech?.stop()
+        pendingFileChooser?.onReceiveValue(null)
+        pendingFileChooser = null
         continuousListening = false
         continuousRecognizer?.destroy()
         continuousRecognizer = null
