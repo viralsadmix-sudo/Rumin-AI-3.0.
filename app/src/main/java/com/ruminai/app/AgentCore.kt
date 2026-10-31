@@ -84,6 +84,8 @@ internal class AgentExecutor(private val logger: AgentLogger) {
         return true
     }
 
+    fun hasRunningTask(): Boolean = running.isNotEmpty()
+
     fun complete(taskId: String, ok: Boolean, message: String): Boolean {
         val plan = running.remove(taskId) ?: return false
         val verified = AgentVerifier.verifyCallback(ok, message)
@@ -112,11 +114,16 @@ class AgentCore {
     private val executor = AgentExecutor(logger)
     private val generatedIds = AtomicLong(0)
 
+    @Synchronized
     fun begin(action: String, first: String, second: String, category: String, requestedTaskId: String): Boolean {
         val taskId = requestedTaskId.ifBlank { "agent-${generatedIds.incrementAndGet()}" }
         val plan = planner.createPlan(taskId, category, action, first, second)
         if (plan == null) {
             logger.record(AgentLogEvent(System.currentTimeMillis(), taskId, action.take(80), "rejected", "Tool is not registered"))
+            return false
+        }
+        if (executor.hasRunningTask()) {
+            logger.record(AgentLogEvent(System.currentTimeMillis(), taskId, action.take(80), "rejected", "Another native action is still running"))
             return false
         }
         return executor.begin(plan)
