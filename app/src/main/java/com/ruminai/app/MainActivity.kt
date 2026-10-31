@@ -237,11 +237,11 @@ class MainActivity : ComponentActivity() {
         }
 
         @JavascriptInterface fun getAgentLogs(): String {
-            return GeminiAgentRunner(this@MainActivity, agentCore).recentAuditJson()
+            return GeminiAgentRunner.readAuditJson(this@MainActivity)
         }
 
         @JavascriptInterface fun clearAgentLogs(): String {
-            return GeminiAgentRunner(this@MainActivity, agentCore).clearAuditLog().toString()
+            return GeminiAgentRunner.clearAuditLog(this@MainActivity).toString()
         }
 
         @JavascriptInterface fun getGitHubStatus(): String {
