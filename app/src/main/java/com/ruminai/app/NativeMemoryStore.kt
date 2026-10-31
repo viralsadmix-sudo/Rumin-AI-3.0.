@@ -20,6 +20,7 @@ internal class NativeMemoryStore(context: Context) {
     private val appContext = context.applicationContext
     private val file = File(appContext.filesDir, "rumin-memory-v1.enc")
     private val tempFile = File(appContext.filesDir, "rumin-memory-v1.tmp")
+    private val backupFile = File(appContext.filesDir, "rumin-memory-v1.bak")
 
     @Synchronized
     fun load(): JSONObject {
@@ -54,8 +55,13 @@ internal class NativeMemoryStore(context: Context) {
             val encrypted = cipher.doFinal(state.toString().toByteArray(Charsets.UTF_8))
             val output = cipher.iv + encrypted
             tempFile.writeBytes(output)
-            if (file.exists() && !file.delete()) throw IllegalStateException("পুরোনো মেমোরি ফাইল প্রতিস্থাপন করা যায়নি")
-            if (!tempFile.renameTo(file)) throw IllegalStateException("নতুন মেমোরি ফাইল সংরক্ষণ করা যায়নি")
+            if (backupFile.exists()) backupFile.delete()
+            if (file.exists() && !file.renameTo(backupFile)) throw IllegalStateException("পুরোনো মেমোরি ফাইল নিরাপদে ব্যাকআপ করা যায়নি")
+            if (!tempFile.renameTo(file)) {
+                if (backupFile.exists()) backupFile.renameTo(file)
+                throw IllegalStateException("নতুন মেমোরি ফাইল সংরক্ষণ করা যায়নি")
+            }
+            if (backupFile.exists()) backupFile.delete()
             JSONObject().put("ok", true).put("message", "মেমোরি এনক্রিপ্ট করে ফোনে সংরক্ষণ করা হয়েছে।")
                 .put("bytes", output.size)
         } catch (e: Exception) {
@@ -68,6 +74,7 @@ internal class NativeMemoryStore(context: Context) {
     fun clear(): JSONObject {
         return try {
             if (tempFile.exists()) tempFile.delete()
+            if (backupFile.exists()) backupFile.delete()
             if (file.exists() && !file.delete()) throw IllegalStateException("মেমোরি ফাইল মুছতে পারিনি")
             JSONObject().put("ok", true).put("message", "এই ফোনের এনক্রিপ্ট করা মেমোরি মুছে ফেলা হয়েছে।")
         } catch (e: Exception) {
