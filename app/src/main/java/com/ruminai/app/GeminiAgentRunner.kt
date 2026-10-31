@@ -63,7 +63,7 @@ internal class GeminiAgentRunner(
             লগে শুধু action/state থাকবে; ফোন নম্বর, মেসেজ, স্ক্রিনের লেখা বা API key সংরক্ষণ করবে না।
             
             ব্যবহারকারীর অনুরোধ ও কথোপকথনের প্রেক্ষাপট:
-            ${prompt.replace(/\\n/g, "\n")}
+            ${prompt.replace("\\n", "\n")}
         """.trimIndent()
 
         val input = JSONArray().put(JSONObject().put("type", "user_input")
