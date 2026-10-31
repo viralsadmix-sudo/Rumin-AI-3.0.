@@ -98,7 +98,7 @@ internal class GeminiAgentRunner(
         """.trimIndent()
 
         val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
-        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "screen", "display").any { latestRequest.contains(it) }
+        val screenRequested = listOf("স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display").any { latestRequest.contains(it) }
         val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
         if (screenRequested) {
             val screenshot = RuminAccessibilityService.captureScreenJpegBase64()
