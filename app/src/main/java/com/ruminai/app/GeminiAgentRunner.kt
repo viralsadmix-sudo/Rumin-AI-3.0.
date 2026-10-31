@@ -2,7 +2,7 @@ package com.ruminai.app
 
 import android.content.Intent
 import android.net.Uri
-import android.os.CountDownLatch
+import java.util.concurrent.CountDownLatch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
