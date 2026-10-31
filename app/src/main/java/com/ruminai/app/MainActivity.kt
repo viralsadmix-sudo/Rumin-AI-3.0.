@@ -27,6 +27,7 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
+    private val nativeMemoryStore by lazy { NativeMemoryStore(this) }
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
@@ -223,6 +224,26 @@ class MainActivity : ComponentActivity() {
                 } else startContinuousListening()
             }
         }
+        @JavascriptInterface fun loadMemory(): String {
+            return nativeMemoryStore.load().toString()
+        }
+
+        @JavascriptInterface fun saveMemory(snapshotJson: String): String {
+            return nativeMemoryStore.save(snapshotJson).toString()
+        }
+
+        @JavascriptInterface fun clearNativeMemory(): String {
+            return nativeMemoryStore.clear().toString()
+        }
+
+        @JavascriptInterface fun getAgentLogs(): String {
+            return GeminiAgentRunner(this@MainActivity, agentCore).recentAuditJson()
+        }
+
+        @JavascriptInterface fun clearAgentLogs(): String {
+            return GeminiAgentRunner(this@MainActivity, agentCore).clearAuditLog().toString()
+        }
+
         @JavascriptInterface fun openUrl(url: String) {
             runOnUiThread {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
