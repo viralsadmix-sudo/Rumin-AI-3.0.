@@ -320,8 +320,9 @@ internal class GeminiAgentRunner(
     private fun openInstalledApp(appName: String): JSONObject {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val activities = activity.packageManager.queryIntentActivities(launcher, 0)
-        val exact = activities.filter { it.loadLabel(activity.packageManager).toString().equals(appName, ignoreCase = true) }
-        val matches = if (exact.isNotEmpty()) exact else activities.filter {
+        val visibleApps = activities.distinctBy { it.activityInfo.packageName }
+        val exact = visibleApps.filter { it.loadLabel(activity.packageManager).toString().equals(appName, ignoreCase = true) }
+        val matches = if (exact.isNotEmpty()) exact else visibleApps.filter {
             it.loadLabel(activity.packageManager).toString().contains(appName, ignoreCase = true)
         }
         if (matches.isEmpty()) return fail("‘$appName’ নামে launcher-এ থাকা কোনো ইনস্টল করা অ্যাপ পাওয়া যায়নি।", "app_not_found")
