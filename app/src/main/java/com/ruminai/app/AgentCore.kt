@@ -38,7 +38,7 @@ internal class AgentToolRegistry {
         "playstore", "maps"
     )
     private val accessibilityTools = setOf(
-        "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up",
+        "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe",
         "back", "home", "recents", "notifications", "quicksettings", "power"
     )
 
