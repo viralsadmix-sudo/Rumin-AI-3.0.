@@ -103,9 +103,9 @@ internal class AgentExecutor(private val logger: AgentLogger) {
 }
 
 /**
- * Foundation v1: typed tool registry, one-action planning, execution lifecycle,
- * callback verification, and bounded in-memory audit events. Persistent logs,
- * multi-step model planning, and recovery are separate later modules.
+ * Foundation: typed tool registry, one-active-action planning, execution lifecycle,
+ * callback verification, and bounded in-memory events. Persistent redacted audit
+ * and interrupted-task recovery are backed by GeminiAgentRunner's private storage.
  */
 class AgentCore {
     private val logger = AgentLogger()
