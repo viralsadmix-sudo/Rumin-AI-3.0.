@@ -15,6 +15,7 @@ import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -23,14 +24,19 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
+    internal val nativeMemoryStore by lazy { NativeMemoryStore(this) }
+    private val taskActionNames = ConcurrentHashMap<String, String>()
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
+    private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    @Volatile private var pendingMemoryBackupJson: String? = null
     private var pendingNativeSpeech = false
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
@@ -50,6 +56,32 @@ class MainActivity : ComponentActivity() {
             append(". Accessibility ও Notification Access আলাদা Settings থেকে চালু করতে হবে।")
         }
         if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeCommandResult && window.onNativeCommandResult(${denied.isEmpty()}, ${JSONObject.quote(message)})", null)
+    }
+
+    private val memoryFilePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val callback = pendingFileChooser
+        pendingFileChooser = null
+        callback?.onReceiveValue(if (uri == null) null else arrayOf(uri))
+    }
+
+    private val memoryBackupSaver = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val data = pendingMemoryBackupJson
+        pendingMemoryBackupJson = null
+        val ok = try {
+            if (uri == null || data == null) false
+            else {
+                val output = contentResolver.openOutputStream(uri)
+                    ?: throw IllegalStateException("ব্যাকআপ ফাইল খোলা যায়নি")
+                output.use { it.write(data.toByteArray(Charsets.UTF_8)) }
+                true
+            }
+        } catch (_: Exception) { false }
+        if (::webView.isInitialized) runOnUiThread {
+            webView.evaluateJavascript(
+                "window.onMemoryBackupExport && window.onMemoryBackupExport($ok, " + JSONObject.quote(if (ok) "ব্যাকআপ ফাইল সংরক্ষণ হয়েছে" else "ব্যাকআপ সংরক্ষণ করা যায়নি") + ")",
+                null
+            )
+        }
     }
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -105,6 +137,18 @@ class MainActivity : ComponentActivity() {
         webView.addJavascriptInterface(NativeBridge(), "RuminNative")
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: WebChromeClient.FileChooserParams?
+            ): Boolean {
+                if (filePathCallback == null) return false
+                pendingFileChooser?.onReceiveValue(null)
+                pendingFileChooser = filePathCallback
+                memoryFilePicker.launch("application/json")
+                return true
+            }
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
                     if (request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
@@ -223,6 +267,37 @@ class MainActivity : ComponentActivity() {
                 } else startContinuousListening()
             }
         }
+        @JavascriptInterface fun loadMemory(): String {
+            return nativeMemoryStore.load().toString()
+        }
+
+        @JavascriptInterface fun saveMemory(snapshotJson: String): String {
+            return nativeMemoryStore.save(snapshotJson).toString()
+        }
+
+        @JavascriptInterface fun clearNativeMemory(): String {
+            return nativeMemoryStore.clear().toString()
+        }
+
+        @JavascriptInterface fun exportMemoryBackup(snapshotJson: String): Boolean {
+            if (snapshotJson.length > 2_000_000) return false
+            pendingMemoryBackupJson = snapshotJson
+            runOnUiThread { memoryBackupSaver.launch("rumin-ai-memory-backup.json") }
+            return true
+        }
+
+        @JavascriptInterface fun getAgentLogs(): String {
+            return GeminiAgentRunner.readAuditJson(this@MainActivity)
+        }
+
+        @JavascriptInterface fun clearAgentLogs(): String {
+            return GeminiAgentRunner.clearAuditLog(this@MainActivity).toString()
+        }
+
+        @JavascriptInterface fun getGitHubStatus(): String {
+            return GitHubAgent().repoStatus().toString()
+        }
+
         @JavascriptInterface fun openUrl(url: String) {
             runOnUiThread {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
@@ -236,64 +311,38 @@ class MainActivity : ComponentActivity() {
             }
             aiExecutor.execute {
                 var connection: HttpURLConnection? = null
+                var nativeRunner: GeminiAgentRunner? = null
                 try {
-                    val isGroq = provider == "groq"
-                    val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
-                    val body = if (isGroq) {
-                        val messages = JSONArray()
-                        messages.put(JSONObject().put("role", "system").put("content", "তুমি RUMIN AI (রুমিন), তোমার নির্মাতা সাব্বির আহমেদ রুবেল। কেউ ‘তোমাকে কে বানিয়েছে?’ জিজ্ঞেস করলে সত্যভাবে বলবে: ‘আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI; আমার AI উত্তর দেওয়ার জন্য Google Gemini ব্যবহার করা হতে পারে।’ Google-কে তোমার নির্মাতা বলবে না। তুমি বসের ব্যক্তিগত বাংলা AI সহকারী। তোমার মূল উদ্দেশ্য শুধু চ্যাট করা নয়: তুমি RUMIN AI 3.0 অ্যাপের ভেতরে থাকা ব্যক্তিগত ফোন-সহকারী; বসের কথা শুনবে, উদ্দেশ্য বুঝবে, এবং এই অ্যাপে বাস্তবে সংযুক্ত ও অনুমোদিত ফোন-কমান্ড থাকলে সেটি চালানোর চেষ্টা করবে। AI মস্তিষ্ক অনুরোধ বুঝতে সাহায্য করে, কিন্তু নিজে থেকে Android ফোনে হাত দিতে পারে না—কাজ চালায় অ্যাপের Native Android command bridge। তাই শুধু কথা বলে কাজ হয়েছে এমন ভান করবে না। আগে সহজ, স্পষ্ট নির্দেশ বুঝবে; পরিচিত কমান্ড হলে তা কমান্ড-ব্যবস্থায় পাঠাতে হবে, আর কমান্ড সংযুক্ত না থাকলে স্পষ্ট বলবে যে ওই কাজের Native action এখনো যোগ করা নেই। কমান্ডের ফলাফল না পাওয়া পর্যন্ত সফল বলবে না। ব্যবহারকারীকে স্বাভাবিকভাবে ‘বস’ বলবে, তবে তার অনুভূতি, হতাশা, আনন্দ, উদ্বেগ বা তাড়াহুড়ো বুঝে সহানুভূতিশীলভাবে উত্তর দেবে; অনুভূতি সম্পর্কে নিশ্চিত না হলে অনুমান না করে নরমভাবে জিজ্ঞেস করবে। কথার ভাষা স্বাভাবিক বাংলাদেশি বাংলা, কণ্ঠে বলার উপযোগী ছোট বাক্য, উষ্ণ ও সম্মানজনক ভঙ্গি। ব্যবহারকারী কাজ চাইলে প্রথমে সংক্ষেপে স্বীকার করবে—যেমন ‘ঠিক আছে বস, আমি চেষ্টা করছি’—তারপর বাস্তবসম্মত পরবর্তী পদক্ষেপ নেবে। এই অ্যাপে বাস্তবে উপলভ্য Native command ব্যবহার করে সমর্থিত ফোনের কাজ করো; ফলাফল callback থেকে না আসা পর্যন্ত কাজ সফল হয়েছে বলবে না। অনুমতি না থাকলে কোন অনুমতি দরকার তা নির্দিষ্ট করে বলো এবং অ্যাপের Settings-এর বোতাম/পথ দেখাও; ব্যবহারকারী নিজে Android-এর অনুমতি দেবে। কোনো কাজ এই অ্যাপে সম্ভব না হলে শুধু ‘পারব না’ বলে থেমো না: কেন আটকে আছে, কোন সংযোগ/টুল দরকার, কীভাবে চালু করবে এবং এখন বিকল্প কী—স্পষ্ট করে বলো। GitHub সংযোগ/ফাইল-সম্পাদনার টুল এই অ্যাপে না থাকলে GitHub-এ কাজ করেছি বলে ভান করবে না; নিরাপদ সংযোগের প্রয়োজন ব্যাখ্যা করবে। কাজ সম্পন্ন না হলে সম্পন্ন বলবে না। ব্যবহারকারী স্পষ্টভাবে না বললে নিজে থেকে কোনো ফোন/অ্যাপের কাজ শুরু করবে না, সেটিংস বদলাবে না, বার্তা পাঠাবে না বা সিদ্ধান্ত চাপিয়ে দেবে না। ব্যবহারকারীর নির্দেশের অর্থ অস্পষ্ট হলে আগে ছোট করে প্রশ্ন করবে; নিরাপদ ও স্পষ্ট নির্দেশ পেলে শুধু সেই কাজটাই করবে। ঝুঁকিপূর্ণ, ব্যক্তিগত ডেটা প্রকাশ, মুছে ফেলা, টাকা বা বাহ্যিক বার্তা পাঠানোর আগে নিশ্চিত অনুমতি নাও। ব্যবহারকারীর নাম বানিয়ে বলবে না।"))
-                        val history = JSONArray(historyJson)
-                        for (i in 0 until history.length()) {
-                            val item = history.optJSONObject(i) ?: continue
-                            val role = if (item.optString("role") == "assistant") "assistant" else "user"
-                            messages.put(JSONObject().put("role", role).put("content", item.optString("content")))
-                        }
-                        messages.put(JSONObject().put("role", "user").put("content", currentText))
-                        JSONObject().put("model", "openai/gpt-oss-20b").put("messages", messages).put("temperature", 0.7)
+                    val history = JSONArray(historyJson)
+                    val lines = mutableListOf<String>()
+                    lines.add(
+                        "তুমি RUMIN AI 3.0, বসের ব্যক্তিগত বাংলা Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল। ঘোষিত Function Tools ব্যবহার করে শুধু অনুমোদিত Native action চালাবে। Tool result না পাওয়া পর্যন্ত কাজ সফল বলবে না। Dialer/SMS/Alarm/Timer/Settings-এর সীমাবদ্ধতা স্পষ্ট বলবে। স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে এবং ব্যবহারকারীকে বস বলবে।"
+                    )
+                    for (i in 0 until history.length()) {
+                        val item = history.optJSONObject(i) ?: continue
+                        val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
+                        lines.add(label + item.optString("content"))
+                    }
+                    lines.add("ব্যবহারকারী: " + currentText)
+                    val prompt = lines.joinToString("\n")
+                    nativeRunner = GeminiAgentRunner(this@MainActivity, agentCore)
+                    val reply = if (provider == "groq") {
+                        GroqAgentRunner(nativeRunner!!).run(key, prompt)
                     } else {
-                        val history = JSONArray(historyJson)
-                        val lines = mutableListOf<String>()
-                        lines.add("নির্দেশনা: তুমি রুমিন এআই, বসের ব্যক্তিগত বাংলা AI সহকারী। ব্যবহারকারীর অনুভূতি, উদ্দেশ্য ও কথার প্রেক্ষাপট মনোযোগ দিয়ে বোঝো; তিনি কষ্টে/হতাশ হলে সহানুভূতি দেখাও, কিন্তু তার অনুভূতি সম্পর্কে নিশ্চিত না হলে অনুমান করো না। স্বাভাবিক বাংলাদেশি বাংলায় উষ্ণ, সম্মানজনক, কণ্ঠে বলার উপযোগী বাক্যে উত্তর দাও। ব্যবহারকারী কোনো কাজ বললে প্রথমে ‘ঠিক আছে বস, আমি চেষ্টা করছি’ ধরনের সংক্ষিপ্ত আশ্বাস দিয়ে বাস্তব কাজের চেষ্টা করো—শুধু সাধারণ পরামর্শ দিয়ে থেমো না। এই অ্যাপে উপলভ্য Native command ও অনুমোদিত ক্ষমতাই ব্যবহার করতে পারো; ফলাফল না পাওয়া পর্যন্ত সফলতার দাবি করবে না। কোনো অনুমতি দরকার হলে নির্দিষ্ট করে বোঝাও এবং Settings-এর বোতাম/পথ দেখাও; অনুমতি ব্যবহারকারী নিজে দেবেন। কোনো সংযোগ/টুল অনুপস্থিত হলে স্পষ্টভাবে বলো কী অনুপস্থিত, কীভাবে সংযোগ করতে হবে এবং আপাতত বিকল্প কী। GitHub ফাইল পড়া/সম্পাদনা বা বিল্ড চালানোর টুল না থাকলে এমন কাজ করেছি বলে ভান করবে না। ব্যবহারকারী স্পষ্টভাবে না বললে নিজে থেকে কোনো ফোন/অ্যাপের কাজ শুরু করবে না, সেটিংস বদলাবে না, বার্তা পাঠাবে না বা সিদ্ধান্ত চাপিয়ে দেবে না। নির্দেশ অস্পষ্ট হলে আগে প্রশ্ন করবে; স্পষ্ট ও নিরাপদ নির্দেশ পেলে শুধু সেই কাজটাই করবে। ঝুঁকিপূর্ণ, ব্যক্তিগত ডেটা প্রকাশ, মুছে ফেলা, টাকা বা বাইরের বার্তা পাঠানোর আগে স্পষ্ট অনুমতি নাও। কাজ শেষ না হলে শেষ হয়েছে বলবে না। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো, সংক্ষিপ্ত ও পরিষ্কার বাংলায় উত্তর দাও।")
-                        for (i in 0 until history.length()) {
-                            val item = history.optJSONObject(i) ?: continue
-                            val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
-                            lines.add(label + item.optString("content"))
-                        }
-                        lines.add("ব্যবহারকারী: " + currentText)
-                        // Use the documented minimal Interactions API request shape for Gemini 3.8 Flash.
-                        JSONObject()
-                            .put("model", "gemini-3.8-flash")
-                            .put("input", lines.joinToString("\n"))
-                    }
-                    connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 45000
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                        if (isGroq) setRequestProperty("Authorization", "Bearer $key")
-                        else setRequestProperty("x-goog-api-key", key)
-                    }
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                    val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                    val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
-                    if (status !in 200..299) {
-                        val errorObj = response.optJSONObject("error")
-                        val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
-                            ?: response.optString("message").takeIf { it.isNotBlank() }
-                            ?: "HTTP $status"
-                        throw IllegalStateException("HTTP $status — $message")
-                    }
-                    val reply = if (isGroq) {
-                        response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
-                    } else {
-                        extractGeminiText(response)
+                        nativeRunner!!.run(key, prompt)
                     }
                     if (reply.isBlank()) throw IllegalStateException("AI থেকে ফাঁকা উত্তর এসেছে")
                     deliverAiResult(requestId, true, reply)
+                    return@execute
                 } catch (e: Exception) {
+                    if (nativeRunner?.hasNativeActionAttempted() == true) {
+                        deliverAiResult(
+                            requestId,
+                            true,
+                            "বস, ফোনে Native action চালানোর চেষ্টা হয়েছে, কিন্তু AI-এর পরের উত্তর পাওয়া যায়নি। একই কাজ আবার চালাইনি—ফোনে ফলাফল পরীক্ষা করুন।"
+                        )
+                        return@execute
+                    }
                     val detail = when (e) {
                         is java.net.UnknownHostException -> "ইন্টারনেট/DNS সংযোগ নেই (UnknownHostException): ${e.message ?: "হোস্ট খুঁজে পাওয়া যায়নি"}"
                         is java.net.SocketTimeoutException -> "API উত্তর দিতে সময় নিয়েছে; নেটওয়ার্ক বা সার্ভার ধীর (Timeout): ${e.message ?: "সময় শেষ"}"
@@ -346,12 +395,16 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread { deliverCommandResult(false, "এই Tool Registry-তে কমান্ডটি নেই: $actualAction", taskId) }
                 return
             }
+            taskActionNames[taskId] = actualAction
+            GeminiAgentRunner.recordAudit(this@MainActivity, taskId, actualAction, "running")
             runOnUiThread {
                 if (accessibility) {
                     val result = RuminAccessibilityService.nativeAction(actualAction, first)
                     val raw = result.toString()
                     val verified = AgentVerifier.verifyNativeJson(raw)
                     agentCore.complete(taskId, verified, result.optString("message"))
+                    GeminiAgentRunner.recordAudit(this@MainActivity, taskId, actualAction, if (verified) "succeeded" else "failed")
+                    taskActionNames.remove(taskId)
                     webView.evaluateJavascript(
                         "window.onNativeActionResult && window.onNativeActionResult(${JSONObject.quote(raw)}, ${JSONObject.quote(taskId)})",
                         null
@@ -363,7 +416,11 @@ class MainActivity : ComponentActivity() {
         }
 
         private fun deliverCommandResult(ok: Boolean, message: String, taskId: String) {
-            if (taskId.isNotBlank()) agentCore.complete(taskId, ok, message)
+            if (taskId.isNotBlank()) {
+                agentCore.complete(taskId, ok, message)
+                val action = taskActionNames.remove(taskId) ?: "native_command"
+                GeminiAgentRunner.recordAudit(this@MainActivity, taskId, action, if (ok) "succeeded" else "failed")
+            }
             webView.evaluateJavascript(
                 "window.onNativeCommandResult && window.onNativeCommandResult($ok, ${JSONObject.quote(message)}, ${JSONObject.quote(taskId)})",
                 null
@@ -576,6 +633,8 @@ class MainActivity : ComponentActivity() {
         liveVoiceSession?.stop()
         liveVoiceSession = null
         textToSpeech?.stop()
+        pendingFileChooser?.onReceiveValue(null)
+        pendingFileChooser = null
         continuousListening = false
         continuousRecognizer?.destroy()
         continuousRecognizer = null

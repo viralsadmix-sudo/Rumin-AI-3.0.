@@ -29,7 +29,7 @@ internal data class AgentLogEvent(
 
 internal class AgentToolRegistry {
     private val commandTools = setOf(
-        "home", "back", "recents", "notifications", "quicksettings", "power",
+        "home", "back", "recents", "notifications", "quicksettings", "power", "open_app",
         "writesettings", "volumeup", "volumedown", "volumemute", "volumeunmute",
         "alarm", "timer", "showalarms", "showtimers", "call", "sms", "dialer",
         "accessibility", "notificationaccess", "apppermissions", "ttssettings",
@@ -38,7 +38,7 @@ internal class AgentToolRegistry {
         "playstore", "maps"
     )
     private val accessibilityTools = setOf(
-        "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up",
+        "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe",
         "back", "home", "recents", "notifications", "quicksettings", "power"
     )
 
@@ -84,6 +84,8 @@ internal class AgentExecutor(private val logger: AgentLogger) {
         return true
     }
 
+    fun hasRunningTask(): Boolean = running.isNotEmpty()
+
     fun complete(taskId: String, ok: Boolean, message: String): Boolean {
         val plan = running.remove(taskId) ?: return false
         val verified = AgentVerifier.verifyCallback(ok, message)
@@ -101,9 +103,9 @@ internal class AgentExecutor(private val logger: AgentLogger) {
 }
 
 /**
- * Foundation v1: typed tool registry, one-action planning, execution lifecycle,
- * callback verification, and bounded in-memory audit events. Persistent logs,
- * multi-step model planning, and recovery are separate later modules.
+ * Foundation: typed tool registry, one-active-action planning, execution lifecycle,
+ * callback verification, and bounded in-memory events. Persistent redacted audit
+ * and interrupted-task recovery are backed by GeminiAgentRunner's private storage.
  */
 class AgentCore {
     private val logger = AgentLogger()
@@ -112,11 +114,16 @@ class AgentCore {
     private val executor = AgentExecutor(logger)
     private val generatedIds = AtomicLong(0)
 
+    @Synchronized
     fun begin(action: String, first: String, second: String, category: String, requestedTaskId: String): Boolean {
         val taskId = requestedTaskId.ifBlank { "agent-${generatedIds.incrementAndGet()}" }
         val plan = planner.createPlan(taskId, category, action, first, second)
         if (plan == null) {
             logger.record(AgentLogEvent(System.currentTimeMillis(), taskId, action.take(80), "rejected", "Tool is not registered"))
+            return false
+        }
+        if (executor.hasRunningTask()) {
+            logger.record(AgentLogEvent(System.currentTimeMillis(), taskId, action.take(80), "rejected", "Another native action is still running"))
             return false
         }
         return executor.begin(plan)
