@@ -391,17 +391,7 @@ internal class GeminiAgentRunner(
     }
 
     /** Bounded, persistent and deliberately redacted: no arguments, phone numbers, messages or screen text. */
-    private fun audit(taskId: String, action: String, state: String) {
-        val prefs = auditPrefs()
-        val old = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
-        old.put(JSONObject().put("time", System.currentTimeMillis()).put("task_id", taskId).put("action", action).put("state", state))
-        val bounded = JSONArray()
-        for (i in (old.length() - MAX_EVENTS).coerceAtLeast(0) until old.length()) bounded.put(old.getJSONObject(i))
-        val editor = prefs.edit().putString(KEY_EVENTS, bounded.toString())
-        if (state == "running") editor.putString(KEY_ACTIVE_TASK, taskId)
-        else if (prefs.getString(KEY_ACTIVE_TASK, null) == taskId) editor.remove(KEY_ACTIVE_TASK)
-        editor.apply()
-    }
+    private fun audit(taskId: String, action: String, state: String) = recordAudit(activity, taskId, action, state)
 
     private fun auditPrefs() = activity.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
 
@@ -465,6 +455,20 @@ internal class GeminiAgentRunner(
     }
 
     companion object {
+        fun recordAudit(context: Context, taskId: String, action: String, state: String) {
+            if (taskId.isBlank()) return
+            val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+            val old = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+            old.put(JSONObject().put("time", System.currentTimeMillis())
+                .put("task_id", taskId.take(80)).put("action", action.take(80)).put("state", state.take(40)))
+            val bounded = JSONArray()
+            for (i in (old.length() - MAX_EVENTS).coerceAtLeast(0) until old.length()) bounded.put(old.getJSONObject(i))
+            val editor = prefs.edit().putString(KEY_EVENTS, bounded.toString())
+            if (state == "running") editor.putString(KEY_ACTIVE_TASK, taskId)
+            else if (prefs.getString(KEY_ACTIVE_TASK, null) == taskId) editor.remove(KEY_ACTIVE_TASK)
+            editor.apply()
+        }
+
         fun readAuditJson(context: Context): String {
             val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
             val events = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
