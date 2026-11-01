@@ -318,6 +318,7 @@ function reply(text,emotion){
   else{status('মাইক চেপে কথা বলুন');mood(emotion||'calm',false)}
 }
 window.onNativeTtsDone=()=>{const f=afterSpeak;afterSpeak=null;if(f)setTimeout(f,250)};
+window.onNativeSpeakDone=window.onNativeTtsDone;
 window.onNativeTtsError=(message)=>{afterSpeak=null;status(message||'কথা বলতে সমস্যা হয়েছে');mood('sad',false);if(voiceMode&&!live&&!busy)setTimeout(startListening,1000)};
 window.onLiveVoiceStatus=(message,state)=>{
   status(message||'লাইভ ভয়েস');
@@ -405,15 +406,10 @@ $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
 function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-3.8-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')}
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
 function startVoice(){
-  go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();voiceMode=false;
-  const key=LS.get('rumin_gemini_key');
-  if(!key){status('প্রথমে Settings-এ Gemini API Key দিন');openSettings();return}
-  if(N&&typeof N.startLiveVoice==='function'){
-    live=true;status('Gemini Live-এ সংযোগ করছি…');mood('thinking',true);$('mic').classList.add('on');
-    try{N.startLiveVoice(key)}catch(e){live=false;status('লাইভ ভয়েস চালু করা যায়নি: '+(e.message||''));mood('sad',false)}
-  }else{
-    live=false;voiceMode=true;status('ভয়েস ইনপুট চালু হচ্ছে…');startListening();
-  }
+  go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();
+  // The mic always uses Android SpeechRecognizer (bn-BD). Gemini Live is deliberately not started here.
+  live=false;voiceMode=true;smartMode=false;
+  status('বাংলা ভয়েস ইনপুট চালু হচ্ছে…');startListening();
 }
 function openUrl(u){u=/^https?:\/\//i.test(u)?u:'https://'+u;try{if(N&&typeof N.openUrl==='function'){N.openUrl(u);return}}catch(e){}add('লিংক খুলতে অ্যাপের Kotlin অংশে openUrl যোগ করতে হবে। লিংক: '+u,'s');go('chat')}
 
