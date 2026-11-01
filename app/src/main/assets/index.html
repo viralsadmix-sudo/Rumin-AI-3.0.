@@ -469,7 +469,7 @@ on('verifyGemini',()=>verifyApiKey('gemini'));
 on('verifyGroq',()=>verifyApiKey('groq'));
 on('clearKeys',()=>{LS.set('rumin_gemini_key','');LS.set('rumin_groq_key','');$('kg').value='';$('kq').value='';status('সংরক্ষিত API Key মুছে ফেলা হয়েছে')});
 on('clr',()=>{hist=[];LS.set('rumin_text_history','[]');LS.set('rumin_voice_history','[]');$('log').innerHTML='';$('set').classList.remove('open')});
-on('perm',()=>{$('set').classList.remove('open');try{if(N&&typeof N.performCommand==='function')N.performCommand('requestpermissions','','','');setTimeout(()=>runTool('accessibility'),7000)}catch(e){runTool('accessibility')}});
+on('perm',()=>{$('set').classList.remove('open');if(!N||typeof N.performCommand!=='function'){status('Native permission bridge পাওয়া যায়নি।');return}try{N.performCommand('requestpermissions','','','');setTimeout(()=>{try{if(N&&typeof N.performCommand==='function')N.performCommand('accessibility','','','')}catch(e){status('Accessibility Settings খোলা যায়নি। ফোনের Settings থেকে RUMIN AI চালু করুন।')}},7000)}catch(e){status('অনুমতির অনুরোধ পাঠানো যায়নি: '+(e.message||'অজানা সমস্যা'))}});
 function net(){const o=navigator.onLine;$('netT').textContent=o?'Online':'Offline';$('dot').style.background=o?'#12b886':'#868e96'}
 addEventListener('online',net);addEventListener('offline',net);net();
 
