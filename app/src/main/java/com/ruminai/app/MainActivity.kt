@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
                 tts?.setPitch(1.12f)
                 tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { runOnUiThread { if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeTtsDone && window.onNativeTtsDone()", null) } }
+                    override fun onDone(utteranceId: String?) { runOnUiThread { if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeSpeakDone && window.onNativeSpeakDone(); window.onNativeTtsDone && window.onNativeTtsDone()", null) } }
                     @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) { runOnUiThread { if (::webView.isInitialized) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError(\u0027ফোনের বাংলা কণ্ঠে উত্তর দিতে সমস্যা হয়েছে\u0027)", null) } }
                 })
                 val femaleVoice = tts?.voices?.firstOrNull { voice -> voice.locale.language == "bn" && voice.name.contains("female", ignoreCase = true) }
@@ -209,6 +209,8 @@ class MainActivity : ComponentActivity() {
                 if (result == TextToSpeech.ERROR) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ভয়েস চালু করা যায়নি। ফোনের Text-to-Speech সেটিংস পরীক্ষা করুন।')", null)
             }
         }
+
+        @JavascriptInterface fun speak(text: String) { speakText(text) }
 
         @JavascriptInterface fun stopSpeaking() { runOnUiThread { textToSpeech?.stop() } }
 
