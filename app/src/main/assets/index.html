@@ -131,6 +131,8 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
   <h2>সেটিংস</h2>
   <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
   <label>Groq API Key</label><input id="kq" type="password" autocomplete="off">
+  <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button><button class="g" id="verifyGroq">Groq Key যাচাই</button></div>
+  <div class="row"><button class="g" id="clearKeys">সংরক্ষিত API Key মুছুন</button></div>
   <label>কোন AI আগে ব্যবহার হবে</label>
   <select id="kp"><option value="auto">অটো</option><option value="gemini">Gemini</option><option value="groq">Groq</option></select>
   <label>Gemini মডেল</label><input id="mg">
@@ -450,6 +452,22 @@ on('mic',()=>{
 });
 on('close',()=>$('set').classList.remove('open'));
 on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_groq_key',$('kq').value.trim());LS.set('rumin_provider',$('kp').value);LS.set('rumin_gemini_model',$('mg').value.trim()||'gemini-3.8-flash');LS.set('rumin_groq_model',$('mq').value.trim()||'llama-3.3-70b-versatile');$('set').classList.remove('open');add('সেটিংস সেভ হয়েছে।','s');status('সেটিংস সেভ হয়েছে')});
+async function verifyApiKey(provider){
+  const key=provider==='gemini'?$('kg').value.trim():$('kq').value.trim();
+  if(!key){status('আগে '+(provider==='gemini'?'Gemini':'Groq')+' API Key লিখুন');return}
+  status((provider==='gemini'?'Gemini':'Groq')+' Key যাচাই হচ্ছে…');
+  try{
+    const url=provider==='gemini'?'https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(key):'https://api.groq.com/openai/v1/models';
+    const options=provider==='groq'?{headers:{Authorization:'Bearer '+key}}:{};
+    const response=await fetch(url,options);
+    if(!response.ok){let detail='HTTP '+response.status;try{const j=await response.json();detail=j.error?.message||detail}catch(e){}throw new Error(detail)}
+    LS.set(provider==='gemini'?'rumin_gemini_key':'rumin_groq_key',key);
+    status((provider==='gemini'?'Gemini':'Groq')+' API Key যাচাই সফল ✓ এবং সেভ হয়েছে');
+  }catch(e){status('Key যাচাই হয়নি: '+(e.message||'নেটওয়ার্ক সমস্যা'))}
+}
+on('verifyGemini',()=>verifyApiKey('gemini'));
+on('verifyGroq',()=>verifyApiKey('groq'));
+on('clearKeys',()=>{LS.set('rumin_gemini_key','');LS.set('rumin_groq_key','');$('kg').value='';$('kq').value='';status('সংরক্ষিত API Key মুছে ফেলা হয়েছে')});
 on('clr',()=>{hist=[];LS.set('rumin_text_history','[]');LS.set('rumin_voice_history','[]');$('log').innerHTML='';$('set').classList.remove('open')});
 on('perm',()=>{$('set').classList.remove('open');try{if(N&&typeof N.performCommand==='function')N.performCommand('requestpermissions','','','');setTimeout(()=>runTool('accessibility'),7000)}catch(e){runTool('accessibility')}});
 function net(){const o=navigator.onLine;$('netT').textContent=o?'Online':'Offline';$('dot').style.background=o?'#12b886':'#868e96'}
