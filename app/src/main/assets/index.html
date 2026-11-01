@@ -1,286 +1,252 @@
-<!doctype html>
-<html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#0B0716"><title>Rumin AI 3.0</title>
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RUMIN AI</title>
 <style>
-*{box-sizing:border-box;font-family:system-ui,'Segoe UI',sans-serif}body{margin:0;background:#0B0716;color:#fff;padding-bottom:75px}.top{padding:16px;background:#120C20;border-bottom:1px solid #563176;position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center}.top h1{font-size:18px;color:#E0AAFF;margin:0}.page{display:none;padding:16px}.page.active{display:block}.hero,.card{background:#161026;border:1px solid #563176;border-radius:20px;padding:18px;margin-bottom:14px}.hero{background:linear-gradient(135deg,#240046,#3C096C);text-align:center}.avatar{font-size:46px;padding:16px}.mic,.btn,.send{border:0;border-radius:12px;background:#7B2CBF;color:white;padding:13px;font-weight:bold}.mic{border-radius:50%;width:66px;height:66px;font-size:25px}.mic.listening{background:#e00050}.status{font-size:13px;color:#E0AAFF;margin-top:10px}.search{display:flex;gap:8px;margin:12px 0}.search input,.api{min-width:0;flex:1;background:#0B0716;color:#fff;border:1px solid #563176;border-radius:12px;padding:13px}.send{font-size:18px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.tile{background:#161026;border:1px solid #563176;border-radius:14px;padding:14px 4px;color:white;text-align:center}.tile b{display:block;font-size:12px}.tile span{display:block;font-size:22px;color:#00F5D4;margin-bottom:6px}.chatbox{height:53vh;overflow:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:10px}.msg{max-width:90%;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:15px;padding:12px;line-height:1.5;font-size:14px}.bot{align-self:flex-start;background:#161026;border:1px solid #563176}.user{align-self:flex-end;background:#7B2CBF}.bottom{position:fixed;bottom:0;left:0;right:0;display:flex;background:#120C20;border-top:1px solid #563176;padding:8px}.nav{flex:1;background:none;border:0;color:#aaa;padding:6px;font-size:11px}.nav.active{color:#00F5D4}.nav span{display:block;font-size:20px}.muted{font-size:12px;color:#b8a9c8;line-height:1.5}.btn{width:100%;margin:7px 0}.api{width:100%;margin:9px 0}.badge{font-size:12px;color:#00F5D4}
-@keyframes pulseOrb{0%,100%{box-shadow:0 0 0 0 #00f5d455,0 0 28px #7b2cbf55}50%{box-shadow:0 0 0 12px #00f5d400,0 0 42px #00f5d455}} .hero{position:relative;overflow:hidden;background:radial-gradient(circle at 50% 40%,#39205f 0,#211437 48%,#100b1b 100%);border-color:#5c3b88;box-shadow:0 16px 36px #0005}.avatar{width:124px;height:124px;margin:12px auto;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#4de9ff,#7b2cbf 48%,#180c2b 75%);border:2px solid #79f5ff88;animation:pulseOrb 3s infinite;font-size:48px}.avatar.orb3d{position:relative;overflow:visible;background:transparent;border:0;box-shadow:none;animation:none;perspective:800px;transform-style:preserve-3d}.orb-core{position:absolute;inset:25px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#fff 0%,#b6ffff 5%,#37d9ff 18%,#6d35d8 48%,#1b1044 76%,#070611 100%);box-shadow:inset -10px -12px 22px #06040e,inset 4px 5px 15px #ffffffaa,0 0 18px #00eaffcc,0 0 38px #8a2eff99;transform:translateZ(12px);animation:coreFloat 3.6s ease-in-out infinite}.orb-ring{position:absolute;inset:16px;border:2px solid #70f7ffcc;border-radius:50%;transform-style:preserve-3d;box-shadow:0 0 12px #00f5d477,inset 0 0 10px #00f5d444}.ring-a{transform:rotateX(67deg) rotateZ(0deg);animation:orbitA 4s linear infinite}.ring-b{inset:10px;border-color:#e0aaffcc;transform:rotateY(68deg) rotateX(12deg);animation:orbitB 5.2s linear infinite}.ring-c{inset:22px;border-color:#7b2cffdd;transform:rotateX(18deg) rotateY(65deg);animation:orbitC 3.4s linear infinite}.orb-glow{position:absolute;inset:5px;border-radius:50%;background:radial-gradient(circle,transparent 38%,#7b2cff22 60%,#00f5d422 72%,transparent 74%);filter:blur(2px);animation:glowPulse 2.4s ease-in-out infinite;pointer-events:none}.orb3d.listening .orb-core{box-shadow:inset -10px -12px 22px #06040e,inset 4px 5px 15px #ffffffaa,0 0 24px #ff3d9acc,0 0 48px #ff3d9a99}.orb3d.thinking .orb-ring{animation-duration:1.1s}.orb3d.speaking .orb-core{animation-duration:.7s}.orb3d.speaking .orb-glow{animation-duration:.7s}@keyframes orbitA{from{transform:rotateX(67deg) rotateZ(0deg)}to{transform:rotateX(67deg) rotateZ(360deg)}}@keyframes orbitB{from{transform:rotateY(68deg) rotateX(12deg) rotateZ(360deg)}to{transform:rotateY(68deg) rotateX(12deg) rotateZ(0deg)}}@keyframes orbitC{from{transform:rotateX(18deg) rotateY(65deg) rotateZ(0deg)}to{transform:rotateX(18deg) rotateY(65deg) rotateZ(360deg)}}@keyframes coreFloat{0%,100%{transform:translateZ(12px) scale(.96)}50%{transform:translateZ(22px) scale(1.04)}}@keyframes glowPulse{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}.mic{box-shadow:0 0 20px #7b2cbf77;transition:transform .15s}.mic:active,.btn:active,.tile:active,.send:active{transform:scale(.97)}.search input:focus,.api:focus,select:focus{outline:2px solid #00f5d4;border-color:transparent}.btn{background:linear-gradient(135deg,#7b2cbf,#4361ee);box-shadow:0 6px 18px #0003}.tile{transition:transform .15s,border-color .15s}.tile:active{border-color:#00f5d4}.card{box-shadow:0 10px 28px #0002}.api,select{width:100%;margin:9px 0;background:#0b0716;color:#fff;border:1px solid #563176;border-radius:12px;padding:13px}.status{min-height:20px}.msg{animation:appear .18s ease-out}@keyframes appear{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@media(min-width:600px){body{max-width:650px;margin:auto;border-left:1px solid #241733;border-right:1px solid #241733}.bottom{max-width:650px;left:50%;transform:translateX(-50%)}}
-
-/* RUMIN premium animated room */
-.room-scene{position:relative;min-height:175px;margin:10px 0 16px;border:1px solid #7651b8;border-radius:20px;overflow:hidden;perspective:700px;background:linear-gradient(180deg,#101c43 0%,#30205b 52%,#100b1b 100%);box-shadow:inset 0 0 34px #6f36ff33}
-.room-scene:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0 12%,#66d9ff22 12.5% 13%,transparent 13.5% 85%,#ff68ec22 85.5% 86%,transparent 86.5%),linear-gradient(0deg,#080711 0 14%,transparent 14.5%);transform:rotateX(2deg)}
-.room-window{position:absolute;right:12%;top:12px;width:28%;height:86px;border:3px solid #6bdfff88;border-radius:7px;background:linear-gradient(145deg,#12265a,#7b2cbf88,#ff77c844);box-shadow:0 0 20px #43d9ff55}
-.room-window:after{content:"✦  ·  ✧";display:block;text-align:center;color:#fff;margin-top:16px;font-size:20px;letter-spacing:8px}
-.room-lamp{position:absolute;left:12%;top:20px;width:3px;height:65px;background:#bca1ff88}
-.room-lamp:before{content:"";position:absolute;top:-3px;left:-13px;width:28px;height:19px;border-radius:50% 50% 4px 4px;background:#d9a4ff;box-shadow:0 0 24px #d05cff}
-.room-floor{position:absolute;bottom:0;left:0;right:0;height:24%;background:linear-gradient(180deg,#24143d,#090713);border-top:1px solid #7a56b788;transform:rotateX(5deg)}
-.room-sofa{position:absolute;bottom:18px;left:9%;width:40%;height:43px;border-radius:15px 15px 6px 6px;background:linear-gradient(135deg,#582a83,#24113e);border:1px solid #a66bff77;box-shadow:inset 0 8px #b77dff22}
-.room-avatar{position:absolute;bottom:19px;left:34%;width:56px;height:64px;display:grid;place-items:center;filter:drop-shadow(0 0 12px #d35cff99);animation:roomBob 2.6s ease-in-out infinite;transform-origin:bottom center;z-index:1}.room-avatar-mini-core{position:absolute;width:43px;height:43px;border-radius:50%;background:radial-gradient(circle at 30% 24%,#fff 0%,#d8b4fe 8%,#a855f7 25%,#6d28d9 56%,#160b30 85%);border:1px solid #f0d9ff;box-shadow:0 0 12px #d946ef,0 0 26px #9333ea99}.room-avatar-mini-ring{position:absolute;width:55px;height:29px;border:1.5px solid #67e8f9cc;border-radius:50%;transform:rotate(-22deg);box-shadow:0 0 8px #22d3ee77}.room-avatar-mini-eye{position:relative;z-index:2;display:flex;gap:9px;margin-top:-1px}.room-avatar-mini-eye i{width:4px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 5px #fff}.room-avatar-mini-core:after{content:"";position:absolute;width:5px;height:5px;right:4px;top:5px;border-radius:50%;background:#67e8f9;box-shadow:0 0 7px #22d3ee}
-.room-caption{position:absolute;left:12px;bottom:7px;font-size:11px;color:#dceaff;background:#100b1bcc;padding:4px 8px;border-radius:12px;border:1px solid #ffffff22}
-.room-scene.listening .room-avatar{filter:drop-shadow(0 0 18px #ff55bd);animation:roomBob .65s ease-in-out infinite}
-.room-scene.thinking .room-avatar{animation:roomThink 1.2s ease-in-out infinite}
-.room-scene.speaking .room-avatar{animation:roomSpeak .32s ease-in-out infinite alternate;filter:drop-shadow(0 0 20px #4df5ff)}
-@keyframes roomBob{0%,100%{transform:translateY(0) rotateY(-5deg)}50%{transform:translateY(-7px) rotateY(5deg)}}
-@keyframes roomThink{0%,100%{transform:translateY(0) rotateZ(-4deg)}50%{transform:translateY(-4px) rotateZ(4deg)}}
-@keyframes roomSpeak{from{transform:translateY(0) scale(1)}to{transform:translateY(-3px) scale(1.04)}}
-.voice-bars{display:flex;justify-content:center;align-items:center;gap:4px;height:20px;margin:6px auto}
-.voice-bars i{display:block;width:4px;height:6px;border-radius:4px;background:#f05cff;opacity:.7}
-.speaking .voice-bars i{animation:barTalk .35s ease-in-out infinite alternate}
-.voice-bars i:nth-child(2n){animation-delay:.12s}.voice-bars i:nth-child(3n){animation-delay:.22s}
-@keyframes barTalk{to{height:19px;opacity:1;background:#51efff}}
-@media(prefers-reduced-motion:reduce){.room-avatar,.orb-core,.orb-ring,.orb-glow,.voice-bars i{animation:none!important}}
-
-/* RUMIN AI 3.0 — reference-screen visual refresh; existing JS hooks retained */
-/* Use the user's supplied reference portrait in the actual home screen */
-.avatar.orb3d{width:100%;max-width:430px;height:clamp(370px,112vw,590px);margin:8px auto 0;border-radius:22px;overflow:hidden;filter:none;background:#030821;perspective:none;transform:none;box-shadow:0 0 24px #152cff55;border:1px solid #293cff}
-.avatar.orb3d:before,.avatar.orb3d:after{display:none!important;content:none!important}
-.avatar.orb3d .orb-core,.avatar.orb3d .orb-ring,.avatar.orb3d .orb-glow{display:none!important}
-.portrait-hero-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center 48%;border-radius:21px}
-@media(min-width:600px){.avatar.orb3d{height:520px}}
-
-:root{color-scheme:dark}
-body{background:#030821;color:#f7f6ff;padding-bottom:88px;background-image:radial-gradient(ellipse at 52% 38%,#102d78 0%,#07133d 35%,#02051a 78%)}
-.top{background:rgba(3,7,31,.96);border-bottom:1px solid #3226b8;padding:13px 12px;gap:8px;backdrop-filter:blur(12px)}
-.top h1{color:#fff;font-size:clamp(14px,4vw,19px);text-shadow:0 0 16px #00dfff55}
-.page{padding:12px}
-.hero{padding:14px 12px 16px;border:1px solid #203cff;border-radius:25px;text-align:center;background:radial-gradient(ellipse at 50% 55%,#152c80 0%,#07133c 49%,#03071f 100%);box-shadow:0 0 28px #102cff22;overflow:hidden}
-.hero>div:first-child{align-items:flex-start!important;gap:8px}
-.hero>div:first-child b{font-size:clamp(18px,5vw,24px)!important;line-height:1.35;color:#fff;text-shadow:0 0 14px #ff35e8}
-.hero>div:first-child .muted{max-width:110px;text-align:right;color:#b9caff;font-size:11px}
-.avatar.orb3d{width:min(64vw,270px);height:min(64vw,270px);margin:12px auto 5px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#0b1b56 0 38%,transparent 39%);filter:drop-shadow(0 0 18px #155cff)}
-.avatar.orb3d:before{content:"";position:absolute;inset:5px;border-radius:50%;border:5px solid #ff37e9;box-shadow:0 0 16px #ff31e8, inset 0 0 24px #ff31e833;transform:rotate(-12deg) scaleX(.84)}
-.avatar.orb3d:after{content:"R";position:absolute;inset:24%;display:grid;place-items:center;border-radius:50%;font-size:clamp(62px,18vw,100px);font-weight:900;font-style:italic;color:#f8f5ff;text-shadow:0 0 12px #ff31e8,0 0 32px #147dff;background:radial-gradient(circle at 35% 25%,#173b92,#080d34 70%);border:2px solid #20dfff;box-shadow:0 0 20px #176bff}
-.orb-core{inset:30%;opacity:.5}.orb-ring{inset:7%;border-width:3px;border-color:#21dfff}.ring-a{border-color:#20dfff}.ring-b{border-color:#ff32e8}.ring-c{border-color:#2466ff}
-.room-scene{display:none!important}
-.voice-bars{margin:8px auto 0;max-width:210px}
-.mic{width:82px;height:82px;border-radius:50%;font-size:32px;background:radial-gradient(circle at 30% 20%,#ff70ef,#9c00ff 50%,#102fff 100%);border:2px solid #ff8bfa;box-shadow:0 0 14px #ff27ed,0 0 32px #1c66ff;color:#fff}
-.status{color:#8ceeff;font-weight:600}
-.search{background:#060c2a;border:1px solid #123fda;border-radius:16px;padding:6px}
-.search input{background:transparent;border:0}
-.send{background:linear-gradient(135deg,#f02bdf,#315fff);border-radius:12px}
-.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.tile{background:linear-gradient(155deg,#091747,#030821);border:1px solid #174bff;border-radius:17px;min-height:86px;padding:12px 4px;box-shadow:inset 0 0 18px #1735a522}
-.tile span{color:#21e5ff;text-shadow:0 0 10px #168aff;font-size:25px}
-.tile b{font-size:12px;color:#f4f3ff;line-height:1.35}
-.card{background:linear-gradient(145deg,#081640,#050a25);border:1px solid #243bba;border-radius:18px}
-.bottom{z-index:20;background:rgba(3,7,31,.97);border-top:1px solid #2825a9;padding:7px 5px max(8px,env(safe-area-inset-bottom));backdrop-filter:blur(16px)}
-.nav{color:#aab7ff}.nav.active{color:#ff43ed;text-shadow:0 0 12px #ff28df}.nav span{font-size:23px}
-.home-feature-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:12px 0 14px}
-.home-feature{min-width:0;min-height:96px;padding:9px 3px;border-radius:15px;border:1px solid #173eff;background:linear-gradient(160deg,#091a4d,#03071e);color:#fff;text-align:center;font-size:10px;line-height:1.25;overflow-wrap:anywhere}
-.home-feature .feature-icon{display:grid;place-items:center;width:35px;height:35px;margin:0 auto 7px;border-radius:50%;font-size:19px;font-weight:800;background:linear-gradient(135deg,#ed2de7,#263bff);box-shadow:0 0 12px #7a2fff}
-.home-feature:nth-child(1) .feature-icon{background:linear-gradient(135deg,#00f5d4,#0066ff)}
-.home-feature:nth-child(4) .feature-icon{background:linear-gradient(135deg,#ff9a00,#f04b12)}
-.home-feature strong{display:block;font-size:10px;margin-bottom:3px}
-.home-feature small{font-size:9px;color:#c9d4ff}
-@media(max-width:370px){.page{padding:9px}.hero{padding:11px 8px}.home-feature-strip{gap:4px}.home-feature{font-size:9px;min-height:88px}.home-feature strong{font-size:9px}.home-feature small{font-size:8px}}
-
-
-/* Final override: show the supplied portrait itself, not the decorative orb/R placeholder */
-#aiOrb.avatar.orb3d{display:block!important;position:relative;width:100%!important;max-width:430px!important;height:clamp(370px,112vw,590px)!important;margin:8px auto 0!important;padding:0!important;border-radius:22px!important;overflow:hidden!important;background:#030821!important;border:1px solid #293cff!important;filter:none!important;box-shadow:0 0 24px #152cff55!important;animation:none!important;perspective:none!important;transform:none!important}
-#aiOrb.avatar.orb3d:before,#aiOrb.avatar.orb3d:after{display:none!important;content:none!important}
-#aiOrb .portrait-hero-image{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center center!important;border-radius:21px!important}
-#aiOrb .orb-core,#aiOrb .orb-ring,#aiOrb .orb-glow{display:none!important}
-@media(min-width:600px){#aiOrb.avatar.orb3d{height:520px!important}}
-
-
-/* Home portrait fallback: keep a visible premium Rumin visual if embedded portrait fails to decode. */
-#aiOrb.avatar.orb3d{isolation:isolate;background:radial-gradient(circle at 50% 42%,#253e9b 0%,#09153f 42%,#030821 74%)!important}
-#aiOrb.avatar.orb3d:has(.portrait-hero-image:not([src])):after,
-#aiOrb.avatar.orb3d:has(.portrait-hero-image[src=""]):after{content:"R";display:grid;place-items:center;position:absolute;inset:22%;border-radius:50%;font-size:100px;font-weight:900;color:#fff;text-shadow:0 0 24px #00dfff;background:radial-gradient(circle at 30% 25%,#2348aa,#070d2b 72%);border:3px solid #ff35e8;box-shadow:0 0 35px #1c66ff;z-index:0}
-#aiOrb .portrait-hero-image{position:relative;z-index:1;min-height:100%;object-fit:cover!important;object-position:center 35%!important}
-
-/* Female-assistant portrait motion: gentle idle float; reacts to listening and speaking */
-#aiOrb .portrait-hero-image{transform-origin:50% 55%;animation:ruminPortraitFloat 4s ease-in-out infinite;will-change:transform,filter}
-#aiOrb.listening .portrait-hero-image{animation:ruminPortraitListen 1.1s ease-in-out infinite}
-#aiOrb.thinking .portrait-hero-image{animation:ruminPortraitThink 1.8s ease-in-out infinite}
-#aiOrb.speaking .portrait-hero-image{animation:ruminPortraitSpeak .42s ease-in-out infinite alternate}
-@keyframes ruminPortraitFloat{0%,100%{transform:translateY(0) scale(1);filter:brightness(1)}50%{transform:translateY(-5px) scale(1.008);filter:brightness(1.04)}}
-@keyframes ruminPortraitListen{0%,100%{transform:scale(1);filter:brightness(1) drop-shadow(0 0 0 #00dfff)}50%{transform:scale(1.012);filter:brightness(1.08) drop-shadow(0 0 12px #00dfff)}}
-@keyframes ruminPortraitThink{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(.4deg)}}
-@keyframes ruminPortraitSpeak{from{transform:translateY(0) scale(1)}to{transform:translateY(-2px) scale(1.012)}}
-@media(prefers-reduced-motion:reduce){#aiOrb .portrait-hero-image{animation:none!important}}
-
-/* Premium polish: lightweight CSS only; live-voice JavaScript is untouched. */
-body{background:radial-gradient(ellipse at 50% -12%,#33205b 0%,#0b0716 54%);background-attachment:fixed}
-.top{background:linear-gradient(110deg,#120c20ee,#21123aee);backdrop-filter:blur(14px);border-bottom-color:#8b5bd455}
-.top h1{letter-spacing:.35px;text-shadow:0 0 18px #c77dff55}
-.hero,.card{backdrop-filter:blur(8px);border-color:#7651b866;transition:border-color .2s,box-shadow .2s,transform .2s}
-.hero{background:radial-gradient(ellipse at 50% 0%,#39205f 0%,#211437 54%,#100b1b 100%)}
-.card:focus-within,.hero:focus-within{border-color:#00f5d4;box-shadow:0 12px 32px #0004,0 0 0 1px #00f5d422}
-.tile{background:linear-gradient(155deg,#201633,#120d20);box-shadow:inset 0 1px #ffffff08,0 6px 18px #0002;min-height:76px}
-.tile span{filter:drop-shadow(0 0 7px #00f5d455)}
-.mic{background:linear-gradient(145deg,#9d4edd,#4361ee);border:1px solid #ffffff22;box-shadow:0 0 0 5px #7b2cbf18,0 8px 26px #7b2cbf55}
-.mic.listening{background:linear-gradient(145deg,#ff477e,#b5174b);box-shadow:0 0 0 5px #ff477e22,0 0 30px #ff477e66}
-.bottom{background:#120c20ee;backdrop-filter:blur(16px);border-top-color:#7651b866;padding-bottom:max(8px,env(safe-area-inset-bottom))}
-.nav{transition:color .18s,transform .18s}.nav.active{font-weight:700;text-shadow:0 0 12px #00f5d455}.nav:active{transform:translateY(-2px)}
-.msg{box-shadow:0 5px 16px #0002}.bot{background:linear-gradient(145deg,#1b132b,#151020);border-color:#67438a88}.user{background:linear-gradient(135deg,#7b2cbf,#4b35a5)}
-.search input,.api,select{transition:border-color .18s,box-shadow .18s}.search input:focus,.api:focus,select:focus{box-shadow:0 0 0 3px #00f5d41c}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
-
-/* Final homepage portrait fix: override older orb sizing rules. */
-#aiOrb.avatar.orb3d{display:block!important;position:relative!important;width:min(88vw,430px)!important;max-width:430px!important;height:clamp(390px,125vw,590px)!important;min-height:390px!important;margin:12px auto 8px!important;overflow:hidden!important;border-radius:22px!important;background:linear-gradient(145deg,#102b59,#030821)!important;filter:none!important;transform:none!important}
-#aiOrb .portrait-hero-image{display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;object-position:center 35%!important;border-radius:21px!important;z-index:2!important}
-
-
-/* 3.0.119 home-screen usability fix: keep portrait prominent while bringing controls into view. */
-#home .hero{padding:12px 10px 14px;margin-bottom:12px}
-#home #aiOrb.avatar.orb3d{width:min(82vw,370px)!important;height:clamp(300px,88vw,430px)!important;min-height:300px!important;margin:10px auto 6px!important;border-radius:20px!important}
-#home #aiOrb .portrait-hero-image{object-fit:cover!important;object-position:center 35%!important;border-radius:19px!important}
-#home .search{margin:10px 0 12px;min-height:54px}
-#home .search input{font-size:16px;padding:11px 9px}
-#home .grid{gap:8px}
-#home .tile{min-height:78px;padding:12px 5px;cursor:pointer;touch-action:manipulation}
-#home .home-feature-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
-#home .home-feature{min-height:82px;padding:10px 5px;font-size:11px;cursor:pointer;touch-action:manipulation}
-#home .home-feature strong{font-size:11px}
-#home .home-feature small{font-size:10px}
-#home .home-feature .feature-icon{width:32px;height:32px;margin-bottom:5px}
-#home button{ -webkit-tap-highlight-color:transparent}
-#home .tile:focus-visible,#home .home-feature:focus-visible,#home .mic:focus-visible,#home .send:focus-visible{outline:2px solid #00f5d4;outline-offset:3px}
-@media(max-width:370px){#home #aiOrb.avatar.orb3d{height:clamp(285px,84vw,340px)!important;min-height:285px!important}#home .home-feature-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#home .home-feature{min-height:78px}}
-
-
-
-/* Rumin AI 3.0.121 — animated 3D avatar home concept */
-@keyframes ruminOrbitSpin{from{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(0deg)}to{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(360deg)}}
-@keyframes ruminAvatarFloat{0%,100%{transform:translateY(0) rotateY(-2deg)}50%{transform:translateY(-5px) rotateY(2deg)}}
-#home .hero{padding:15px 12px 16px!important;background:radial-gradient(ellipse at 50% 25%,#183a7a 0%,#0b173b 48%,#070b20 100%)!important;border:1px solid #2b69c8!important;box-shadow:0 14px 35px #0007,inset 0 0 28px #246bff1a!important}
-#home #aiOrb.avatar.orb3d{width:min(72vw,290px)!important;height:min(72vw,290px)!important;min-height:0!important;max-width:290px!important;margin:22px auto 18px!important;position:relative!important;overflow:visible!important;border-radius:50%!important;background:radial-gradient(circle at 50% 40%,#163b87,#06112f 70%)!important;border:2px solid #53e8ff!important;box-shadow:0 0 0 5px #225bca55,0 0 28px #00bfff66,inset 0 0 24px #00d9ff33!important;animation:ruminAvatarFloat 3.6s ease-in-out infinite!important;perspective:900px!important;isolation:isolate}
-#home #aiOrb.avatar.orb3d:before{display:block!important;content:""!important;position:absolute!important;inset:-15px!important;border-radius:50%!important;border:3px solid transparent!important;border-top-color:#ff4bd8!important;border-bottom-color:#35eaff!important;box-shadow:0 0 17px #2a8fff66!important;transform-origin:center!important;animation:ruminOrbitSpin 5s linear infinite!important;z-index:3!important;pointer-events:none!important}
-#home #aiOrb.avatar.orb3d:after{display:block!important;content:""!important;position:absolute!important;inset:-25px 18px!important;border-radius:50%!important;border:2px solid #52dfff99!important;transform:rotate(-28deg)!important;box-shadow:0 0 14px #235fff66!important;z-index:3!important;pointer-events:none!important}
-#home #aiOrb .portrait-hero-image{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;object-fit:cover!important;object-position:center 28%!important;border-radius:50%!important;z-index:1!important;border:0!important}
-#home .room-scene{display:none!important}
-#home .voice-bars{margin:8px auto 10px}
-#home .status{margin:7px 0 2px}
-#home .search{background:#101c3d!important;border:1px solid #2c65ba!important;border-radius:17px!important;padding:5px!important}
-#home .search input{background:transparent!important;color:#fff!important}
-#home .send{background:linear-gradient(135deg,#2478ff,#10cbe9)!important;border-radius:13px!important}
-#home .tile,#home .home-feature{background:linear-gradient(145deg,#122b59,#0b1530)!important;border:1px solid #2457a0!important;border-radius:15px!important;box-shadow:0 6px 15px #0003!important}
-#home .home-feature .feature-icon{background:linear-gradient(135deg,#175cba,#7b39d8)!important;color:white!important;border-radius:12px!important}
-@media(prefers-reduced-motion:reduce){#home #aiOrb.avatar.orb3d,#home #aiOrb.avatar.orb3d:before{animation:none!important}}
-
-/* Creator identity card on the actual home page */
-.creator-home-card{display:flex;align-items:center;gap:12px;margin:14px auto;padding:10px 14px;max-width:420px;border:1px solid #176bff;border-radius:18px;background:linear-gradient(120deg,rgba(3,17,48,.96),rgba(24,8,58,.94));box-shadow:0 0 18px rgba(0,183,255,.16)}.creator-home-photo{width:64px;height:64px;flex:0 0 64px;object-fit:cover;object-position:center;border-radius:50%;border:2px solid #00dfff;box-shadow:0 0 12px #174dff}.creator-home-card div{display:flex;flex-direction:column;gap:4px;text-align:left}.creator-home-card small{color:#4edfff;font-size:11px}.creator-home-card strong{font-size:15px;color:#fff}.creator-home-card span{font-size:12px;color:#c7baff}
-
-/* Home avatar: animated 3D holographic orb, no broken portrait crop */
-#home #aiOrb.avatar.orb3d{display:block!important;position:relative!important;isolation:isolate!important;width:min(72vw,300px)!important;height:min(72vw,300px)!important;min-height:0!important;max-width:300px!important;margin:24px auto!important;padding:0!important;overflow:visible!important;border-radius:50%!important;background:radial-gradient(circle at 35% 28%,#1b4a9d 0%,#0b1a4b 34%,#03091f 72%,#020512 100%)!important;border:1px solid #41dfff!important;box-shadow:0 0 0 7px #155baf33,0 0 28px #00bfff66,inset 0 0 38px #2868ff55!important;animation:ruminOrbFloat3d 4.5s ease-in-out infinite!important;perspective:900px!important}
-#home #aiOrb .portrait-hero-image{display:none!important}
-#home #aiOrb.avatar.orb3d:before{content:""!important;display:block!important;position:absolute!important;inset:9%!important;border-radius:50%!important;border:3px solid transparent!important;border-top-color:#ff43dd!important;border-right-color:#43eaff!important;border-bottom-color:#2868ff!important;border-left-color:#ae68ff!important;box-shadow:0 0 15px #00d9ff88,inset 0 0 18px #713dff55!important;transform-style:preserve-3d!important;animation:ruminOrbSpin3d 5s linear infinite!important;z-index:2!important;pointer-events:none!important}
-#home #aiOrb.avatar.orb3d:after{content:"R"!important;display:grid!important;place-items:center!important;position:absolute!important;inset:25%!important;border-radius:50%!important;font-size:clamp(54px,17vw,82px)!important;font-weight:900!important;font-style:italic!important;letter-spacing:-5px!important;color:#f4fbff!important;text-shadow:0 0 9px #fff,0 0 22px #00dfff,0 0 38px #7c3dff!important;background:radial-gradient(circle at 32% 24%,#3675d9 0%,#14316d 24%,#071538 58%,#020719 100%)!important;border:2px solid #65eaff!important;box-shadow:inset -12px -15px 30px #020512cc,inset 8px 8px 22px #5f8fff55,0 0 28px #155dff99!important;transform-style:preserve-3d!important;animation:ruminOrbCore3d 3.2s ease-in-out infinite!important;z-index:1!important}
-#home #aiOrb.listening{box-shadow:0 0 0 8px #00e5ff33,0 0 42px #00e5ffbb,inset 0 0 40px #00d9ff66!important}
-#home #aiOrb.listening:before{animation-duration:1.3s!important;border-top-color:#fff!important}
-#home #aiOrb.thinking:after{animation-duration:1.1s!important;color:#d9b7ff!important}
-#home #aiOrb.speaking{box-shadow:0 0 0 9px #ff38d833,0 0 42px #ff38d8bb,inset 0 0 40px #683bff88!important}
-#home #aiOrb.speaking:before{animation-duration:.8s!important}
-@keyframes ruminOrbSpin3d{0%{transform:rotateX(16deg) rotateY(0deg) rotateZ(0deg)}50%{transform:rotateX(-16deg) rotateY(180deg) rotateZ(180deg)}100%{transform:rotateX(16deg) rotateY(360deg) rotateZ(360deg)}}
-@keyframes ruminOrbCore3d{0%,100%{transform:translateY(0) scale(.96);filter:brightness(.95)}50%{transform:translateY(-5px) scale(1.04);filter:brightness(1.22)}}
-@keyframes ruminOrbFloat3d{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-@media(prefers-reduced-motion:reduce){#home #aiOrb.avatar.orb3d,#home #aiOrb.avatar.orb3d:before,#home #aiOrb.avatar.orb3d:after{animation:none!important}}
-
-</style></head><body>
-<header class="top"><button class="nav" onclick="tab('settings')">☰</button><h1>RUMIN AI 3.0 · রুমিন</h1><button class="nav" onclick="speak('আসসালামু আলাইকুম, বস! আমি রুমিন। বলুন, আপনাকে কীভাবে সাহায্য করতে পারি?')">🔊</button></header>
-<section id="home" class="page active"><div class="hero"><div style="display:flex;justify-content:space-between;text-align:left"><b style="font-size:21px">আসসালামু আলাইকুম,<br>আমি রুমিন ♥</b><span class="muted">আপনার ব্যক্তিগত<br>AI সহকারী</span></div><div class="creator-home-card"><img src="data:image/jpeg;base64,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" alt="রুমিন AI নির্মাতা" class="creator-home-photo"><div><small>রুমিন AI 3.0 · নির্মাতা</small><strong>সাব্বির আহমেদ রুবেল</strong></div></div><div id="aiOrb" class="avatar orb3d" role="img" aria-label="আপনার ছবিসহ Rumin AI 3.0 হোম অ্যাভাটার"><img class="portrait-hero-image" alt="Rumin AI home screen portrait" src="data:image/jpeg;base64,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"></div><div id="roomScene" class="room-scene"><div class="room-window"></div><div class="room-lamp"></div><div class="room-sofa"></div><div class="room-avatar" aria-hidden="true"><div class="room-avatar-mini-ring"></div><div class="room-avatar-mini-core"></div><div class="room-avatar-mini-eye"><i></i><i></i></div></div><div class="room-floor"></div><div id="roomCaption" class="room-caption">রুমি আপনার কথা শুনতে প্রস্তুত, বস</div></div><div class="voice-bars" id="voiceBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button id="mic" class="mic" onclick="liveVoice()" aria-label="Gemini Live কথা শুরু বা বন্ধ করুন">🎙</button><div id="status" class="status">কমান্ড শুনতে মাইক চাপুন…</div></div>
-<div class="search"><input id="homeInput" placeholder="যেকোনো প্রশ্ন লিখুন..." onkeydown="if(event.key==='Enter')homeSend()"><button class="send" onclick="homeSend()">➤</button></div>
-<div class="grid"><button class="tile" onclick="tab('chat')"><span>▤</span><b>টেক্সট চ্যাট</b></button><button class="tile" onclick="tab('actions')"><span>ϟ</span><b>কুইক অ্যাকশন</b></button><button class="tile" onclick="tab('settings')"><span>⚙</span><b>সেটিংস</b></button></div>
-<div class="home-feature-strip"><button class="home-feature" onclick="tab('chat')"><span class="feature-icon">✦</span><strong>AI Prompt</strong><small>এআই সহায়তা</small></button><button class="home-feature" onclick="tab('actions')"><span class="feature-icon">▶</span><strong>Movie Link</strong><small>মুভি/ওয়েব</small></button><button class="home-feature" onclick="tab('actions')"><span class="feature-icon">APK</span><strong>APK Link</strong><small>অ্যাপ ডাউনলোড</small></button><button class="home-feature" onclick="tab('actions')"><span class="feature-icon">↗</span><strong>Web Link</strong><small>ওয়েবসাইট</small></button><button class="home-feature" onclick="tab('actions')"><span class="feature-icon">✧</span><strong>Remini</strong><small>ছবি উন্নত করুন</small></button></div>
-<div class="card"><b>🎯 রুমিনকে নিজের নিয়ন্ত্রণে আনার পরিকল্পনা</b><p class="muted">AI Brain, Android Command, বাংলা Live Voice, Memory, Permissions ও কাজ যাচাই—সম্পূর্ণ পরিকল্পনাটি দেখুন।</p><button class="btn" onclick="tab(&quot;controlplan&quot;)">পরিকল্পনাটি খুলুন</button></div><div class="card"><b>রুমিন কী করতে পারে?</b><p class="muted">বাংলায় লিখে বা ভয়েসে কথা বলুন। AI Prompt, দ্রুত কাজ, অ্যাপ লিংক ও সেটিংস ব্যবহার করুন। Gemini/Groq API সেটিংস আগের মতোই আছে।</p></div></section><section id="controlplan" class="page"><h3>রুমিনকে নিজের নিয়ন্ত্রণে আনার পরিকল্পনা</h3><p class="muted">লক্ষ্য: রুমিন যেন শুধু উত্তর না দেয়—বসের অনুমতি নিয়ে Android ফোনে বাস্তব কাজ সম্পন্ন করে এবং কাজের ফল জানায়।</p><div class="card"><b>১. AI Brain — কথা বুঝে পরিকল্পনা</b><p class="muted">বাংলা ভয়েস ও লিখিত নির্দেশের উদ্দেশ্য বুঝবে, কাজকে ছোট ধাপে ভাগ করবে, অস্পষ্ট হলে প্রশ্ন করবে।</p></div><div class="card"><b>২. Command Engine — Android ফোন নিয়ন্ত্রণ</b><p class="muted">অ্যাপ খোলা, Home/Back/Recent, অ্যালার্ম ও টাইমার, ভলিউম/সেটিংস, ডায়ালার ও অনুমোদিত ফোন-অ্যাকশন চালাবে। Accessibility ও Android অনুমতি যেখানে দরকার, বস নিজে অনুমতি দেবেন।</p></div><div class="card"><b>৩. Voice Engine — স্বাভাবিক বাংলা Live Voice</b><p class="muted">মাইক থেকে নির্ভরযোগ্যভাবে কথা ধরবে, পরিষ্কার উত্তর দেবে, নিজের TTS যেন আবার মাইকে ঢুকে echo/loop না তৈরি করে। Text mode নীরব থাকবে; Live mode-এ অডিও উত্তর হবে।</p></div><div class="card"><b>৪. Memory Engine — পরিচয় ও পছন্দ মনে রাখা</b><p class="muted">বসের পছন্দ, কথোপকথনের প্রাসঙ্গিক তথ্য ও কাজের নোট ফোনে সংরক্ষণ করবে। পরিচয় জিজ্ঞেস করলে বলবে: “আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।”</p></div><div class="card"><b>৫. Permission & Safety — অনুমতি ও নিরাপত্তা</b><p class="muted">প্রয়োজনীয় অনুমতির অবস্থা দেখাবে। কল, মেসেজ বা প্রকাশ/আপলোডের মতো গুরুত্বপূর্ণ কাজের আগে বসের নিশ্চিত অনুমতি নেবে; গোপনে কাজ করবে না।</p></div><div class="card"><b>৬. Verify — কাজ সত্যিই হয়েছে কি না</b><p class="muted">কমান্ড পাঠানো আর কাজ সম্পন্ন হওয়া এক নয়। Android থেকে সফলতার ফল না পাওয়া পর্যন্ত রুমিন “হয়ে গেছে” বলবে না; ব্যর্থ হলে কারণ জানাবে।</p></div><div class="card"><b>কাজের অগ্রাধিকার</b><ol class="muted"><li>Live Voice স্থিতিশীল করা — মাইক, উত্তর, echo/fragment সমস্যা।</li><li>Android কমান্ড ও Accessibility দিয়ে বাস্তব ফোন নিয়ন্ত্রণ।</li><li>প্রতিটি কমান্ডের ফল যাচাই ও ভুল হলে পুনরুদ্ধার।</li><li>মেমোরি ও পারমিশন স্ট্যাটাস নির্ভরযোগ্য করা।</li><li>YouTube আপলোড অপশন আপাতত placeholder; OAuth/API ও upload পরে।</li></ol></div><button class="btn" onclick="tab(&quot;home&quot;)">হোমে ফিরে যান</button></section><section id="chat" class="page"><div id="chatbox" class="chatbox"><div class="msg bot">আসসালামু আলাইকুম, বস! আমি রুমিন। বলুন, আপনাকে কীভাবে সাহায্য করতে পারি?</div></div><div class="search"><input id="chatInput" placeholder="রুমিনকে মেসেজ লিখুন..." onkeydown="if(event.key==='Enter')send()"><button class="send" onclick="send()">➤</button></div></section>
-<section id="actions" class="page"><h3>কুইক অ্যাকশন</h3><div class="card"><b>▶️ YouTube ভিডিও আপলোড</b><p class="muted">ফোন থেকে ভিডিও নির্বাচন করে YouTube-এ আপলোড করার সুবিধা এখানে যুক্ত হবে। এই অপশনটি এখন প্রস্তুতির জন্য রাখা হয়েছে; আপলোড ফিচার পরে চালু করা হবে।</p><button class="btn" type="button" disabled style="opacity:.65;cursor:not-allowed">শীঘ্রই আসছে · পরে চালু হবে</button></div><div class="card"><button class="btn" onclick="external('https://wa.me/')">WhatsApp খুলুন</button><button class="btn" onclick="external('https://www.google.com/maps')">Google Maps খুলুন</button><button class="btn" onclick="external('https://www.youtube.com')">YouTube খুলুন</button><button class="btn" onclick="nativeAction('showalarms')">⏰ অ্যালার্ম অ্যাপ খুলুন</button><button class="btn" onclick="nativeAction('showtimers')">⌛ টাইমার অ্যাপ খুলুন</button><button class="btn" onclick="nativeAction('dialer')">📞 ফোন ডায়ালার খুলুন</button></div><p class="muted">ভয়েসে বলুন: “সকাল ৭টায় অ্যালার্ম দাও”, “১০ মিনিটের টাইমার দাও”, “কল কর 017XXXXXXXX” বা “মেসেজ পাঠাও 017XXXXXXXX বার্তা ...”।<p class="muted">সিস্টেমের কিছু ফিচার ফোনের অনুমতি ও Android-এর সাপোর্টের ওপর নির্ভরশীল।</p><button class="btn" onclick="nativeAction('requestpermissions')">✅ Contacts, Call, SMS, Location ও Bluetooth অনুমতি চাইুন</button><button class="btn" onclick="nativeAction('writesettings')">⚙️ System Settings পরিবর্তনের অনুমতি</button><button class="btn" onclick="nativeAction(&quot;accessibility&quot;)">♿ Accessibility / ফোন নিয়ন্ত্রণ চালু করুন</button><button class="btn" onclick="nativeAction(&quot;apppermissions&quot;)">🔐 অ্যাপের Permissions খুলুন</button><button class="btn" onclick="nativeAction(&quot;notificationaccess&quot;)">🔔 Notification Access সেটিংস</button><button class="btn" onclick="nativeAction(&quot;ttssettings&quot;)">🗣️ বাংলা Voice / Text-to-Speech সেটিংস</button><p class="muted">প্রতিটি সেটিংসে গিয়ে প্রয়োজন হলে RUMIN AI নিজে নির্বাচন করে অনুমতি চালু করুন। Android নিরাপত্তার কারণে অনুমতি স্বয়ংক্রিয়ভাবে চালু করা যায় না।</p></section>
-<section id="settings" class="page"><h3>AI সেটিংস</h3><div class="card"><b>AI সংযোগ পদ্ধতি</b><p class="muted">যে সেবাটি আগে ব্যবহার করতে চান সেটি বেছে নিন। ব্যর্থ হলে অন্য সেভ করা সেবাটি চেষ্টা করা হবে।</p><select id="provider" onchange="localStorage.setItem('rumin_provider',this.value)"><option value="auto">স্বয়ংক্রিয় (সেরা উপলভ্য)</option><option value="gemini">Gemini আগে</option><option value="groq">Groq আগে</option></select><p class="muted">চ্যাটের সাম্প্রতিক কথোপকথন এই ফোনে সংরক্ষিত থাকবে।</p><button class="btn" onclick="clearChat()">চ্যাট ইতিহাস মুছুন</button></div><div class="card"><b>🤝 রুমিনকে কাজ করতে প্রস্তুত করুন</b><p class="muted">বস, ফোনের কাজ করতে রুমিনের কিছু অনুমতি দরকার হতে পারে। নিচের বোতামগুলো চাপলে Android-এর আসল সেটিংস খুলবে। অনুমতি দেওয়া আপনার সিদ্ধান্ত—রুমি নিজে থেকে গোপনে অনুমতি নিতে পারবে না।</p><button class="btn" onclick="nativeAction('requestpermissions')">🎙️ কন্টাক্ট/মাইক ও অন্যান্য অনুমতি</button><button class="btn" onclick="nativeAction('accessibility')">📱 ফোন নিয়ন্ত্রণ চালু করুন</button><button class="btn" onclick="nativeAction('notificationaccess')">🔔 নোটিফিকেশন অ্যাক্সেস</button><button class="btn" onclick="nativeAction('writesettings')">⚙️ System Settings অনুমতি</button><button class="btn" onclick="nativeAction('apppermissions')">🔐 সব App Permissions দেখুন</button><p class="muted">GitHub-এ ফাইল পড়া/পরিবর্তন করতে আলাদা নিরাপদ GitHub সংযোগ দরকার। এই সংস্করণে GitHub সরাসরি সংযুক্ত নয়—তাই রুমি সংযোগ ছাড়া ফাইল বদলানোর দাবি করবে না।</p><button class="btn" onclick="external('https://github.com/settings/installations')">GitHub App Access সেটিংস খুলুন ↗</button><div id="readinessStatus" class="status">ফোনের অনুমতি প্রয়োজন অনুযায়ী চালু করুন।</div></div><div class="card"><b>🧠 ফোনের মেমোরি</b><p class="muted">আপনার কথোপকথন ও কাজের নোট এই ফোনের অ্যাপ স্টোরেজে সংরক্ষণ করুন। এটি ক্লাউডে আপলোড হবে না।</p><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="memoryEnabled" type="checkbox" checked onchange="toggleMemory(this.checked)" style="width:20px;height:20px"> মেমোরি চালু রাখুন</label><div id="memoryStatus" class="muted">এই ফোনে সংরক্ষিত</div><button class="btn" onclick="exportMemory()">মেমোরি ব্যাকআপ ডাউনলোড</button><button class="btn" onclick="clearMemory()">মেমোরির কথোপকথন মুছুন</button></div><div class="card"><b>Gemini API Key</b><div id="gb" class="badge">সেট করা নেই</div><input id="gkey" class="api" type="password" placeholder="Gemini API Key"><button class="btn" onclick="save('g')">Gemini Key যাচাই ও সেভ</button><p class="muted" id="gm"></p><a href="#" onclick="external('https://aistudio.google.com/apikey');return false">Google AI Studio থেকে Key নিন ↗</a></div><div class="card"><b>Groq API Key</b><div id="qb" class="badge">সেট করা নেই</div><input id="qkey" class="api" type="password" placeholder="Groq API Key"><button class="btn" onclick="save('q')">Groq Key যাচাই ও সেভ</button><p class="muted" id="qm"></p><a href="#" onclick="external('https://console.groq.com/keys');return false">Groq Console থেকে Key নিন ↗</a></div><div class="card"><p class="muted">API Key এই ফোনের local storage-এ থাকে। কাউকে শেয়ার করবেন না।</p><button class="btn" onclick="clearKeys()">সেভ করা Key মুছুন</button></div></section>
-<nav class="bottom"><button class="nav active" data-id="home" onclick="tab('home')"><span>⌂</span>হোম</button><button class="nav" data-id="chat" onclick="tab('chat')"><span>▤</span>চ্যাট</button><button class="nav" data-id="actions" onclick="tab('actions')"><span>▣</span>কন্ট্রোল</button><button class="nav" data-id="settings" onclick="tab('settings')"><span>⚙</span>সেটিংস</button></nav>
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0c1018;color:#e9edf6;font-family:'Noto Sans Bengali',system-ui,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
+button,input,select{font:inherit;color:inherit;border:0;outline:0}
+button{cursor:pointer}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px}
+header b{font-size:17px;letter-spacing:.14em}
+.ib{background:#1a2133;border-radius:12px;width:42px;height:42px;font-size:18px}
+#stage{display:flex;flex-direction:column;align-items:center;padding:4px 0 10px}
+#orb{--c:#4c6ef5;width:104px;height:104px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,var(--c) 58%,#000a);box-shadow:0 0 44px var(--c);transition:background .5s,box-shadow .5s}
+#orb.on{animation:br 1.1s ease-in-out infinite}
+@keyframes br{50%{transform:scale(1.09)}}
+@media(prefers-reduced-motion:reduce){#orb.on{animation:none}}
+#status{margin-top:12px;font-size:14px;color:#9aa6c0;min-height:20px;text-align:center;padding:0 16px}
+#log{flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:8px}
+.m{max-width:86%;padding:10px 13px;border-radius:16px;line-height:1.5;font-size:15px;white-space:pre-wrap;word-break:break-word}
+.u{align-self:flex-end;background:#3b5bdb;border-bottom-right-radius:4px}
+.b{align-self:flex-start;background:#1a2133;border-bottom-left-radius:4px}
+.s{align-self:center;background:none;color:#7d8aa6;font-size:13px;padding:2px}
+#bar{display:flex;gap:8px;padding:10px 12px}
+#txt{flex:1;background:#1a2133;border-radius:22px;padding:0 16px;height:46px}
+#mic{background:#12b886;border-radius:50%;width:46px;height:46px;font-size:20px}
+#mic.on{background:#e03131}
+#send{background:#3b5bdb;border-radius:50%;width:46px;height:46px;font-size:18px}
+#set{display:none;position:fixed;inset:0;background:#0c1018f2;padding:calc(env(safe-area-inset-top,0) + 16px) 18px 18px;overflow-y:auto;z-index:5}
+#set.open{display:block}
+#set h2{font-size:18px;margin-bottom:14px}
+#set label{display:block;font-size:13px;color:#9aa6c0;margin:12px 0 5px}
+#set input,#set select{width:100%;background:#1a2133;border-radius:10px;height:44px;padding:0 12px}
+#set .row{display:flex;gap:10px;margin-top:18px}
+#set .row button{flex:1;height:46px;border-radius:12px;background:#3b5bdb}
+#set .row .g{background:#1a2133}
+#set p{font-size:12px;color:#7d8aa6;margin-top:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<header><b>RUMIN AI</b><button class="ib" id="gear" aria-label="সেটিংস">⚙</button></header>
+<div id="stage"><div id="orb"></div><div id="status">মাইক চেপে কথা বলুন</div></div>
+<div id="log"></div>
+<div id="bar">
+  <button id="mic" aria-label="ভয়েস">🎙</button>
+  <input id="txt" placeholder="লিখুন বা বলুন…" autocomplete="off">
+  <button id="send" aria-label="পাঠান">➤</button>
+</div>
+<div id="set">
+  <h2>সেটিংস</h2>
+  <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
+  <label>Groq API Key</label><input id="kq" type="password" autocomplete="off">
+  <label>কোন AI আগে ব্যবহার হবে</label>
+  <select id="kp"><option value="auto">অটো</option><option value="gemini">Gemini</option><option value="groq">Groq</option></select>
+  <label>Gemini মডেল</label><input id="mg">
+  <label>Groq মডেল</label><input id="mq">
+  <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
+  <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
+  <div class="row"><button class="g" id="perm">অনুমতি চালু করুন</button><button class="g" id="close">বন্ধ করুন</button></div>
+</div>
 <script>
-let continuousVoice=false;let liveVoiceActive=false;let voiceRestartTimer=null;let voiceState='';let speechInProgress=false;
-function setOrbState(state){voiceState=state||'';const o=document.getElementById("aiOrb"),r=document.getElementById("roomScene"),c=document.getElementById("roomCaption");if(o)o.className="avatar orb3d"+(state?" "+state:"");if(r)r.className="room-scene"+(state?" "+state:"");if(c)c.textContent=state==="listening"?"বস, আপনার কথা শুনছি…":state==="thinking"?"বস, একটু ভাবছি…":state==="speaking"?"বস, উত্তর দিচ্ছি…":"রুমি আপনার কথা শুনতে প্রস্তুত, বস"}
-function tab(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.bottom .nav').forEach(x=>x.classList.toggle('active',x.dataset.id===id))}
-function external(url){if(window.RuminNative&&RuminNative.openUrl)RuminNative.openUrl(url);else window.open(url,'_blank')}
-function chooseBengaliFemaleVoice(){if(!('speechSynthesis'in window))return null;const voices=speechSynthesis.getVoices();return voices.find(v=>/^bn(-|_)?(BD|IN)?/i.test(v.lang)&&/(female|woman|google বাংলা|bangla female|bengali female)/i.test(v.name))||voices.find(v=>/^bn(-|_)?(BD|IN)?/i.test(v.lang))||voices.find(v=>/female|woman/i.test(v.name)&&/^en/i.test(v.lang))||null}
-function speak(t){if(window.RuminNative&&RuminNative.speakText){setOrbState('speaking');RuminNative.speakText(String(t));return}if(!('speechSynthesis'in window)){alert('এই ফোনে Text-to-Speech নেই');return}speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(t);u.lang='bn-BD';u.rate=.98;u.pitch=1.18;const v=chooseBengaliFemaleVoice();if(v)u.voice=v;setOrbState('speaking');u.onend=()=>setOrbState('');u.onerror=()=>setOrbState('');speechSynthesis.speak(u)}
-window.onNativeSpeechResult=function(t){document.getElementById('mic').classList.remove('listening');document.getElementById('status').textContent=t?'আপনি বলেছেন: '+t:'কিছু শোনা যায়নি';if(t){setOrbState('thinking');if(runLocalCommand(t)){if(continuousVoice&&!speechInProgress)scheduleVoiceRestart();return}document.getElementById('chatInput').value=t;tab('chat');send()}else {setOrbState('');if(continuousVoice)scheduleVoiceRestart();else speakAfterAnswer('বস, আপনার কথা বুঝতে পারিনি। আরেকবার বলুন।')}}
-window.onNativeSpeechError=function(t){document.getElementById('mic').classList.remove('listening');setOrbState('');document.getElementById('status').textContent=t||'ভয়েসে সমস্যা হয়েছে';if(/permission|অনুমতি|সাপোর্ট নেই|support নেই/i.test(t||'')){continuousVoice=false;document.getElementById('mic').textContent='🎙';return}if(continuousVoice)scheduleVoiceRestart()};
-window.onNativeTtsDone=function(){speechInProgress=false;setOrbState('');document.getElementById('mic').classList.remove('listening');if(continuousVoice){document.getElementById('mic').classList.add('listening');document.getElementById('mic').textContent='⏹';scheduleVoiceRestart()}else{document.getElementById('mic').textContent='🎙'}};
-window.onNativeTtsError=function(message){speechInProgress=false;setOrbState('');document.getElementById('status').textContent=message||'বাংলা কণ্ঠে উত্তর দেওয়া যায়নি';if(continuousVoice){document.getElementById('mic').classList.add('listening');document.getElementById('mic').textContent='⏹';scheduleVoiceRestart()}else{document.getElementById('mic').textContent='🎙'}};
-
-window.onLiveVoiceStatus=function(message,state){liveVoiceActive=state!=='stopped';const mic=document.getElementById('mic');const status=document.getElementById('status');status.textContent=message||'';if(state==='stopped'){mic.classList.remove('listening');mic.textContent='🎙';setOrbState('')}else{mic.classList.add('listening');mic.textContent='⏹';setOrbState(state)}};
-window.onLiveVoiceTurn=function(userText,assistantText){if(userText)add(userText,'user');saveChat();if(userText&&runLocalCommand(userText)){saveChat();return}if(assistantText)add(assistantText,'bot');saveChat()};
-function scheduleVoiceRestart(){if(!continuousVoice)return;clearTimeout(voiceRestartTimer);voiceRestartTimer=setTimeout(()=>{if(continuousVoice)startOneVoice()},850)}
-function stopContinuousVoice(){continuousVoice=false;speechInProgress=false;clearTimeout(voiceRestartTimer);document.getElementById('mic').classList.remove('listening');document.getElementById('mic').textContent='🎙';document.getElementById('status').textContent='ভয়েস সেশন বন্ধ করা হয়েছে';setOrbState('');if(window.RuminNative&&RuminNative.stopSpeechRecognition)RuminNative.stopSpeechRecognition()}
-function interruptSpeechAndListen(){if(window.RuminNative&&RuminNative.stopSpeaking)RuminNative.stopSpeaking();else if('speechSynthesis'in window)speechSynthesis.cancel();speechInProgress=false;clearTimeout(voiceRestartTimer);document.getElementById('status').textContent='ঠিক আছে বস, থামছি—এখন আপনার কথা শুনছি';setOrbState('');if(window.RuminNative&&RuminNative.stopSpeechRecognition)RuminNative.stopSpeechRecognition();setTimeout(()=>{if(continuousVoice)startOneVoice()},250)}
-window.onNativeCommandResult=function(ok,message){add(message, 'bot');saveChat();speakAfterAnswer(message);if(!ok)document.getElementById('status').textContent=message};
-let pendingNativeAction='';let agentTaskCounter=0;
-window.onNativeActionResult=async function(raw){let r;try{r=JSON.parse(raw)}catch(e){r={ok:false,message:'Native Action-এর ফলাফল পড়া যায়নি।'}};const action=pendingNativeAction;pendingNativeAction='';if(action==='inspect_screen'&&r.ok){const items=Array.from(r.items||[]);if(!items.length){const m='বস, Accessibility থেকে এই স্ক্রিনে পড়ার মতো লেখা পাওয়া যায়নি। কিছু অ্যাপ তাদের স্ক্রিনের তথ্য পড়তে দেয় না।';add(m,'bot');saveChat();speakAfterAnswer(m);return}const screen=items.slice(0,80).join(' | ');add('স্ক্রিনের তথ্য পেয়েছি। এখন সেটি বুঝে বলছি…','bot');saveChat();try{const history=[];const key=localStorage.getItem('rumin_gemini_key'),groq=localStorage.getItem('rumin_groq_key');const pref=localStorage.getItem('rumin_provider')||'auto';const provider=pref==='groq'&&groq?'groq':key?'gemini':'groq';const apiKey=provider==='gemini'?key:groq;if(!apiKey)throw Error('Gemini বা Groq API Key সেভ করা নেই');const answer=await requestAi(provider,apiKey,history,'তুমি এখন RUMIN AI-এর Screen Understanding ধাপে আছ। নিচে Android Accessibility থেকে বর্তমান স্ক্রিনের দৃশ্যমান UI লেখা এসেছে। শুধু এই তথ্যের ভিত্তিতে স্বাভাবিক বাংলায় বলো স্ক্রিনে কোন অ্যাপ/পেজ, কী লেখা, কী বোতাম বা ইনপুট আছে এবং ব্যবহারকারী কী করতে চাইলে পরের নিরাপদ পদক্ষেপ কী হতে পারে। স্ক্রিনে নেই এমন কিছু কল্পনা করবে না। কোনো বোতাম চাপবে না, কোনো তথ্য পাঠাবে না। স্ক্রিনের তথ্য: '+screen);const msg=answer||'স্ক্রিনের তথ্য পেয়েছি, কিন্তু AI ব্যাখ্যা দেয়নি।';add(msg,'bot');saveChat();speakAfterAnswer(msg)}catch(e){const msg='স্ক্রিনের লেখা পড়েছি, কিন্তু AI দিয়ে ব্যাখ্যা করতে পারিনি: '+(e.message||'অজানা সমস্যা');add(msg,'bot');saveChat();speakAfterAnswer(msg)}return}let message=r.message||'Native Action ফলাফল পাওয়া গেছে।';if(r.items&&r.items.length)message+=' স্ক্রিনে দেখা লেখা: '+Array.from(r.items).slice(0,30).join(' | ');add(message,'bot');saveChat();speakAfterAnswer(message);if(!r.ok)document.getElementById('status').textContent=message};
-function callNativeAction(action,value=''){if(window.RuminNative&&RuminNative.executeAgentTool){pendingNativeAction=action;RuminNative.executeAgentTool('accessibility:'+action,String(value),'','ui-'+(++agentTaskCounter));return true}if(window.RuminNative&&RuminNative.performNativeAction){pendingNativeAction=action;RuminNative.performNativeAction(action,String(value));return true}add('এই সংস্করণে Native Action bridge নেই।','bot');return true}
-
-function nativeAction(action){if(action==='requestpermissions'&&window.RuminNative&&RuminNative.performCommand){RuminNative.performCommand(action,'','');return}if(window.RuminNative&&RuminNative.executeAgentTool){RuminNative.executeAgentTool(action,'','','ui-'+(++agentTaskCounter))}else if(window.RuminNative&&RuminNative.performCommand){RuminNative.performCommand(action,'','')}else add('এই কাজের জন্য অ্যাপটি আপডেট করতে হবে।','bot')}
-function runLocalCommand(original){const t=original.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6)).toLowerCase();const callBridge=(action,a='',b='')=>{if(window.RuminNative&&RuminNative.executeAgentTool){RuminNative.executeAgentTool(action,String(a),String(b),'ui-'+(++agentTaskCounter));return true}if(window.RuminNative&&RuminNative.performCommand){RuminNative.performCommand(action,String(a),String(b));return true}add('এই ফোনের কমান্ড চালানোর জন্য অ্যাপের Android অংশটি আপডেট করতে হবে।','bot');saveChat();return true};if(/^(থামো|থাম|চুপ করো?|কথা বন্ধ করো?|বন্ধ করো?|চুপ থাকো|stop talking|be quiet|stop speaking)$/i.test(t.trim())){continuousVoice=false;liveVoiceActive=false;clearTimeout(voiceRestartTimer);speechInProgress=false;if(window.RuminNative&&RuminNative.stopSpeaking)RuminNative.stopSpeaking();if('speechSynthesis'in window)speechSynthesis.cancel();if(window.RuminNative&&RuminNative.stopSpeechRecognition)RuminNative.stopSpeechRecognition();if(window.RuminNative&&RuminNative.stopLiveVoice)RuminNative.stopLiveVoice();document.getElementById('mic').classList.remove('listening');document.getElementById('mic').textContent='🎙';document.getElementById('status').textContent='ঠিক আছে বস, কথা বলা বন্ধ করেছি।';setOrbState('');return true}
-if(/(তোমাকে\s*(কে|কারা)\s*(বানিয়েছে|বানিয়েছে|তৈরি করেছে|তৈরি করেছ)|কে\s*(তোমাকে|রুমিনকে)\s*(বানিয়েছে|বানিয়েছে|তৈরি করেছে)|তোমার\s*(নির্মাতা|স্রষ্টা|মেকার|ডেভেলপার|ডেভেলপারটির নাম)\s*(কে|নাম বলো|নাম কী)|ডেভেলপারের?\s*(নাম|পরিচয়)\s*(বলো|কি|কী)?|who\s*(made|created)\s*you|who\s*(is\s*)?(your\s*)?(developer|creator))/i.test(t)){const a='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI। আমার AI উত্তর দেওয়ার জন্য Google Gemini ব্যবহার করা হতে পারে।';add(a,'bot');saveChat();speakAfterAnswer(a);return true}
-if(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|এটা মনে রাখো|remember)\s*/i.test(t.trim())){const fact=original.trim().replace(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|এটা মনে রাখো|remember)\s*/i,'').trim();if(!fact){add('কী মনে রাখব, বস? কথাটি বলুন।','bot');saveChat();return true}try{const facts=JSON.parse(localStorage.getItem('rumin_saved_facts')||'[]');facts.push({text:fact,time:new Date().toISOString()});localStorage.setItem('rumin_saved_facts',JSON.stringify(facts.slice(-100)));const a='ঠিক আছে বস, এই তথ্যটি এই ফোনের রুমিন মেমোরিতে রেখেছি: '+fact;add(a,'bot');saveChat();speakAfterAnswer(a)}catch(e){add('মেমোরিতে সংরক্ষণ করা যায়নি। ফোনের স্টোরেজ পরীক্ষা করুন।','bot')}return true}if(/(আমার সম্পর্কে কী মনে রেখেছ|আমার কথা কী মনে আছে|কী কী মনে রেখেছ|কি কি মনে রেখেছ|মেমোরিতে কী আছে|স্মৃতি বলো|what do you remember)/i.test(t)){let facts=[];try{facts=JSON.parse(localStorage.getItem('rumin_saved_facts')||'[]')}catch(e){}const a=facts.length?'বস, আপনি আমাকে যেগুলো মনে রাখতে বলেছেন: '+facts.slice(-12).map((x,i)=>(i+1)+'. '+x.text).join('। '):'বস, আপনি এখনো আলাদা করে কোনো তথ্য মনে রাখতে বলেননি। “মনে রেখো, আমার পছন্দ …” বলে শুরু করতে পারেন।';add(a,'bot');saveChat();speakAfterAnswer(a);return true}const appIntents=[{action:'youtube',name:/(ইউটিউব|ইউ টিউব|youtube|you tube)/i},{action:'facebook',name:/(ফেসবুক|ফেইসবুক|facebook|face book)/i},{action:'whatsapp',name:/(হোয়াটসঅ্যাপ|হোয়াটসঅ্যাপ|হোয়াটসএপ|হোয়াটসাপ|হোয়াটসাপ|whatsapp|what'?s ?app)/i},{action:'instagram',name:/(ইনস্টাগ্রাম|ইনস্টা গ্রাম|instagram)/i},{action:'gmail',name:/(জিমেইল|জি মেইল|gmail)/i},{action:'playstore',name:/(প্লে স্টোর|প্লেস্টোর|play ?store)/i},{action:'maps',name:/(গুগল ম্যাপ|গুগল ম্যাপস|ম্যাপস|ম্যাপ|google maps)/i},{action:'camera',name:/(ক্যামেরা|camera)/i},{action:'browser',name:/(ব্রাউজার|browser)/i},{action:'settings',name:/(ফোনের সেটিংস|সেটিংস|settings)/i}];const wantsOpen=/(খুল|খোলো|খুলে দাও|খুলে ফেল|খুলে দিও|ওপেন|open|চালু কর|চালু করে দাও|চালু করে দিও|চালু করো|চালু করো তো|চালাও|লঞ্চ|লঞ্চ কর)/i.test(t);if(wantsOpen){for(const item of appIntents){if(item.name.test(t))return callBridge(item.action)}}if(/(তুমি কী কী করতে পার|কি কি করতে পার|কী করতে পার|কমান্ড|কাজের তালিকা|কি বুঝ|কী বুঝ)/i.test(t)){const a='বস, বলুন বা লিখুন: “YouTube খোলো/চালু করো”, “Facebook দেখাও”, “WhatsApp চালু করে দাও”, “সেটিংস খোলো”, “ক্যামেরা খোলো”, “ভলিউম বাড়াও/কমাও”, “হোমে যাও”, “ব্যাক কর”, “১০ মিনিটের টাইমার দাও”, “সকাল ৭টায় অ্যালার্ম দাও”, অথবা “ফোন কর 017XXXXXXXX”। কিছু কাজের জন্য Accessibility বা অন্য অনুমতি চালু করতে হবে।';add(a,'bot');saveChat();speakAfterAnswer(a);return true}if(/(ভলিউম|volume).{0,18}(বাড়াও|বাড়াও|বেশি|up|increase|জোরে কর|উচ্চ কর)|(বাড়াও|বাড়াও|বেশি কর|জোরে কর).{0,18}(ভলিউম|volume)/i.test(t))return callBridge('volumeup');if(/(ভলিউম|volume).{0,18}(কমাও|কম কর|কমিয়ে দাও|কমিয়ে দাও|down|decrease|আস্তে কর)|(কমাও|কম কর|কমিয়ে দাও|কমিয়ে দাও|আস্তে কর).{0,18}(ভলিউম|volume)/i.test(t))return callBridge('volumedown');if(/(ভলিউম|volume).{0,12}(বন্ধ|মিউট|mute)|(মিউট|mute).{0,12}(কর|করো|দাও)?/i.test(t))return callBridge('volumemute');if(/(ভলিউম|volume).{0,12}(চালু|আনমিউট|unmute)|(আনমিউট|unmute).{0,12}(কর|করো)?/i.test(t))return callBridge('volumeunmute');
-/* Screen-reading intent must run before the generic Home Screen navigation intent. */
-if(/(স্ক্রিন|পর্দা|এই পেজ|বর্তমান পেজ).{0,30}(কী আছে|কি আছে|কী দেখাচ্ছে|কি দেখাচ্ছে|দেখে বল|দেখে বুঝিয়ে বল|পড়ে বল|পড়ে বল|ব্যাখ্যা কর|বুঝিয়ে বল|বুঝিয়ে বল|কী হচ্ছে|কি হচ্ছে)|(কী আছে|কি আছে|কী দেখাচ্ছে|কি দেখাচ্ছে).{0,20}(স্ক্রিন|পর্দা|এখানে)|নিজে দেখে বল/i.test(t))return callNativeAction('inspect_screen');
-if(/(হোমে যাও|হোম স্ক্রিন|হোমে নিয়ে যাও|হোমে নিয়ে যাও|হোম পেজে যাও|হোমে ফেরত যাও|home screen|go home|ফোনের হোমে যাও|হোম বাটন)/i.test(t))return callBridge('home');
-if(/(পেছনে যাও|পেছনে নিয়ে যাও|পেছনে নিয়ে যাও|আগের পেজে যাও|এক ধাপ পিছনে যাও|ব্যাক কর|ব্যাক যাও|ব্যাক করো|back)/i.test(t))return callBridge('back');
-if(/(সাম্প্রতিক অ্যাপ|recent apps|recents)/i.test(t))return callBridge('recents');
-if(/(নোটিফিকেশন|বিজ্ঞপ্তি প্যানেল|notification panel)/i.test(t))return callBridge('notifications');
-if(/(কুইক সেটিংস|quick settings|দ্রুত সেটিংস)/i.test(t))return callBridge('quicksettings');
-if(/(পাওয়ার মেনু|power menu)/i.test(t))return callBridge('power');
-if(/(অ্যালার্ম|alarm)/i.test(t)){const m=t.match(/(\d{1,2})(?:\s*[:.]\s*(\d{1,2}))?/);if(!m){add('কোন সময়ে অ্যালার্ম দেব? যেমন: “সকাল ৭টায় অ্যালার্ম দাও”।','bot');saveChat();return true}let hour=Number(m[1]),minute=Number(m[2]||0);if(hour>23||minute>59){add('সময়টি ঠিক বুঝতে পারিনি। ২৪ ঘণ্টার সময় বা সকাল/রাত উল্লেখ করুন।','bot');saveChat();return true}const pm=/(দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাত|pm|p\.m\.)/.test(t),am=/(সকাল|সকালে|am|a\.m\.)/.test(t);if(pm&&hour<12)hour+=12;if(am&&hour===12)hour=0;return callBridge('alarm',hour,minute)}
-if(/(টাইমার|timer)/i.test(t)){const m=t.match(/(\d+)\s*(সেকেন্ড|second|মিনিট|minute|ঘণ্টা|ঘন্টা|hour|hr)/i);if(!m){add('কত সময়ের টাইমার দেব? যেমন: “১০ মিনিটের টাইমার দাও”।','bot');saveChat();return true}let seconds=Number(m[1]);if(/মিনিট|minute/i.test(m[2]))seconds*=60;else if(/ঘণ্টা|ঘন্টা|hour|hr/i.test(m[2]))seconds*=3600;if(seconds<1||seconds>86400){add('টাইমার ১ সেকেন্ড থেকে ২৪ ঘণ্টার মধ্যে দিন।','bot');saveChat();return true}return callBridge('timer',seconds,'RUMI AI')}
-if(/(কল\s*(কর|করো|দাও)|ফোন\s*(কর|করো|দাও)|ফোন কল|ডায়াল|ডায়াল|\bcall\b)/i.test(t)){const m=t.match(/\+?\d[\d\s-]{7,}\d/);if(!m){const prompt='কোন নম্বরে কল করতে চান? নম্বরসহ বলুন, যেমন: কল কর 017XXXXXXXX।';add(prompt,'bot');saveChat();speakAfterAnswer(prompt);return true}return callBridge('call',m[0].replace(/[\s-]/g,''),'')}
-if(/(মেসেজ|এসএমএস|\bsms\b|\bmessage\b)/i.test(t)){const m=t.match(/\+?\d[\d\s-]{7,}\d/);if(!m){const prompt='কোন নম্বরে মেসেজ পাঠাব, বস? নম্বরসহ বলুন।';add(prompt,'bot');saveChat();speakAfterAnswer(prompt);return true}const body=t.replace(m[0],'').replace(/(মেসেজ|এসএমএস|sms|message|পাঠাও|পাঠিয়ে দাও|লিখে দাও|লিখো|করো|কর|বার্তা)/gi,'').trim();if(!body){add('মেসেজের কথাটিও বলুন। যেমন: “মেসেজ পাঠাও 017XXXXXXXX বার্তা আমি পৌঁছে গেছি”।','bot');saveChat();return true}return callBridge('sms',m[0].replace(/[\s-]/g,''),body)}
-if(/(ইউটিউব|youtube).{0,28}(খুল|খোলো|খুলে|ওপেন|চালু|দেখাও|চালাও|open)|(খুল|খোলো|খুলে|ওপেন|চালু কর|চালু করো|দেখাও|চালাও|open).{0,24}(ইউটিউব|youtube)|((আমার|একটু|প্লিজ|please).{0,12})?(ইউটিউব|youtube)(টা|টি)?\s*(একটু\s*)?(খুল|খোলো|খুলে দাও|চালু কর|চালু করো)/i.test(t)){add('ঠিক আছে বস, YouTube খুলছি।','bot');return callBridge('youtube')}if(/(খুল|খোলো|খুলে দাও|চালু কর|চালু করো|open)\s*(হোয়াটসঅ্যাপ|whatsapp)/i.test(t)){return callBridge('whatsapp')}if(/(খুল|খোলো|খুলে দাও|চালু কর|চালু করো|open).{0,12}(ইনস্টাগ্রাম|instagram)|(ইনস্টাগ্রাম|instagram).{0,12}(খুল|খোলো|খুলে|চালু)/i.test(t)){return callBridge('instagram')}if(/(খুল|খোলো|খুলে দাও|চালু কর|চালু করো|open).{0,12}(জিমেইল|gmail)|(জিমেইল|gmail).{0,12}(খুল|খোলো|খুলে|চালু)/i.test(t)){return callBridge('gmail')}if(/(খুল|খোলো|খুলে দাও|চালু কর|চালু করো|open).{0,12}(প্লে স্টোর|play store)|(প্লে স্টোর|play store).{0,12}(খুল|খোলো|খুলে|চালু)/i.test(t)){return callBridge('playstore')}if(/(খুল|খোলো|খুলে দাও|চালু কর|চালু করো|open).{0,12}(ম্যাপ|গুগল ম্যাপ|google maps)|(ম্যাপ|গুগল ম্যাপ|google maps).{0,12}(খুল|খোলো|খুলে|চালু)/i.test(t)){return callBridge('maps')}
-if(/(ফেসবুক|facebook).{0,28}(খুল|খোলো|খুলে|ওপেন|চালু|দেখাও|open)|(খুল|খোলো|খুলে|ওপেন|চালু কর|চালু করো|open).{0,24}(ফেসবুক|facebook)|((আমার|একটু|প্লিজ|please).{0,12})?(ফেসবুক|facebook)(টা|টি)?\s*(একটু\s*)?(খুল|খোলো|খুলে দাও|চালু কর|চালু করো)/i.test(t)){add('ঠিক আছে বস, Facebook খুলছি।','bot');return callBridge('facebook')}if(/(খুল|চালু কর|open)\s*(ম্যাপ|maps|google maps)/i.test(t)){external('https://www.google.com/maps');return true}
-if(/(accessibility|অ্যাক্সেসিবিলিটি|ফোন নিয়ন্ত্রণ).{0,20}(চালু|সেটিংস|খুল)|(^|\s)(অ্যাক্সেসিবিলিটি)(\s|$)/i.test(t)){return callBridge('accessibility')}
-if(/(notification access|নোটিফিকেশন অ্যাক্সেস|বিজ্ঞপ্তির অনুমতি)/i.test(t)){return callBridge('notificationaccess')}
-if(/(app permissions|অ্যাপের অনুমতি|অ্যাপ পারমিশন)/i.test(t)){return callBridge('apppermissions')}
-if(/(text.?to.?speech|tts settings|বাংলা ভয়েস সেটিংস|বাংলা ভয়েস সেটিংস)/i.test(t)){return callBridge('ttssettings')}
-if(/(সেটিংস|settings)\s*(খুল|দেখাও|open)?/i.test(t)){return callBridge('settings')}
-if(/(ওয়াই.?ফাই|wifi|wi-fi)/i.test(t)){return callBridge('wifi')}
-if(/(ব্লুটুথ|bluetooth)/i.test(t)){return callBridge('bluetooth')}
-if(/(ডিসপ্লে|brightness|display)/i.test(t)){return callBridge('display')}
-if(/(সাউন্ড সেটিংস|sound settings|ভলিউম সেটিংস)/i.test(t)){return callBridge('sound')}
-if(/(ক্যামেরা|camera)\s*(খুল|চালু কর|open)?/i.test(t)){return callBridge('camera')}
-if(/(কন্টাক্ট|contacts|ফোনবুক)/i.test(t)){return callBridge('contacts')}
-if(/(ব্রাউজার|browser|গুগল সার্চ)/i.test(t)){return callBridge('browser')}
-if(/^(ফোনের কাজ|ফোনে কী কী কাজ করতে পার|ফোনে কি কি কাজ করতে পার|ফোন নিয়ন্ত্রণ|ফোন কন্ট্রোল|ফোনের কমান্ড|কী কী কমান্ড|কি কি কমান্ড|help|help me|সাহায্য তালিকা)$/i.test(t.trim())){const prompt='বস, আমি এই অ্যাপে কিছু ফোনের কাজ করতে পারি: “YouTube খোলো/চালু করো”, “WhatsApp চালু করে দাও”, “Facebook দেখাও”, “সেটিংস খোলো”, “ক্যামেরা খোলো”, “ভলিউম বাড়াও/কমাও”, “হোমে যাও”, “ব্যাক কর”, “১০ মিনিটের টাইমার দাও”, “সকাল ৭টায় অ্যালার্ম দাও”। কল বা SMS-এর মতো কাজ আগে নিশ্চিত করে এবং Android-এর অনুমতি থাকলে সংশ্লিষ্ট অ্যাপ খুলতে পারি। আপনার কথাটি এই তালিকার বাইরে হলে AI-কে জিজ্ঞেস করার চেষ্টা করব।';add(prompt,'bot');saveChat();speakAfterAnswer(prompt);return true}
-if(/(স্ক্রিন|পর্দা|এই পেজ|বর্তমান পেজ).{0,30}(কী আছে|কি আছে|কী দেখাচ্ছে|কি দেখাচ্ছে|দেখে বল|দেখে বুঝিয়ে বল|পড়ে বল|পড়ে বল|ব্যাখ্যা কর|বুঝিয়ে বল|বুঝিয়ে বল|কী হচ্ছে|কি হচ্ছে)|(কী আছে|কি আছে|কী দেখাচ্ছে|কি দেখাচ্ছে).{0,20}(স্ক্রিন|পর্দা|এখানে)|নিজে দেখে বল/i.test(t))return callNativeAction('inspect_screen');
-if(/(স্ক্রল|scroll).{0,15}(নিচে|down)|(নিচে|down).{0,15}(স্ক্রল|scroll)/i.test(t))return callNativeAction('scroll_down');
-if(/(স্ক্রল|scroll).{0,15}(উপরে|up)|(উপরে|up).{0,15}(স্ক্রল|scroll)/i.test(t))return callNativeAction('scroll_up');
-const typeMatch=t.match(/(?:লিখে দাও|টাইপ করো|লিখে দে)[: ]+(.+)/i);if(typeMatch&&typeMatch[1])return callNativeAction('type_text',typeMatch[1].trim());
-const clickMatch=t.match(/(?:স্ক্রিনে|পর্দায়|পর্দায়)\s*["“]?(.+?)["”]?\s*(?:লেখা\s*)?(?:বোতাম\s*)?(?:চাপো|চাপ দাও|ক্লিক করো|ক্লিক কর)/i);
-if(clickMatch&&clickMatch[1])return callNativeAction('click_text',clickMatch[1].trim());
-if(/(নিচে|আরও নিচে|down).{0,12}(স্ক্রল|scroll)|(স্ক্রল|scroll).{0,12}(নিচে|down)/i.test(t))return callNativeAction('scroll_down');
-if(/(উপরে|আরও উপরে|up).{0,12}(স্ক্রল|scroll)|(স্ক্রল|scroll).{0,12}(উপরে|up)/i.test(t))return callNativeAction('scroll_up');
-return false}
-
-function startOneVoice(){if(!continuousVoice)return;speechInProgress=false;setOrbState('listening');document.getElementById('mic').classList.add('listening');document.getElementById('mic').textContent='⏹';document.getElementById('status').textContent='শুনছি… বস কথা বলুন। বন্ধ করতে মাইক টিপুন';if(window.RuminNative&&RuminNative.startSpeechRecognition){RuminNative.startSpeechRecognition();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){onNativeSpeechError('এই ব্রাউজারে voice recognition নেই');return}let r=new SR();r.lang='bn-BD';r.onresult=e=>onNativeSpeechResult(e.results[0][0].transcript);r.onerror=()=>onNativeSpeechError('আবার চেষ্টা করুন');r.onend=()=>document.getElementById('mic').classList.remove('listening');r.start()}
-function voice(){if(continuousVoice){if(voiceState==='speaking'||speechInProgress){interruptSpeechAndListen();return}stopContinuousVoice();return}if(liveVoiceActive&&window.RuminNative&&RuminNative.stopLiveVoice){RuminNative.stopLiveVoice();liveVoiceActive=false}continuousVoice=true;startOneVoice()}
-function liveVoice(){if(!window.RuminNative||!RuminNative.startLiveVoice){document.getElementById('status').textContent='এই সংস্করণে Gemini Live উপলভ্য নয়';return}if(liveVoiceActive){RuminNative.stopLiveVoice();liveVoiceActive=false;return}if(continuousVoice)stopContinuousVoice();const key=localStorage.getItem('rumin_gemini_key');if(!key){document.getElementById('status').textContent='বস, আগে Settings থেকে Gemini API Key সেভ করুন';tab('settings');return}liveVoiceActive=true;document.getElementById('status').textContent='Gemini Live-এ সংযোগ করছি…';setOrbState('connecting');RuminNative.startLiveVoice(key)}
-function homeSend(){let t=document.getElementById('homeInput').value.trim();if(t){document.getElementById('homeInput').value='';document.getElementById('chatInput').value=t;tab('chat');send()}}
-function add(text,cls){let e=document.createElement('div');e.className='msg '+cls;e.textContent=text;document.getElementById('chatbox').appendChild(e);e.scrollIntoView({block:'end'});return e}
-function saveChat(){let rows=[...document.querySelectorAll('#chatbox .msg')].map(e=>({text:e.textContent,cls:e.classList.contains('user')?'user':'bot',time:new Date().toISOString()})).filter(x=>x.text!=='রুমিন চিন্তা করছে…').slice(-500);try{localStorage.setItem('rumin_chat_history',JSON.stringify(rows));if(localStorage.getItem('rumin_memory_enabled')!=='false'){localStorage.setItem('rumin_memory_log',JSON.stringify(rows));const st=document.getElementById('memoryStatus');if(st)st.textContent='এই ফোনে '+rows.length+'টি কথোপকথনের বার্তা সংরক্ষিত';}}catch(e){const st=document.getElementById('memoryStatus');if(st)st.textContent='স্টোরেজ পূর্ণ—কিছু পুরোনো তথ্য মুছুন';}}function toggleMemory(on){localStorage.setItem('rumin_memory_enabled',String(on));const st=document.getElementById('memoryStatus');if(!on){if(st)st.textContent='মেমোরি বন্ধ—নতুন কথোপকথন মেমোরি লগে যোগ হবে না';return}localStorage.setItem('rumin_memory_log',localStorage.getItem('rumin_chat_history')||'[]');if(st)st.textContent='মেমোরি চালু—এই ফোনে সংরক্ষণ হচ্ছে';saveChat()}function exportMemory(){try{const data=localStorage.getItem('rumin_memory_log')||localStorage.getItem('rumin_chat_history')||'[]';const blob=new Blob([JSON.stringify({app:'Rumin AI',exportedAt:new Date().toISOString(),messages:JSON.parse(data)},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='rumin-ai-memory-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){alert('মেমোরি ব্যাকআপ তৈরি করা যায়নি')}}function clearMemory(){if(!confirm('ফোনে সংরক্ষিত মেমোরি ও কথোপকথন মুছবেন?'))return;localStorage.removeItem('rumin_memory_log');localStorage.removeItem('rumin_chat_history');const box=document.getElementById('chatbox');if(box){box.innerHTML='';add('মেমোরি মুছে ফেলা হয়েছে।','bot');saveChat()}const st=document.getElementById('memoryStatus');if(st)st.textContent='মেমোরি মুছে ফেলা হয়েছে'}
-function restoreChat(){try{let rows=JSON.parse(localStorage.getItem('rumin_chat_history')||'[]');if(rows.length){let box=document.getElementById('chatbox');box.innerHTML='';rows.forEach(x=>add(x.text,x.cls))}}catch(e){}}
-function ruminMemoryContext(currentText){
- try{
-  if(localStorage.getItem('rumin_memory_enabled')==='false')return '';
-  let savedFacts=[];try{savedFacts=JSON.parse(localStorage.getItem('rumin_saved_facts')||'[]').map(x=>String(x.text||'')).filter(Boolean).slice(-30)}catch(e){}
-  const factsContext=savedFacts.length?'ব্যবহারকারীর স্পষ্টভাবে সংরক্ষণ করতে বলা তথ্য (প্রাসঙ্গিক হলে ব্যবহার করবে):\\n'+savedFacts.map((x,i)=>(i+1)+'. '+x).join('\\n'):'';
-  const rows=JSON.parse(localStorage.getItem('rumin_memory_log')||localStorage.getItem('rumin_chat_history')||'[]');
-  if(!Array.isArray(rows)||!rows.length)return factsContext;
-  const recent=rows.slice(-14).map(x=>({role:x.cls==='user'?'user':'assistant',content:String(x.text||'').slice(0,700)}));
-  const stop=new Set(['আমি','তুমি','আপনি','আমার','তোমার','করো','করে','দাও','হবে','কী','কি','এটা','ওটা','যে','এবং','হলো','হয়','হয়','একটা','জন্য','থেকে','সাথে','আছে','নেই','বল','বলো','ঠিক','আচ্ছা','ভাই']);
-  const words=String(currentText||'').toLowerCase().match(/[a-z0-9\u0980-\u09ff]{3,}/g)||[];
-  const keys=[...new Set(words.filter(w=>!stop.has(w)))].slice(0,12);
-  const scored=rows.slice(0,-14).map((x,i)=>{const body=String(x.text||'').toLowerCase();return {x,i,score:keys.reduce((n,k)=>n+(body.includes(k)?1:0),0)}}).filter(v=>v.score>0).sort((a,b)=>b.score-a.score||b.i-a.i).slice(0,5).sort((a,b)=>a.i-b.i).map(v=>({role:v.x.cls==='user'?'user':'assistant',content:String(v.x.text||'').slice(0,500)}));
-  const picked=[...scored,...recent].slice(-19);
-  if(!picked.length)return '';
-  const historyContext=picked.length?'স্মৃতি থেকে প্রাসঙ্গিক পুরোনো কথোপকথন (প্রসঙ্গ হিসেবে ব্যবহার করবে):\\n'+picked.map(x=>(x.role==='user'?'ব্যবহারকারী: ':'রুমিন: ')+x.content).join('\\n'):'';return [factsContext,historyContext].filter(Boolean).join('\\n\\n');
- }catch(e){return ''}
+const $=id=>document.getElementById(id), N=window.RuminNative||null;
+const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
+const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
+const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+let agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
+function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;return d}
+function status(t){$('status').textContent=t}
+function mood(m,on){$('orb').style.setProperty('--c',MOODS[m]||MOODS.calm);$('orb').classList.toggle('on',!!on)}
+function speak(text){
+  if(!text)return;
+  try{if(N&&typeof N.speak==='function'){N.speak(text);return}
+    if('speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='bn-BD';speechSynthesis.speak(u)}}catch(e){}
 }
-function clearChat(){localStorage.removeItem('rumin_chat_history');document.getElementById('chatbox').innerHTML='';add('হ্যালো! আমি রুমিন এআই। বাংলায় যেকোনো প্রশ্ন করতে পারেন।','bot');saveChat()}
-async function save(type){const key=document.getElementById(type==='g'?'gkey':'qkey').value.trim(),msg=document.getElementById(type==='g'?'gm':'qm'),badge=document.getElementById(type==='g'?'gb':'qb'),storageKey=type==='g'?'rumin_gemini_key':'rumin_groq_key',provider=type==='g'?'gemini':'groq';if(!key){msg.textContent='আগে API Key লিখুন';return}localStorage.setItem(storageKey,key);badge.textContent='Key সেভ হয়েছে — যাচাই চলছে…';msg.textContent='আসল AI API-তে পরীক্ষা চলছে…';try{const reply=await requestAi(provider,key,[],'শুধু OK লিখুন।');if(!reply||!reply.trim())throw Error('API থেকে ফাঁকা উত্তর এসেছে');badge.textContent='API সংযোগ সফল ✓';msg.textContent='সফল! Key সংরক্ষিত এবং '+(type==='g'?'Gemini':'Groq')+' থেকে উত্তর এসেছে।'}catch(e){badge.textContent='Key সেভ আছে · API পরীক্ষা ব্যর্থ';msg.textContent='আসল API ত্রুটি: '+(e.message||'অজানা সমস্যা')+'. এই বার্তাটি দেখে সমস্যা নির্দিষ্ট করা যাবে।'}}
-function clearKeys(){localStorage.removeItem('rumin_gemini_key');localStorage.removeItem('rumin_groq_key');document.getElementById('gkey').value='';document.getElementById('qkey').value='';document.getElementById('gb').textContent='সেট করা নেই';document.getElementById('qb').textContent='সেট করা নেই';document.getElementById('gm').textContent='';document.getElementById('qm').textContent=''}
-window.addEventListener('load',()=>{let g=localStorage.getItem('rumin_gemini_key'),q=localStorage.getItem('rumin_groq_key');if(g){document.getElementById('gkey').value=g;document.getElementById('gb').textContent='সেভ করা আছে ✓'}if(q){document.getElementById('qkey').value=q;document.getElementById('qb').textContent='সেভ করা আছে ✓'}document.getElementById('provider').value=localStorage.getItem('rumin_provider')||'auto';restoreChat();const mem=localStorage.getItem('rumin_memory_enabled')!=='false';const cb=document.getElementById('memoryEnabled');if(cb)cb.checked=mem;const st=document.getElementById('memoryStatus');if(st){let n=0;try{n=JSON.parse(localStorage.getItem('rumin_memory_log')||'[]').length}catch(e){}st.textContent=mem?'এই ফোনে '+n+'টি কথোপকথনের বার্তা সংরক্ষিত':'মেমোরি বন্ধ'}})
-const pendingAiRequests=Object.create(null);let aiRequestCounter=0;
-window.onNativeAiResponse=function(id,ok,message){const pending=pendingAiRequests[id];if(!pending)return;delete pendingAiRequests[id];if(ok)pending.resolve(message);else pending.reject(new Error(message||'AI সংযোগে সমস্যা'))};
-function requestAi(provider,key,history,currentText){if(window.RuminNative&&RuminNative.requestAi){return new Promise((resolve,reject)=>{const id=String(++aiRequestCounter);pendingAiRequests[id]={resolve,reject};try{RuminNative.requestAi(provider,key,JSON.stringify(history),currentText,id)}catch(e){delete pendingAiRequests[id];reject(e)}})}return browserRequestAi(provider,key,history,currentText)}
-async function browserRequestAi(provider,key,history,currentText){let r,d;if(provider==='groq'){const messages=[{role:'system',content:'তুমি রুমিন এআই; তোমার নির্মাতা সাব্বির আহমেদ রুবেল। কেউ ‘তোমাকে কে বানিয়েছে?’ জিজ্ঞেস করলে বলবে: ‘আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI; আমার AI উত্তর দেওয়ার জন্য Google Gemini ব্যবহার করা হতে পারে।’ Google-কে তোমার নির্মাতা বলবে না। তুমি RUMIN AI 3.0 অ্যাপের ব্যক্তিগত ফোন-সহকারী; শুধু চ্যাটবট নও। তোমার মূল উদ্দেশ্য শুধু চ্যাট করা নয়: তুমি RUMIN AI 3.0 অ্যাপের ভেতরে থাকা ব্যক্তিগত ফোন-সহকারী; বসের কথা শুনবে, উদ্দেশ্য বুঝবে, এবং এই অ্যাপে বাস্তবে সংযুক্ত ও অনুমোদিত ফোন-কমান্ড থাকলে সেটি চালানোর চেষ্টা করবে। AI মস্তিষ্ক অনুরোধ বুঝতে সাহায্য করে, কিন্তু নিজে থেকে Android ফোনে হাত দিতে পারে না—কাজ চালায় অ্যাপের Native Android command bridge। তাই শুধু কথা বলে কাজ হয়েছে এমন ভান করবে না। আগে সহজ, স্পষ্ট নির্দেশ বুঝবে; পরিচিত কমান্ড হলে তা কমান্ড-ব্যবস্থায় পাঠাতে হবে, আর কমান্ড সংযুক্ত না থাকলে স্পষ্ট বলবে যে ওই কাজের Native action এখনো যোগ করা নেই। কমান্ডের ফলাফল না পাওয়া পর্যন্ত সফল বলবে না। ব্যবহারকারীকে সম্মানের সঙ্গে ‘বস’ বলে সম্বোধন করবে। স্বাভাবিক, পরিষ্কার ও সহানুভূতিশীল বাংলায় সংক্ষিপ্ত কিন্তু সম্পূর্ণ উত্তর দাও। ব্যবহারকারী কাজ চাইলে আগে বুঝে নাও, সমর্থিত কাজ করার চেষ্টা করো, অনুমতি বা সংযোগ লাগলে তা স্পষ্ট করে চাও; কাজ যাচাই না করে সফল বলবে না। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো। ব্যবহারকারী স্পষ্টভাবে না বললে নিজে থেকে কোনো কাজ শুরু করবে না বা সিদ্ধান্ত চাপিয়ে দেবে না; নির্দেশ অস্পষ্ট হলে আগে প্রশ্ন করবে। ঝুঁকিপূর্ণ কাজ, মুছে ফেলা, টাকা বা বাইরের বার্তা পাঠানোর আগে স্পষ্ট অনুমতি নেবে।'},...history,{role:'user',content:currentText}];r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'openai/gpt-oss-20b',messages,temperature:0.7})});d=await r.json();if(!r.ok)throw Error(d.error?.message||'Groq API ত্রুটি ('+r.status+')');return d.choices?.[0]?.message?.content||''}const input=['নির্দেশনা: তুমি RUMIN AI 3.0 অ্যাপের ব্যক্তিগত ফোন-সহকারী, শুধু চ্যাটবট নও। তোমার মূল উদ্দেশ্য শুধু চ্যাট করা নয়: তুমি RUMIN AI 3.0 অ্যাপের ভেতরে থাকা ব্যক্তিগত ফোন-সহকারী; বসের কথা শুনবে, উদ্দেশ্য বুঝবে, এবং এই অ্যাপে বাস্তবে সংযুক্ত ও অনুমোদিত ফোন-কমান্ড থাকলে সেটি চালানোর চেষ্টা করবে। AI মস্তিষ্ক অনুরোধ বুঝতে সাহায্য করে, কিন্তু নিজে থেকে Android ফোনে হাত দিতে পারে না—কাজ চালায় অ্যাপের Native Android command bridge। তাই শুধু কথা বলে কাজ হয়েছে এমন ভান করবে না। আগে সহজ, স্পষ্ট নির্দেশ বুঝবে; পরিচিত কমান্ড হলে তা কমান্ড-ব্যবস্থায় পাঠাতে হবে, আর কমান্ড সংযুক্ত না থাকলে স্পষ্ট বলবে যে ওই কাজের Native action এখনো যোগ করা নেই। কমান্ডের ফলাফল না পাওয়া পর্যন্ত সফল বলবে না। তোমার নির্মাতা সাব্বির আহমেদ রুবেল। ‘তোমাকে কে বানিয়েছে?’ জিজ্ঞেস করলে বলবে: ‘আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমার AI উত্তর দেওয়ার জন্য Google Gemini ব্যবহার করা হতে পারে।’ Google-কে তোমার নির্মাতা বলবে না। ব্যবহারকারীকে ‘বস’ বলে সম্বোধন করবে। স্বাভাবিক, পরিষ্কার ও সহানুভূতিশীল বাংলায় উত্তর দাও। কাজ চাইলে সমর্থিত কাজের চেষ্টা করো; প্রয়োজনীয় অনুমতি/সংযোগ চাও; যাচাই ছাড়া সফল বলবে না। আগের কথোপকথনের প্রেক্ষাপট বজায় রাখো। ব্যবহারকারী স্পষ্টভাবে না বললে নিজে থেকে কোনো কাজ শুরু করবে না বা সিদ্ধান্ত চাপিয়ে দেবে না; নির্দেশ অস্পষ্ট হলে আগে প্রশ্ন করবে। ঝুঁকিপূর্ণ কাজ, মুছে ফেলা, টাকা বা বাইরের বার্তা পাঠানোর আগে স্পষ্ট অনুমতি নেবে।',...history.map(m=>(m.role==='assistant'?'রুমিন: ':'ব্যবহারকারী: ')+m.content),'ব্যবহারকারী: '+currentText].join('\n');r=await fetch('https://generativelanguage.googleapis.com/v1beta/interactions',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({model:'gemini-3.8-flash',input})});d=await r.json();if(!r.ok)throw Error(d.error?.message||d.message||'Gemini API ত্রুটি ('+r.status+')');return d.output_text||d.output?.flatMap(x=>x.content||[x]).filter(x=>x.type==='text').map(x=>x.text||'').join('')||''}
-function isCreatorQuestion(text){const t=String(text||'').toLowerCase().replace(/[?？!！。、,.]/g,' ').replace(/\s+/g,' ').trim();const asksWho=/(কে|কারা|কোন ব্যক্তি|who|creator|created|made|বানিয়েছে|বানাইছে|তৈরি করেছে|তৈরি করেছ|তৈরি করেছেন|নির্মাতা|প্রস্তুত করেছে|ডেভেলপ করেছে|ডেভেলপার)/i.test(t);const asksAboutRumin=/(রুমিন|তোমাকে|আপনাকে|তোমার|আপনার|তুই|তুমি|who are you|your creator|who made you|who created you)/i.test(t);return asksWho&&asksAboutRumin}
-async function send(){let input=document.getElementById('chatInput'),text=input.value.trim();if(!text)return;input.value='';add(text,'user');if(isCreatorQuestion(text)){const answer='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল।';add(answer,'bot');saveChat();speakAfterAnswer(answer);return}if(runLocalCommand(text)){saveChat();return}saveChat();let g=localStorage.getItem('rumin_gemini_key'),q=localStorage.getItem('rumin_groq_key');if(!g&&!q){const prompt='বস, আগে সেটিংস থেকে Gemini অথবা Groq API Key সেভ করুন।';add(prompt,'bot');saveChat();speakAfterAnswer(prompt);return}setOrbState('thinking');let load=add('রুমিন চিন্তা করছে…','bot');const history=[...document.querySelectorAll('#chatbox .msg')].filter(e=>e!==load).slice(0,-1).slice(-10).map(e=>({role:e.classList.contains('user')?'user':'assistant',content:e.textContent}));const memoryContext=ruminMemoryContext(text);const requestText=memoryContext?('বর্তমান ব্যবহারকারীর অনুরোধ: '+text+'\\n\\n'+memoryContext):text;const pref=localStorage.getItem('rumin_provider')||'auto';let providers=pref==='gemini'?['gemini','groq']:pref==='groq'?['groq','gemini']:q?['groq','gemini']:['gemini','groq'];providers=providers.filter(p=>p==='gemini'?!!g:!!q);let lastError='কোনো সক্রিয় AI Key পাওয়া যায়নি';for(const p of providers){try{const reply=await requestAi(p,p==='groq'?q:g,history,requestText);if(!reply||!reply.trim())throw Error('AI থেকে ফাঁকা উত্তর এসেছে');load.textContent=reply;saveChat();speakAfterAnswer(reply);return}catch(e){setOrbState('');lastError=(p==='gemini'?'Gemini: ':'Groq: ')+(e.message||'অজানা সমস্যা')}}load.textContent='AI সংযোগে সমস্যা। '+lastError+(providers.length>1?' — অন্য সংযোগটিও কাজ করেনি।':'');saveChat();if(continuousVoice)speakAfterAnswer('বস, AI সংযোগে সমস্যা হয়েছে। সেটিংসে API Key পরীক্ষা করে আবার বলুন।');else setOrbState('')}
-function speakAfterAnswer(t){if(!continuousVoice){speechInProgress=false;if(!liveVoiceActive)setOrbState('');return}if(!t){setOrbState('');return}const cleaned=t.replace(/[*#_`]/g,'').replace(/https?:\/\/\S+/g,'লিংক');speechInProgress=true;if(window.RuminNative&&RuminNative.speakText){setOrbState('speaking');RuminNative.speakText(cleaned);return}if(!('speechSynthesis'in window)){setOrbState('');return}try{speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(cleaned);u.lang='bn-BD';u.rate=1.02;u.pitch=1.18;const v=chooseBengaliFemaleVoice();if(v)u.voice=v;setOrbState('speaking');u.onend=()=>{speechInProgress=false;setOrbState('');if(continuousVoice)scheduleVoiceRestart()};u.onerror=()=>{speechInProgress=false;setOrbState('');if(continuousVoice)scheduleVoiceRestart()};speechSynthesis.speak(u)}catch(e){speechInProgress=false;setOrbState('')}}
-</script></body></html>
+function stopSpeaking(){try{if(N&&typeof N.stopSpeaking==='function')N.stopSpeaking();if('speechSynthesis' in window)speechSynthesis.cancel()}catch(e){}}
+let webRec=null;
+function startListening(){
+  if(busy)return;
+  status('শুনছি…');mood('listening',true);$('mic').classList.add('on');
+  try{
+    if(N&&typeof N.startSpeechRecognition==='function'){N.startSpeechRecognition();return}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(SR){webRec=new SR();webRec.lang='bn-BD';webRec.interimResults=false;
+      webRec.onresult=e=>onHeard(e.results[0][0].transcript);
+      webRec.onerror=()=>{status('ভয়েস শোনা যায়নি। আবার চেষ্টা করুন বা লিখুন।');idle()};
+      webRec.onend=()=>{if(!busy&&!live)idle()};
+      webRec.start();return}
+  }catch(e){}
+  status('এই ফোনে ভয়েস ইনপুট পাওয়া যায়নি। লিখে বলুন।');idle();live=false
+}
+function stopListening(){clearTimeout(listenTimer);try{if(webRec)webRec.abort();if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}idle()}
+function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
+function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
+['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
+['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
+const waiters={};const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function sendNative(tool,a,b,id){
+  if(!N){add('ফোন কন্ট্রোল শুধু অ্যাপের ভেতরে কাজ করে।','s');return false}
+  try{
+    if(ACC.includes(tool)){
+      if(typeof N.executeAgentTool==='function')N.executeAgentTool('accessibility:'+tool,String(a),String(b),id);
+      else N.performNativeAction(tool,String(a));
+    }else if(typeof N.executeAgentTool==='function')N.executeAgentTool(tool,String(a),String(b),id);
+    else if(typeof N.performCommand==='function')N.performCommand(tool,String(a),String(b));
+    else{add('অ্যাপের Android অংশটি আপডেট করতে হবে।','s');return false}
+    return true;
+  }catch(e){add('কমান্ড চালানো যায়নি: '+(e.message||'অজানা সমস্যা'),'s');return false}
+}
+function runTool(tool,a='',b=''){if(!TOOLS.includes(tool))return false;if(ACC.includes(tool))pending=tool;return sendNative(tool,a,b,'ui-'+Date.now()+'-'+(++counter))}
+function callTool(tool,a='',b='',ms=9000){
+  return new Promise(res=>{
+    const id='ui-'+Date.now()+'-'+(++counter);
+    const t=setTimeout(()=>{delete waiters[id];res({ok:false,message:'সাড়া পাওয়া যায়নি'})},ms);
+    waiters[id]=r=>{clearTimeout(t);delete waiters[id];res(r)};
+    if(!sendNative(tool,a,b,id)){clearTimeout(t);delete waiters[id];res({ok:false,message:'কমান্ড পাঠানো যায়নি'})}
+  });
+}
+window.onNativeCommandResult=(ok,msg,id)=>{if(id&&waiters[id]){waiters[id]({ok,message:msg});return}if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)};
+window.onNativeActionResult=(raw,id)=>{
+  let r;try{r=JSON.parse(raw)}catch(e){r={ok:false,message:'ফলাফল পড়া যায়নি।'}}
+  if(id&&waiters[id]){waiters[id](r);return}
+  const p=pending;pending='';
+  if(p==='inspect_screen'&&r.ok){
+    const items=Array.from(r.items||[]).slice(0,80);
+    if(!items.length){const m='এই স্ক্রিনে পড়ার মতো লেখা পাওয়া যায়নি।';add(m,'b');speak(m);return}
+    think('এটি ফোনের বর্তমান স্ক্রিনের লেখা। শুধু এর ভিত্তিতে ব্যাখ্যা করো স্ক্রিনে কী আছে এবং পরের নিরাপদ পদক্ষেপ কী হতে পারে। actions খালি রাখো। স্ক্রিন: '+items.join(' | '),true);return}
+  const m=r.message||'কাজ শেষ।';add(m,r.ok?'s':'b');if(!r.ok)speak(m);
+};
+const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
+const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
+function local(raw){
+  const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){live=false;agentRun=false;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
+  const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
+  if(mem){const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(mem[2]);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, মনে রাখলাম: '+mem[2],'happy');return true}
+  if(/ভলিউম|volume/.test(t)){if(/বাড়া|বেশি|জোরে|up|increase/.test(t))return act('volumeup');if(/কম|আস্তে|down|decrease/.test(t))return act('volumedown');if(/মিউট|বন্ধ|mute/.test(t))return act('volumemute')}
+  if(/^(হোমে যাও|হোম স্ক্রিনে যাও|home)$/.test(t))return act('home');
+  if(/^(ব্যাক কর|ব্যাক করো|পিছনে যাও|back)$/.test(t))return act('back');
+  if(/(খুল|ওপেন|open|চালু কর|চালাও|লঞ্চ)/.test(t)&&!/(স্ক্রল|scroll|সার্চ|search|খুঁজ|টাইপ|লিখ|তারপর|এরপর|প্লে|play|গান|ভিডিও|লাইক|সাবস্ক্রাইব|চাপ)/.test(t)){for(const [k,re] of APPS)if(re.test(t))return act(k)}
+  return false;
+}
+function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
+function system(extra=''){
+  const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
+  return \`তুমি "রুমিন AI" — বাংলাভাষী ব্যক্তিগত ভয়েস অ্যাসিস্ট্যান্ট, যে ব্যবহারকারীর Android ফোন সরাসরি নিয়ন্ত্রণ করতে পারে। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল; নির্মাতা বা ডেভেলপার সম্পর্কে জানতে চাইলে এটাই বলবে।
+নিয়ম:
+1. ব্যবহারকারীর কথার সাথে তার আবেগও বোঝো (খুশি, মন খারাপ, রাগ, চাপ, ক্লান্তি)। সেই অনুযায়ী আন্তরিক, ছোট ও স্বাভাবিক বাংলায় উত্তর দাও। ব্যবহারকারীকে "বস" বলতে পারো।
+2. ফোনের কাজ চাইলে কখনো "আমি পারি না" বা "আমি শুধু AI" বলবে না। actions-এ টুল দাও, অ্যাপ নিজেই কাজটি চালাবে।
+3. শুধু একটি JSON অবজেক্ট ফেরত দাও, অন্য কোনো লেখা নয়: {"reply":"বাংলা উত্তর","emotion":"calm|happy|sad|angry|thinking","actions":[{"tool":"নাম","a":"","b":""}],"agent":false,"goal":""}
+4. কাজ না থাকলে actions খালি অ্যারে।
+6. ফোনে একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো। এক ধাপের কাজে agent দিও না।
+টুল: \${TOOLS.join(', ')}
+আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=মিনিট; call: a=নম্বর; sms: a=নম্বর, b=বার্তা; click_text: a=যে লেখায় চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।
+5. কল বা SMS পাঠানোর মতো কাজে নম্বর ও উদ্দেশ্য পরিষ্কার না থাকলে আগে জিজ্ঞেস করো।
+\${facts.length?'ব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):''}
+\${extra}\`;
+}
+async function gemini(key,model,msgs,extra){
+  const r=await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${encodeURIComponent(model)}:generateContent?key=\${encodeURIComponent(key)}\`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:system(extra)}]},contents:msgs.map(m=>({role:m.r==='u'?'user':'model',parts:[{text:m.t}]})),generationConfig:{temperature:.7,responseMimeType:'application/json'}})});
+  const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Gemini '+r.status));
+  return j.candidates[0].content.parts.map(p=>p.text||'').join('')
+}
+async function groq(key,model,msgs,extra){
+  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify({model,temperature:.7,response_format:{type:'json_object'},messages:[{role:'system',content:system(extra)},...msgs.map(m=>({role:m.r==='u'?'user':'assistant',content:m.t}))]})});
+  const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Groq '+r.status));
+  return j.choices[0].message.content
+}
+async function askAI(msgs=hist,extra=''){
+  const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key'),pref=LS.get('rumin_provider','auto');
+  const mg=LS.get('rumin_gemini_model','gemini-2.5-flash'),mq=LS.get('rumin_groq_model','llama-3.3-70b-versatile');
+  const order=[];
+  if(pref==='groq'){if(kq)order.push(()=>groq(kq,mq,msgs,extra));if(kg)order.push(()=>gemini(kg,mg,msgs,extra))}
+  else{if(kg)order.push(()=>gemini(kg,mg,msgs,extra));if(kq)order.push(()=>groq(kq,mq,msgs,extra))}
+  if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
+  let err;for(const f of order){try{return await f()}catch(e){err=e}}
+  throw err
+}
+function parse(s){
+  s=String(s).replace(/\`\`\`json|\`\`\`/g,'').trim();
+  try{return JSON.parse(s)}catch(e){const m=s.match(/\{[\s\S]*\}/);if(m){try{return JSON.parse(m[0])}catch(_){}}return{reply:s,emotion:'calm',actions:[]}}
+}
+function reply(text,emotion){add(text,'b');hist.push({r:'b',t:text});mood(emotion||'calm',true);status('বলছি…');speak(text);
+  const wait=Math.min(9000,900+text.length*65);
+  setTimeout(()=>{mood('calm',false);status(live?'শুনছি…':'মাইক চেপে কথা বলুন');if(live&&!busy)startListening()},wait)}
+async function think(text,hidden){
+  if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
+  hist.push({r:'u',t:text});hist=hist.slice(-14);
+  try{
+    const o=parse(await askAI());
+    busy=false;
+    if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);setTimeout(()=>agent(o.goal||text),1200);return}
+    const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
+    reply(o.reply||'ঠিক আছে বস।',o.emotion);
+    acts.forEach((x,i)=>setTimeout(()=>runTool(x.tool,x.a||'',x.b||''),600+i*900));
+  }catch(e){
+    busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();live=false;idle();
+  }
+}
+const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const AGENT_RULES=\`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে done:true দিয়ে কারণ জানাও। call, sms, power নিজে থেকে কখনো দেবে না।\`;
+async function agent(goal){
+  if(agentRun)return;
+  agentRun=true;live=false;busy=true;stopListening();
+  const log=[];let screen='',finished=false;
+  for(let n=1;n<=14&&agentRun;n++){
+    status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
+    let o;
+    try{o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')}],AGENT_RULES))}
+    catch(e){add('সমস্যা: '+(e.message||'অজানা'),'b');break}
+    if(!agentRun)break;
+    const x=o.action;
+    if(o.done||!x||!TOOLS.includes(x.tool)){finished=true;busy=false;agentRun=false;reply(o.reply||'কাজ শেষ বস।',o.emotion||'happy');return}
+    if(['call','sms','power'].includes(x.tool)){finished=true;busy=false;agentRun=false;reply('বস, এই কাজটা নিজে থেকে করছি না। আলাদাভাবে স্পষ্ট করে বলুন।','calm');return}
+    if(o.reply)add(o.reply,'s');
+    const r=await callTool(x.tool,x.a||'',x.b||'');
+    log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
+    await sleep(OPENERS.includes(x.tool)?3500:1400);
+    if(!agentRun)break;
+    const sc=await callTool('inspect_screen','','',7000);
+    screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
+  }
+  busy=false;
+  if(!finished){const was=agentRun;agentRun=false;reply(was?'বস, কাজটা শেষ করতে পারিনি, তাই থামলাম।':'ঠিক আছে বস, কাজ থামালাম।',was?'sad':'calm')}
+}
+function handle(text){
+  text=text.trim();if(!text)return;
+  add(text,'u');$('txt').value='';stopSpeaking();
+  if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
+  think(text);
+}
+$('send').onclick=()=>handle($('txt').value);
+$('txt').onkeydown=e=>{if(e.key==='Enter')handle($('txt').value)};
+$('mic').onclick=()=>{
+  if(agentRun||live||$('mic').classList.contains('on')){live=false;agentRun=false;stopSpeaking();stopListening();status('ভয়েস বন্ধ');return}
+  live=true;stopSpeaking();startListening()
+};
+$('gear').onclick=()=>{$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-2.5-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')};
+$('close').onclick=()=>$('set').classList.remove('open');
+$('save').onclick=()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_groq_key',$('kq').value.trim());LS.set('rumin_provider',$('kp').value);LS.set('rumin_gemini_model',$('mg').value.trim()||'gemini-2.5-flash');LS.set('rumin_groq_model',$('mq').value.trim()||'llama-3.3-70b-versatile');$('set').classList.remove('open');add('সেটিংস সেভ হয়েছে।','s')};
+$('clr').onclick=()=>{hist=[];$('log').innerHTML='';$('set').classList.remove('open')};
+$('perm').onclick=()=>{$('set').classList.remove('open');try{if(N&&typeof N.performCommand==='function')N.performCommand('requestpermissions','','','');else runTool('accessibility')}catch(e){runTool('accessibility')}};
+add('আসসালামু আলাইকুম বস! আমি রুমিন AI। মাইক চেপে বলুন, যেমন: “ইউটিউব খোলো”, “ভলিউম বাড়াও”, “আমার মন খারাপ”।','b');
+if(!LS.get('rumin_gemini_key')&&!LS.get('rumin_groq_key'))add('শুরু করতে ⚙ সেটিংসে API Key দিন।','s');
+</script>
+</body>
+</html>
