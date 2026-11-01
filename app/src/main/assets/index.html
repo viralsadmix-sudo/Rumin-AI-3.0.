@@ -4,51 +4,129 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RUMIN AI</title>
-<style>
-*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+<style>*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
-body{background:#0c1018;color:#e9edf6;font-family:'Noto Sans Bengali',system-ui,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
-button,input,select{font:inherit;color:inherit;border:0;outline:0}
+body{background:radial-gradient(120% 80% at 50% 0,#1b1050,#0a0d24 55%,#060818);color:#eef1fb;font-family:'Noto Sans Bengali',system-ui,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0);overflow:hidden}
+button,input,select{font:inherit;color:inherit;border:0;outline:0;background:none}
 button{cursor:pointer}
-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px}
-header b{font-size:17px;letter-spacing:.14em}
-.ib{background:#1a2133;border-radius:12px;width:42px;height:42px;font-size:18px}
-#stage{display:flex;flex-direction:column;align-items:center;padding:4px 0 10px}
-#orb{--c:#4c6ef5;width:104px;height:104px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,var(--c) 58%,#000a);box-shadow:0 0 44px var(--c);transition:background .5s,box-shadow .5s}
+#stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+header,main,#bar,nav{position:relative;z-index:1}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px}
+.gl{width:42px;height:42px;border-radius:13px;font-size:18px;background:#ffffff12;border:1px solid #7a6cff55;box-shadow:0 0 14px #5b4bff44}
+#brand{text-align:center;line-height:1.1}#brand b{font-size:22px}#brand i{font-style:normal;color:#ff2bd6}
+.ver{font-size:11px;border:1px solid #7a6cff;border-radius:10px;padding:0 6px;margin-left:5px;color:#b9b3ff}
+#brand small{display:block;font-size:10px;color:#9aa3c7;margin-top:2px}
+#net{font-size:12px;display:flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:50%;background:#12b886;box-shadow:0 0 8px #12b886}
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+.view{display:none;flex:1;min-height:0;overflow-y:auto}.view.on{display:block}
+#v-chat.on{display:flex;flex-direction:column;overflow:hidden}
+#hello{padding:2px 18px}#hello h2{font-size:20px;line-height:1.3}#hello h2 span{color:#ff2bd6}#hello p{font-size:12px;color:#aab2d3;margin-top:4px;max-width:210px}
+#hero{--c:#7c5cff;position:relative;height:340px}
+#arch{position:absolute;left:50%;margin-left:-120px;bottom:44px;width:240px;height:240px;border-radius:50%;border:3px solid transparent;background:linear-gradient(#0000,#0000) padding-box,linear-gradient(135deg,#ff2bd6,#3b82f6) border-box;box-shadow:0 0 30px var(--c),inset 0 0 30px #3b82f655}
+#plat{position:absolute;left:50%;margin-left:-39%;bottom:26px;width:78%;height:34px;border-radius:50%;border:2px solid #ff2bd6;background:#1a0f4a;box-shadow:0 0 22px #ff2bd6,0 0 40px #3b82f6}
+#me{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:42px;height:290px;max-width:72%;object-fit:cover;object-position:top;z-index:2;-webkit-mask-image:linear-gradient(#000 82%,transparent);mask-image:linear-gradient(#000 82%,transparent)}
+#hero.photo #me{display:block}#hero.photo #scene{display:none}
+#scene{position:absolute;left:50%;margin-left:-75px;bottom:92px;width:150px;height:150px;perspective:600px;transform-style:preserve-3d;animation:fl 4s ease-in-out infinite;z-index:2}
+.ring{position:absolute;top:0;left:0;width:150px;height:150px;border-radius:50%;border:2px solid var(--c);box-shadow:0 0 14px var(--c),inset 0 0 14px var(--c);opacity:.8;transition:border-color .5s,box-shadow .5s}
+.r1{animation:s1 7s linear infinite}.r2{animation:s2 9s linear infinite}.r3{width:116px;height:116px;top:17px;left:17px;animation:s3 11s linear infinite}
+#orb{position:absolute;top:35px;left:35px;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffb,var(--c) 55%,#000b);box-shadow:0 0 40px var(--c),0 0 90px var(--c);transition:background .5s,box-shadow .5s}
 #orb.on{animation:br 1.1s ease-in-out infinite}
-@keyframes br{50%{transform:scale(1.09)}}
-@media(prefers-reduced-motion:reduce){#orb.on{animation:none}}
-#status{margin-top:12px;font-size:14px;color:#9aa6c0;min-height:20px;text-align:center;padding:0 16px}
+@keyframes br{50%{transform:scale(1.15)}}@keyframes fl{50%{transform:translateY(-6px)}}
+@keyframes s1{from{transform:rotateX(68deg) rotateZ(0)}to{transform:rotateX(68deg) rotateZ(360deg)}}
+@keyframes s2{from{transform:rotateY(68deg) rotateZ(0)}to{transform:rotateY(68deg) rotateZ(-360deg)}}
+@keyframes s3{from{transform:rotateX(30deg) rotateY(30deg) rotateZ(0)}to{transform:rotateX(30deg) rotateY(30deg) rotateZ(360deg)}}
+@media(prefers-reduced-motion:reduce){#scene,.ring,#orb.on,#pill.on .wave i{animation:none}}
+.side{position:absolute;top:34px;display:flex;flex-direction:column;gap:10px;z-index:4}.side.l{left:10px}.side.r{right:10px}
+.sb{width:68px;height:78px;border-radius:16px;background:#ffffff0f;border:1px solid #7a6cff55;box-shadow:0 0 16px #5b4bff33;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.sb span{font-size:22px;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--k,#6a3df0)}
+#bubble{position:absolute;right:86px;top:2px;max-width:150px;font-size:12px;line-height:1.4;padding:8px 12px;border:1.5px solid #ff2bd6;border-radius:18px;box-shadow:0 0 16px #ff2bd666;background:#14082ecc;text-align:center;z-index:5}
+#pill{position:relative;margin:30px 16px 14px;height:78px;border-radius:39px;border:2px solid transparent;background:linear-gradient(#0b0d2a,#0b0d2a) padding-box,linear-gradient(90deg,#ff2bd6,#3b82f6) border-box;box-shadow:0 0 22px #6a3df066}
+#mic{position:absolute;top:-30px;left:50%;margin-left:-32px;width:64px;height:64px;border-radius:50%;font-size:26px;background:radial-gradient(circle at 35% 30%,#c58bff,#6a3df0);box-shadow:0 0 26px #a855f7}
+#mic.on{background:radial-gradient(circle at 35% 30%,#ff9a9a,#e03131)}
+#status{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:14px;padding:0 14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wave{position:absolute;top:16px;display:flex;align-items:center;gap:4px;height:28px}.wave.l{left:24%}.wave.r{right:24%}
+.wave i{width:3px;border-radius:2px;background:linear-gradient(#ff2bd6,#3b82f6);height:30%}
+.wave i:nth-child(2){height:70%}.wave i:nth-child(3){height:100%}.wave i:nth-child(4){height:55%}
+#pill.on .wave i{animation:wv .8s ease-in-out infinite}#pill.on .wave i:nth-child(2n){animation-delay:.25s}
+@keyframes wv{50%{transform:scaleY(.35)}}
+#links{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 10px 10px}
+.lk{border-radius:14px;padding:8px 2px;background:#ffffff0d;border:1px solid #7a6cff44;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600}
+.lk small{font-size:8.5px;color:#9aa3c7;font-weight:400}.lk span{font-size:20px}
+nav{display:flex;justify-content:space-around;padding:6px 8px;background:#0a0c20ee;border-top:1px solid #7a6cff33;border-radius:22px 22px 0 0}
+nav button{font-size:11px;color:#8d96bd;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 14px}
+nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #ff2bd6}
 #log{flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:8px}
 .m{max-width:86%;padding:10px 13px;border-radius:16px;line-height:1.5;font-size:15px;white-space:pre-wrap;word-break:break-word}
 .u{align-self:flex-end;background:#3b5bdb;border-bottom-right-radius:4px}
 .b{align-self:flex-start;background:#1a2133;border-bottom-left-radius:4px}
 .s{align-self:center;background:none;color:#7d8aa6;font-size:13px;padding:2px}
-#bar{display:flex;gap:8px;padding:10px 12px}
+#bar{display:none;gap:8px;padding:8px 12px}body[data-v=chat] #bar{display:flex}
 #txt{flex:1;background:#1a2133;border-radius:22px;padding:0 16px;height:46px}
-#mic{background:#12b886;border-radius:50%;width:46px;height:46px;font-size:20px}
-#mic.on{background:#e03131}
 #send{background:#3b5bdb;border-radius:50%;width:46px;height:46px;font-size:18px}
-#set{display:none;position:fixed;inset:0;background:#0c1018f2;padding:calc(env(safe-area-inset-top,0) + 16px) 18px 18px;overflow-y:auto;z-index:5}
-#set.open{display:block}
-#set h2{font-size:18px;margin-bottom:14px}
-#set label{display:block;font-size:13px;color:#9aa6c0;margin:12px 0 5px}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px}
+.tl{border-radius:14px;padding:12px 2px;background:#ffffff0d;border:1px solid #7a6cff44;font-size:11px;text-align:center}.tl span{display:block;font-size:24px;margin-bottom:4px}
+#sheet{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:6;background:#000a;align-items:flex-end}#sheet.open{display:flex}
+#sheetBox{width:100%;max-height:75%;overflow-y:auto;background:#12162e;border-radius:22px 22px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid #7a6cff66}
+#sheetBox h3{margin-bottom:12px;font-size:16px}#sheetBox p{font-size:13px;color:#aab2d3;margin-bottom:12px;line-height:1.6}
+.opt{display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:12px;background:#1a2040;font-size:14px}
+#sheetBox input{width:100%;height:44px;border-radius:10px;background:#1a2040;padding:0 12px;margin-bottom:10px}
+#set{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#0c1018f2;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 18px;overflow-y:auto;z-index:7}
+#set.open{display:block}#set h2{font-size:18px;margin-bottom:14px}
+#set label{display:block;font-size:13px;color:#9aa3c7;margin:12px 0 5px}
 #set input,#set select{width:100%;background:#1a2133;border-radius:10px;height:44px;padding:0 12px}
-#set .row{display:flex;gap:10px;margin-top:18px}
-#set .row button{flex:1;height:46px;border-radius:12px;background:#3b5bdb}
-#set .row .g{background:#1a2133}
+#set .row{display:flex;gap:10px;margin-top:18px}#set .row button{flex:1;height:46px;border-radius:12px;background:#3b5bdb}#set .row .g{background:#1a2133}
 #set p{font-size:12px;color:#7d8aa6;margin-top:14px;line-height:1.6}
 </style>
+<script>window.addEventListener('error',function(e){var d=document.getElementById('err');if(!d){d=document.createElement('div');d.id='err';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#c92a2a;color:#fff;font:12px/1.4 sans-serif;padding:6px 10px';(document.body||document.documentElement).appendChild(d)}d.textContent='JS ত্রুটি: '+e.message+' (লাইন '+e.lineno+')'});</script>
 </head>
 <body>
-<header><b>RUMIN AI</b><button class="ib" id="gear" aria-label="সেটিংস">⚙</button></header>
-<div id="stage"><div id="orb"></div><div id="status">মাইক চেপে কথা বলুন</div></div>
-<div id="log"></div>
-<div id="bar">
-  <button id="mic" aria-label="ভয়েস">🎙</button>
-  <input id="txt" placeholder="লিখুন বা বলুন…" autocomplete="off">
-  <button id="send" aria-label="পাঠান">➤</button>
-</div>
+<canvas id="stars"></canvas>
+<header>
+  <button class="gl" id="menu" aria-label="মেনু">☰</button>
+  <div id="brand"><b>Rumin <i>AI</i></b><span class="ver">3.0</span><small>Your Personal AI Assistant</small></div>
+  <div id="net"><span class="dot" id="dot"></span><span id="netT">Online</span></div>
+  <button class="gl" id="gear" aria-label="সেটিংস">⚙</button>
+</header>
+<main>
+ <section class="view on" id="v-home">
+  <div id="hello"><h2>আসসালামু আলাইকুম<br>আমি রুমিন <span>♥</span></h2><p>আমি আপনার ব্যক্তিগত AI সহকারী। কীভাবে সাহায্য করতে পারি?</p></div>
+  <div id="hero">
+    <div id="arch"></div><div id="plat"></div>
+    <img id="me" src="profile.jpg" alt="" onload="this.parentNode.classList.add('photo')" onerror="this.style.display='none'">
+    <div id="scene"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><div id="orb"></div></div>
+    <div id="bubble">আমি রুমিন…<br>সবসময় আপনার সাথে ♥</div>
+    <div class="side l">
+      <button class="sb" id="bVoice" style="--k:#7c3aed"><span>🎙</span>ভয়েস চ্যাট</button>
+      <button class="sb" id="bText" style="--k:#2563eb"><span>💬</span>টেক্সট চ্যাট</button>
+      <button class="sb" id="bSmart" style="--k:#7c3aed"><span>🧠</span>স্মার্ট অ্যাসিস্ট্যান্ট</button>
+    </div>
+    <div class="side r">
+      <button class="sb" id="bQuick" style="--k:#be185d"><span>⚡</span>দ্রুত কাজ</button>
+      <button class="sb" id="bAct" style="--k:#2563eb"><span>▦</span>অ্যাকশনস</button>
+      <button class="sb" id="bSet" style="--k:#6d28d9"><span>⚙</span>সেটিংস</button>
+    </div>
+  </div>
+  <div id="pill"><div class="wave l"><i></i><i></i><i></i><i></i></div><button id="mic" aria-label="ভয়েস">🎙</button><div class="wave r"><i></i><i></i><i></i><i></i></div><div id="status">কথা বলতে শুরু করুন…</div></div>
+  <div id="links">
+    <button class="lk" data-k="prompt"><span>🤖</span>AI Prompt<small>এআই সাহায্য</small></button>
+    <button class="lk" data-k="movie"><span>🎬</span>Movie Link<small>মুভি/ওয়েব</small></button>
+    <button class="lk" data-k="apk"><span>📦</span>APK Link<small>অ্যাপ ডাউনলোড</small></button>
+    <button class="lk" data-k="web"><span>🔗</span>Web Link<small>ওয়েব সাইট</small></button>
+    <button class="lk" data-k="remini"><span>🖼</span>Remini<small>ছবি উন্নত করুন</small></button>
+  </div>
+ </section>
+ <section class="view" id="v-chat"><div id="log"></div></section>
+ <section class="view" id="v-act"><div id="grid"></div></section>
+</main>
+<div id="bar"><input id="txt" placeholder="লিখুন বা বলুন…" autocomplete="off"><button id="send" aria-label="পাঠান">➤</button></div>
+<nav>
+  <button class="on" data-v="home"><span>🏠</span>Home</button>
+  <button data-v="chat"><span>💬</span>Chat</button>
+  <button data-v="act"><span>▦</span>Actions</button>
+  <button data-v="set"><span>⚙</span>Settings</button>
+</nav>
+<div id="sheet"><div id="sheetBox"></div></div>
 <div id="set">
   <h2>সেটিংস</h2>
   <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
@@ -61,6 +139,7 @@ header b{font-size:17px;letter-spacing:.14em}
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
   <div class="row"><button class="g" id="perm">অনুমতি চালু করুন</button><button class="g" id="close">বন্ধ করুন</button></div>
 </div>
+
 <script>
 const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
@@ -68,16 +147,25 @@ const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinki
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
 const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-let agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
-function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;return d}
+let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
+
+/* ---------- UI helpers ---------- */
+function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;if(cls==='b'){const bb=$('bubble');if(bb)bb.textContent=text.length>90?text.slice(0,88)+'…':text}return d}
 function status(t){$('status').textContent=t}
-function mood(m,on){$('orb').style.setProperty('--c',MOODS[m]||MOODS.calm);$('orb').classList.toggle('on',!!on)}
+function mood(m,on){$('hero').style.setProperty('--c',MOODS[m]||MOODS.calm);$('orb').classList.toggle('on',!!on);$('pill').classList.toggle('on',!!on)}
+
+/* ---------- Speech output ---------- */
+let voiceMode=false;
 function speak(text){
-  if(!text)return;
-  try{if(N&&typeof N.speak==='function'){N.speak(text);return}
-    if('speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='bn-BD';speechSynthesis.speak(u)}}catch(e){}
+  if(!text || !voiceMode || live)return;
+  try{
+    if(N&&typeof N.speakText==='function'){N.speakText(text);return}
+    if('speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='bn-BD';speechSynthesis.speak(u)}
+  }catch(e){}
 }
 function stopSpeaking(){try{if(N&&typeof N.stopSpeaking==='function')N.stopSpeaking();if('speechSynthesis' in window)speechSynthesis.cancel()}catch(e){}}
+
+/* ---------- Speech input ---------- */
 let webRec=null;
 function startListening(){
   if(busy)return;
@@ -96,8 +184,11 @@ function startListening(){
 function stopListening(){clearTimeout(listenTimer);try{if(webRec)webRec.abort();if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}idle()}
 function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
 function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
+/* Native layer may call any of these names with the recognized text */
 ['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
 ['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
+
+/* ---------- Phone tools ---------- */
 const waiters={};const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function sendNative(tool,a,b,id){
   if(!N){add('ফোন কন্ট্রোল শুধু অ্যাপের ভেতরে কাজ করে।','s');return false}
@@ -111,7 +202,11 @@ function sendNative(tool,a,b,id){
     return true;
   }catch(e){add('কমান্ড চালানো যায়নি: '+(e.message||'অজানা সমস্যা'),'s');return false}
 }
-function runTool(tool,a='',b=''){if(!TOOLS.includes(tool))return false;if(ACC.includes(tool))pending=tool;return sendNative(tool,a,b,'ui-'+Date.now()+'-'+(++counter))}
+function runTool(tool,a='',b=''){
+  if(!TOOLS.includes(tool))return false;
+  if(ACC.includes(tool))pending=tool;
+  return sendNative(tool,a,b,'ui-'+Date.now()+'-'+(++counter));
+}
 function callTool(tool,a='',b='',ms=9000){
   return new Promise(res=>{
     const id='ui-'+Date.now()+'-'+(++counter);
@@ -120,7 +215,10 @@ function callTool(tool,a='',b='',ms=9000){
     if(!sendNative(tool,a,b,id)){clearTimeout(t);delete waiters[id];res({ok:false,message:'কমান্ড পাঠানো যায়নি'})}
   });
 }
-window.onNativeCommandResult=(ok,msg,id)=>{if(id&&waiters[id]){waiters[id]({ok,message:msg});return}if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)};
+window.onNativeCommandResult=(ok,msg,id)=>{
+  if(id&&waiters[id]){waiters[id]({ok,message:msg});return}
+  if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)
+};
 window.onNativeActionResult=(raw,id)=>{
   let r;try{r=JSON.parse(raw)}catch(e){r={ok:false,message:'ফলাফল পড়া যায়নি।'}}
   if(id&&waiters[id]){waiters[id](r);return}
@@ -128,9 +226,12 @@ window.onNativeActionResult=(raw,id)=>{
   if(p==='inspect_screen'&&r.ok){
     const items=Array.from(r.items||[]).slice(0,80);
     if(!items.length){const m='এই স্ক্রিনে পড়ার মতো লেখা পাওয়া যায়নি।';add(m,'b');speak(m);return}
-    think('এটি ফোনের বর্তমান স্ক্রিনের লেখা। শুধু এর ভিত্তিতে ব্যাখ্যা করো স্ক্রিনে কী আছে এবং পরের নিরাপদ পদক্ষেপ কী হতে পারে। actions খালি রাখো। স্ক্রিন: '+items.join(' | '),true);return}
+    think('এটি ফোনের বর্তমান স্ক্রিনের লেখা। শুধু এর ভিত্তিতে ব্যাখ্যা করো স্ক্রিনে কী আছে এবং পরের নিরাপদ পদক্ষেপ কী হতে পারে। actions খালি রাখো। স্ক্রিন: '+items.join(' | '),true);
+    return}
   const m=r.message||'কাজ শেষ।';add(m,r.ok?'s':'b');if(!r.ok)speak(m);
 };
+
+/* ---------- Fast local commands (work without internet) ---------- */
 const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
 function local(raw){
@@ -139,30 +240,35 @@ function local(raw){
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(mem[2]);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, মনে রাখলাম: '+mem[2],'happy');return true}
-  if(/ভলিউম|volume/.test(t)){if(/বাড়া|বেশি|জোরে|up|increase/.test(t))return act('volumeup');if(/কম|আস্তে|down|decrease/.test(t))return act('volumedown');if(/মিউট|বন্ধ|mute/.test(t))return act('volumemute')}
+  if(/ভলিউম|volume/.test(t)){
+    if(/বাড়া|বেশি|জোরে|up|increase/.test(t))return act('volumeup');
+    if(/কম|আস্তে|down|decrease/.test(t))return act('volumedown');
+    if(/মিউট|বন্ধ|mute/.test(t))return act('volumemute')}
   if(/^(হোমে যাও|হোম স্ক্রিনে যাও|home)$/.test(t))return act('home');
   if(/^(ব্যাক কর|ব্যাক করো|পিছনে যাও|back)$/.test(t))return act('back');
   if(/(খুল|ওপেন|open|চালু কর|চালাও|লঞ্চ)/.test(t)&&!/(স্ক্রল|scroll|সার্চ|search|খুঁজ|টাইপ|লিখ|তারপর|এরপর|প্লে|play|গান|ভিডিও|লাইক|সাবস্ক্রাইব|চাপ)/.test(t)){for(const [k,re] of APPS)if(re.test(t))return act(k)}
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
+
+/* ---------- AI ---------- */
 function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
-  return \`তুমি "রুমিন AI" — বাংলাভাষী ব্যক্তিগত ভয়েস অ্যাসিস্ট্যান্ট, যে ব্যবহারকারীর Android ফোন সরাসরি নিয়ন্ত্রণ করতে পারে। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল; নির্মাতা বা ডেভেলপার সম্পর্কে জানতে চাইলে এটাই বলবে।
+  return `তুমি "রুমিন AI" — বাংলাভাষী ব্যক্তিগত ভয়েস অ্যাসিস্ট্যান্ট, যে ব্যবহারকারীর Android ফোন সরাসরি নিয়ন্ত্রণ করতে পারে। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল; নির্মাতা বা ডেভেলপার সম্পর্কে জানতে চাইলে এটাই বলবে।
 নিয়ম:
 1. ব্যবহারকারীর কথার সাথে তার আবেগও বোঝো (খুশি, মন খারাপ, রাগ, চাপ, ক্লান্তি)। সেই অনুযায়ী আন্তরিক, ছোট ও স্বাভাবিক বাংলায় উত্তর দাও। ব্যবহারকারীকে "বস" বলতে পারো।
 2. ফোনের কাজ চাইলে কখনো "আমি পারি না" বা "আমি শুধু AI" বলবে না। actions-এ টুল দাও, অ্যাপ নিজেই কাজটি চালাবে।
 3. শুধু একটি JSON অবজেক্ট ফেরত দাও, অন্য কোনো লেখা নয়: {"reply":"বাংলা উত্তর","emotion":"calm|happy|sad|angry|thinking","actions":[{"tool":"নাম","a":"","b":""}],"agent":false,"goal":""}
 4. কাজ না থাকলে actions খালি অ্যারে।
-6. ফোনে একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো। এক ধাপের কাজে agent দিও না।
-টুল: \${TOOLS.join(', ')}
-আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=মিনিট; call: a=নম্বর; sms: a=নম্বর, b=বার্তা; click_text: a=যে লেখায় চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।
-5. কল বা SMS পাঠানোর মতো কাজে নম্বর ও উদ্দেশ্য পরিষ্কার না থাকলে আগে জিজ্ঞেস করো।
-\${facts.length?'ব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):''}
-\${extra}\`;
+6. ফোনে একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো। এক ধাপের কাজে agent দিও না। যেকোনো অ্যাপ খোলা বা তার ভেতরের কাজ, এবং "হোম স্ক্রিনে কী আছে" ধরনের প্রশ্নও agent:true দিয়ে করবে।
+টুল: ${TOOLS.join(', ')}
+আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=সেকেন্ড (যেমন ৫ মিনিট = ৩০০);  call: a=ফোন নম্বর; sms: a=ফোন নম্বর, b=বার্তা; click_text: a=যে লেখায় চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।
+5. কল বা SMS-এর জন্য নম্বর ও বার্তা পরিষ্কার হলে actions-এ call/sms দাও (অ্যাপ নিজেই ব্যবহারকারীর কাছ থেকে নিশ্চিত করে নেবে)। নাম দিলেও চলবে, অ্যাপ কন্টাক্ট থেকে নম্বর খুঁজে নেবে।
+${facts.length?'ব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):''}
+${extra}`;
 }
 async function gemini(key,model,msgs,extra){
-  const r=await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${encodeURIComponent(model)}:generateContent?key=\${encodeURIComponent(key)}\`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:system(extra)}]},contents:msgs.map(m=>({role:m.r==='u'?'user':'model',parts:[{text:m.t}]})),generationConfig:{temperature:.7,responseMimeType:'application/json'}})});
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:system(extra)}]},contents:msgs.map(m=>({role:m.r==='u'?'user':'model',parts:[{text:m.t}]})),generationConfig:{temperature:.7,responseMimeType:'application/json'}})});
   const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Gemini '+r.status));
   return j.candidates[0].content.parts.map(p=>p.text||'').join('')
 }
@@ -171,39 +277,78 @@ async function groq(key,model,msgs,extra){
   const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Groq '+r.status));
   return j.choices[0].message.content
 }
+const aiWaiters={};
+window.onNativeAiResponse=(id,ok,message)=>{
+  const done=aiWaiters[id];if(!done)return;delete aiWaiters[id];
+  if(ok)done.resolve(message);else done.reject(new Error(message||'Native AI অনুরোধ ব্যর্থ হয়েছে'));
+};
+function nativeAiRequest(provider,key,msgs,extra){
+  return new Promise((resolve,reject)=>{
+    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
+    const id='ai-'+Date.now()+'-'+(++counter);
+    const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
+    conversation.unshift({role:'user',content:system(extra)});
+    const current=msgs.length?msgs[msgs.length-1].t:'';
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
+    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
+  });
+}
 async function askAI(msgs=hist,extra=''){
   const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key'),pref=LS.get('rumin_provider','auto');
-  const mg=LS.get('rumin_gemini_model','gemini-2.5-flash'),mq=LS.get('rumin_groq_model','llama-3.3-70b-versatile');
   const order=[];
-  if(pref==='groq'){if(kq)order.push(()=>groq(kq,mq,msgs,extra));if(kg)order.push(()=>gemini(kg,mg,msgs,extra))}
-  else{if(kg)order.push(()=>gemini(kg,mg,msgs,extra));if(kq)order.push(()=>groq(kq,mq,msgs,extra))}
+  if(pref==='groq'){if(kq)order.push(['groq',kq]);if(kg)order.push(['gemini',kg])}
+  else{if(kg)order.push(['gemini',kg]);if(kq)order.push(['groq',kq])}
   if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
-  let err;for(const f of order){try{return await f()}catch(e){err=e}}
-  throw err
+  let err;for(const [provider,key] of order){try{return await nativeAiRequest(provider,key,msgs,extra)}catch(e){err=e}}
+  throw err||new Error('AI অনুরোধ ব্যর্থ হয়েছে');
 }
 function parse(s){
-  s=String(s).replace(/\`\`\`json|\`\`\`/g,'').trim();
+  s=String(s).replace(/```json|```/g,'').trim();
   try{return JSON.parse(s)}catch(e){const m=s.match(/\{[\s\S]*\}/);if(m){try{return JSON.parse(m[0])}catch(_){}}return{reply:s,emotion:'calm',actions:[]}}
 }
-function reply(text,emotion){add(text,'b');hist.push({r:'b',t:text});mood(emotion||'calm',true);status('বলছি…');speak(text);
-  const wait=Math.min(9000,900+text.length*65);
-  setTimeout(()=>{mood('calm',false);status(live?'শুনছি…':'মাইক চেপে কথা বলুন');if(live&&!busy)startListening()},wait)}
+
+/* ---------- Main flow ---------- */
+function reply(text,emotion){
+  add(text,'b');hist.push({r:'b',t:text});if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'b',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}mood(emotion||'calm',true);
+  if(voiceMode&&!live){status('বলছি…');afterSpeak=()=>{afterSpeak=null;mood('calm',false);status('শুনছি…');if(voiceMode&&!busy)startListening()};speak(text);if(!(N&&typeof N.speakText==='function'))setTimeout(()=>{if(afterSpeak){afterSpeak();afterSpeak=null}},Math.min(9000,900+text.length*65))}
+  else{status('মাইক চেপে কথা বলুন');mood(emotion||'calm',false)}
+}
+window.onNativeTtsDone=()=>{const f=afterSpeak;afterSpeak=null;if(f)setTimeout(f,250)};
+window.onNativeTtsError=(message)=>{afterSpeak=null;status(message||'কথা বলতে সমস্যা হয়েছে');mood('sad',false);if(voiceMode&&!live&&!busy)setTimeout(startListening,1000)};
+window.onLiveVoiceStatus=(message,state)=>{
+  status(message||'লাইভ ভয়েস');
+  const active=state==='listening'||state==='connected'||state==='ready';
+  $('mic').classList.toggle('on',active);mood(active?'listening':(state==='error'?'sad':'calm'),active);
+  if(state==='stopped'||state==='error'){live=false;voiceMode=false;$('mic').classList.remove('on')}
+};
+window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
+  if(userText){add(userText,'u');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'u',t:userText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'u',t:userText})}
+  if(assistantText){add(assistantText,'b');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'b',t:assistantText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'b',t:assistantText})}
+  hist=hist.slice(-30);
+  status(audioReceived?'লাইভ ভয়েসে কথা হচ্ছে…':'উত্তর প্রস্তুত');
+};
 async function think(text,hidden){
   if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
-    const o=parse(await askAI());
+    const o=parse(await askAI(hist,modeExtra()));
     busy=false;
     if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);setTimeout(()=>agent(o.goal||text),1200);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
+    const rk=acts.find(x=>x.tool==='call'||x.tool==='sms');
+    if(rk){pendingConfirm=rk;reply((o.reply||'')+' বস, নিশ্চিত? “হ্যাঁ” বললে করব, “না” বললে বাতিল।',o.emotion);return}
     reply(o.reply||'ঠিক আছে বস।',o.emotion);
     acts.forEach((x,i)=>setTimeout(()=>runTool(x.tool,x.a||'',x.b||''),600+i*900));
   }catch(e){
-    busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();live=false;idle();
+    busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();if(!live){voiceMode=false;idle()}else status('আবার চেষ্টা করুন');
   }
 }
+
+/* ---------- Agent: multi-step phone tasks ---------- */
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
-const AGENT_RULES=\`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে done:true দিয়ে কারণ জানাও। call, sms, power নিজে থেকে কখনো দেবে না।\`;
+const AGENT_RULES=`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে done:true দিয়ে কারণ জানাও। যেকোনো অ্যাপের কাজ করতে পারো, শুধু তালিকার অ্যাপ নয়। তালিকায় নেই এমন অ্যাপ খুলতে আগে home দাও, তারপর inspect_screen দিয়ে অ্যাপের নাম খোঁজো; পেলে click_text-এ সেই নাম দাও। না পেলে scroll_down বা scroll_up করে পাতা বদলাও, তবুও না পেলে হোম স্ক্রিনের সার্চ বা অ্যাপ ড্রয়ার খুলে নাম টাইপ করো (type_text)। হোম স্ক্রিনে কী আছে জানতে চাইলে home দাও, তারপর স্ক্রিনের লেখা দেখে কোন অ্যাপ, ফোল্ডার, উইজেট আছে তা done:true দিয়ে reply-তে বলো। অ্যাপের ভেতরে ঢুকে মেনু, বোতাম, ট্যাব চেপে কাজ করো; প্রতিবার স্ক্রিনের লেখা দেখে পরের ধাপ ঠিক করো। call, sms, power নিজে থেকে কখনো দেবে না।`;
 async function agent(goal){
   if(agentRun)return;
   agentRun=true;live=false;busy=true;stopListening();
@@ -211,7 +356,7 @@ async function agent(goal){
   for(let n=1;n<=14&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o;
-    try{o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')}],AGENT_RULES))}
+    try{o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')}],AGENT_RULES))}
     catch(e){add('সমস্যা: '+(e.message||'অজানা'),'b');break}
     if(!agentRun)break;
     const x=o.action;
@@ -228,23 +373,101 @@ async function agent(goal){
   busy=false;
   if(!finished){const was=agentRun;agentRun=false;reply(was?'বস, কাজটা শেষ করতে পারিনি, তাই থামলাম।':'ঠিক আছে বস, কাজ থামালাম।',was?'sad':'calm')}
 }
+async function execConfirmed(p){
+  if(p.tool==='sms'){
+    const r=await callTool('sms',p.a||'',p.b||'');
+    if(r.ok)agent('এসএমএস অ্যাপে বার্তা তৈরি আছে। পাঠানোর (Send/পাঠান) বোতাম চেপে বার্তা পাঠাও; স্ক্রিনে নিশ্চিত হলে done দাও। লক্ষ্য নম্বর: '+(p.a||'')+'; বার্তা: '+(p.b||''));
+    else reply('বস, এসএমএস শুরু করা যায়নি: '+(r.message||'অজানা সমস্যা'),'sad');
+  }else{runTool('call',p.a||'');reply('কল করছি বস।','happy')}
+}
 function handle(text){
   text=text.trim();if(!text)return;
-  add(text,'u');$('txt').value='';stopSpeaking();
+  add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
+  if(pendingConfirm){
+    const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
+    if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
+    if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
+  }
   if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
+  if(smartMode){agent(text);return}
   think(text);
 }
-$('send').onclick=()=>handle($('txt').value);
-$('txt').onkeydown=e=>{if(e.key==='Enter')handle($('txt').value)};
-$('mic').onclick=()=>{
-  if(agentRun||live||$('mic').classList.contains('on')){live=false;agentRun=false;stopSpeaking();stopListening();status('ভয়েস বন্ধ');return}
-  live=true;stopSpeaking();startListening()
-};
-$('gear').onclick=()=>{$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-2.5-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')};
-$('close').onclick=()=>$('set').classList.remove('open');
-$('save').onclick=()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_groq_key',$('kq').value.trim());LS.set('rumin_provider',$('kp').value);LS.set('rumin_gemini_model',$('mg').value.trim()||'gemini-2.5-flash');LS.set('rumin_groq_model',$('mq').value.trim()||'llama-3.3-70b-versatile');$('set').classList.remove('open');add('সেটিংস সেভ হয়েছে।','s')};
-$('clr').onclick=()=>{hist=[];$('log').innerHTML='';$('set').classList.remove('open')};
-$('perm').onclick=()=>{$('set').classList.remove('open');try{if(N&&typeof N.performCommand==='function')N.performCommand('requestpermissions','','','');else runTool('accessibility')}catch(e){runTool('accessibility')}};
+
+/* ---------- Views, sheets, buttons ---------- */
+const on=(id,fn)=>{const e=$(id);if(e)e.addEventListener('click',fn)};
+function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9}
+function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=document.createElement('h3');h.textContent=title;b.appendChild(h);build(b);$('sheet').classList.add('open')}
+function closeSheet(){$('sheet').classList.remove('open')}
+function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
+$('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
+function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-3.8-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')}
+function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
+function startVoice(){
+  go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();voiceMode=false;
+  const key=LS.get('rumin_gemini_key');
+  if(!key){status('প্রথমে Settings-এ Gemini API Key দিন');openSettings();return}
+  if(N&&typeof N.startLiveVoice==='function'){
+    live=true;status('Gemini Live-এ সংযোগ করছি…');mood('thinking',true);$('mic').classList.add('on');
+    try{N.startLiveVoice(key)}catch(e){live=false;status('লাইভ ভয়েস চালু করা যায়নি: '+(e.message||''));mood('sad',false)}
+  }else{
+    live=false;voiceMode=true;status('ভয়েস ইনপুট চালু হচ্ছে…');startListening();
+  }
+}
+function openUrl(u){u=/^https?:\/\//i.test(u)?u:'https://'+u;try{if(N&&typeof N.openUrl==='function'){N.openUrl(u);return}}catch(e){}add('লিংক খুলতে অ্যাপের Kotlin অংশে openUrl যোগ করতে হবে। লিংক: '+u,'s');go('chat')}
+
+const QUICK=['হোম স্ক্রিনে কী আছে বলো','এই স্ক্রিনে কী লেখা আছে বলো','ভলিউম বাড়াও','ভলিউম কমাও','৫ মিনিটের টাইমার দাও','আমার অ্যালার্মগুলো দেখাও','আমার মন ভালো করার মতো কিছু বলো'];
+const TILES=[['▶','YouTube','youtube'],['📘','Facebook','facebook'],['💬','WhatsApp','whatsapp'],['📸','Instagram','instagram'],['✉','Gmail','gmail'],['🛍','Play Store','playstore'],['🗺','Maps','maps'],['📷','ক্যামেরা','camera'],['🌐','ব্রাউজার','browser'],['⚙','সেটিংস','settings'],['📶','Wi-Fi','wifi'],['🔵','ব্লুটুথ','bluetooth'],['🔊','ভলিউম +','volumeup'],['🔉','ভলিউম −','volumedown'],['🔇','মিউট','volumemute'],['🏠','হোম','home'],['↩','ব্যাক','back'],['🔔','নোটিফিকেশন','notifications'],['👁','স্ক্রিন পড়ো','@screen'],['🧭','হোম স্ক্রিন পড়ো','@home']];
+TILES.forEach(([ic,nm,t])=>{const b=document.createElement('button');b.className='tl';b.innerHTML='<span>'+ic+'</span>'+nm;b.onclick=()=>{
+  if(t==='@screen')runTool('inspect_screen');
+  else if(t==='@home')agent('হোম স্ক্রিনে যাও এবং দেখে বলো কোন অ্যাপ, ফোল্ডার ও উইজেট আছে');
+  else{runTool(t);status(nm+'…')}};$('grid').appendChild(b)});
+
+on('bVoice',startVoice);
+on('bText',()=>{smartMode=false;promptMode=false;live=false;voiceMode=false;hist=JSON.parse(LS.get('rumin_text_history','[]'));go('chat')});
+on('bSmart',()=>{smartMode=true;promptMode=false;go('chat');add('স্মার্ট মোড চালু। যেকোনো কাজ বলুন, ধাপে ধাপে করব। বন্ধ করতে “টেক্সট চ্যাট” চাপুন।','s')});
+on('bQuick',()=>sheet('দ্রুত কাজ',b=>QUICK.forEach(q=>opt(b,q,()=>{go('chat');handle(q)}))));
+on('bAct',()=>go('act'));on('bSet',openSettings);on('gear',openSettings);
+on('menu',()=>sheet('রুমিন AI 3.0',b=>{const p=document.createElement('p');p.textContent='ডেভেলপার: সাব্বির আহমেদ রুবেল';b.appendChild(p);opt(b,'কথোপকথন মুছুন',()=>{hist=[];$('log').innerHTML=''});opt(b,'অনুমতি চালু করুন',()=>$('perm').click())}));
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.v==='set')openSettings();else go(b.dataset.v)}));
+
+const LK={movie:'Movie Link',apk:'APK Link',web:'Web Link',remini:'Remini'};
+function editLink(k){sheet(LK[k]+' লিংক',b=>{const i=document.createElement('input');i.placeholder='https://…';i.value=LS.get('rumin_link_'+k);b.appendChild(i);opt(b,'সেভ করুন',()=>{LS.set('rumin_link_'+k,i.value.trim());add('লিংক সেভ হয়েছে।','s')});if(i.value)opt(b,'এই লিংক খুলুন',()=>openUrl(i.value.trim()))})}
+document.querySelectorAll('.lk').forEach(el=>{
+  const k=el.dataset.k;let t=0,long=false;
+  el.addEventListener('touchstart',()=>{long=false;if(k!=='prompt')t=setTimeout(()=>{long=true;editLink(k)},650)},{passive:true});
+  ['touchend','touchmove'].forEach(ev=>el.addEventListener(ev,()=>clearTimeout(t),{passive:true}));
+  el.addEventListener('click',()=>{
+    if(long){long=false;return}
+    if(k==='prompt'){promptMode=true;smartMode=false;go('chat');add('এআই প্রম্পট মোড: কী চান বলুন, আমি পেশাদার প্রম্পট লিখে দেব।','s');return}
+    const u=LS.get('rumin_link_'+k,k==='remini'?'https://play.google.com/store/search?q=remini&c=apps':'');
+    if(u)openUrl(u);else editLink(k)})});
+
+on('send',()=>handle($('txt').value));
+$('txt').addEventListener('keydown',e=>{if(e.key==='Enter')handle($('txt').value)});
+on('mic',()=>{
+  if(agentRun||live||voiceMode||$('mic').classList.contains('on')){live=false;voiceMode=false;agentRun=false;stopSpeaking();stopListening();try{if(N&&typeof N.stopLiveVoice==='function')N.stopLiveVoice()}catch(e){}status('বন্ধ করা হয়েছে');return}
+  startVoice()
+});
+on('close',()=>$('set').classList.remove('open'));
+on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_groq_key',$('kq').value.trim());LS.set('rumin_provider',$('kp').value);LS.set('rumin_gemini_model',$('mg').value.trim()||'gemini-3.8-flash');LS.set('rumin_groq_model',$('mq').value.trim()||'llama-3.3-70b-versatile');$('set').classList.remove('open');add('সেটিংস সেভ হয়েছে।','s');status('সেটিংস সেভ হয়েছে')});
+on('clr',()=>{hist=[];LS.set('rumin_text_history','[]');LS.set('rumin_voice_history','[]');$('log').innerHTML='';$('set').classList.remove('open')});
+on('perm',()=>{$('set').classList.remove('open');try{if(N&&typeof N.performCommand==='function')N.performCommand('requestpermissions','','','');setTimeout(()=>runTool('accessibility'),7000)}catch(e){runTool('accessibility')}});
+function net(){const o=navigator.onLine;$('netT').textContent=o?'Online':'Offline';$('dot').style.background=o?'#12b886':'#868e96'}
+addEventListener('online',net);addEventListener('offline',net);net();
+
+function stars(){
+  const c=$('stars'),x=c.getContext('2d');let W,H,P=[];
+  const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
+  for(let i=0;i<70;i++)P.push({x:Math.random()-.5,y:Math.random()-.5,z:Math.random()});
+  const still=matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;
+  (function f(){x.clearRect(0,0,W,H);
+    for(const p of P){if(!still){p.z-=.0025;if(p.z<=.02){p.x=Math.random()-.5;p.y=Math.random()-.5;p.z=1}}
+      const k=1/p.z,px=W/2+p.x*W*k*.35,py=H/2+p.y*H*k*.35,r=Math.max(.4,1.8-p.z*1.5);
+      x.fillStyle='rgba(150,175,255,'+Math.min(1,.9-p.z*.6)+')';x.beginPath();x.arc(px,py,r,0,6.283);x.fill()}
+    requestAnimationFrame(f)})();
+}
+try{stars()}catch(e){}
+hist=JSON.parse(LS.get('rumin_text_history','[]'));
 add('আসসালামু আলাইকুম বস! আমি রুমিন AI। মাইক চেপে বলুন, যেমন: “ইউটিউব খোলো”, “ভলিউম বাড়াও”, “আমার মন খারাপ”।','b');
 if(!LS.get('rumin_gemini_key')&&!LS.get('rumin_groq_key'))add('শুরু করতে ⚙ সেটিংসে API Key দিন।','s');
 </script>
