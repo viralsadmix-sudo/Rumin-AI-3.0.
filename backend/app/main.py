@@ -6,7 +6,8 @@ from rq import Queue
 import httpx
 from .config import settings
 from .security import require_bearer
-from .storage import put_bytes, signed_url
+from starlette.concurrency import run_in_threadpool
+from .storage import put_fileobj, signed_url
 
 app = FastAPI(title="Rumin AI Studio API", version="0.1.0")
 s = settings()
@@ -26,12 +27,16 @@ async def create_video_job(file: UploadFile = File(...), prompt: str = Form(""),
     if file.content_type not in allowed:
         raise HTTPException(415, "Upload MP4, MOV, MKV or WebM video")
     limit = settings().max_upload_mb * 1024 * 1024
-    data = await file.read(limit + 1)
-    if len(data) > limit:
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > limit:
         raise HTTPException(413, f"Maximum upload size is {settings().max_upload_mb} MB")
+    if size == 0:
+        raise HTTPException(400, "Uploaded video is empty")
     job_id = str(uuid.uuid4())
     source_key = f"jobs/{job_id}/source"
-    put_bytes(source_key, data, file.content_type or "video/mp4")
+    await run_in_threadpool(put_fileobj, source_key, file.file, file.content_type or "video/mp4")
     job = queue().enqueue("app.worker.process_video", job_id, source_key, prompt[:4000], subtitle_language[:16], burn_subtitles, job_id=job_id, job_timeout=14400, result_ttl=86400, failure_ttl=86400)
     return {"job_id": job_id, "queue_id": job.id, "status": "queued"}
 
