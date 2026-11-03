@@ -1,7 +1,7 @@
 Rumin AI Studio Backend - initial integration
 
 Included in this backend increment:
-- FastAPI health endpoint and bearer-token protected API.
+- Public `/health` liveness endpoint and authenticated `/ready` dependency check (Redis, private object storage, ElevenLabs configuration) plus bearer-token protected media API.
 - Managed Redis/RQ queue for long-running video jobs.
 - S3-compatible object storage with streaming uploads/downloads for large media.
 - FFmpeg scene detection/segment extraction and MP4 assembly.
@@ -14,6 +14,7 @@ Not yet implemented / not to be advertised as complete:
 - Motion graphics, animated templates, generated intro/outro, background music and sound-effect mixing.
 - Subtitle editing UI and subtitle sidecar export.
 - Android video preview/export-to-gallery integration.
+- Actual cloud processing cannot run until the API and separate RQ worker are deployed with Redis, S3-compatible storage and ElevenLabs credentials; the in-app connection check now reports each missing dependency.
 - End-to-end tests against a real ElevenLabs account and managed storage.
 - Production user accounts, per-user quotas, billing, malware scanning and abuse controls.
 
