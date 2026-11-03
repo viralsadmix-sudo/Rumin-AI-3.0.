@@ -142,7 +142,7 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
    <div class="studio-card">
     <h3>🎬 ভিডিও এডিটিং</h3>
     <label>ভিডিও আপলোড</label><input id="studioVideo" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm">
-    <label>Editing Prompt</label><textarea id="studioPrompt" placeholder="আপনার ভিডিওতে কী পরিবর্তন চান লিখুন…"></textarea>
+    <label>ভিডিও সাজানোর নির্দেশনা (Gemini key থাকলে scene order সাজাবে)</label><textarea id="studioPrompt" placeholder="যেমন: শুরুতে পরিচিতি, পরে মূল বিষয়, শেষে ফলাফল রাখো…"></textarea><p class="studio-note">নোট: বর্তমান সংস্করণ দৃশ্যগুলো সাজায়; নির্দিষ্ট অংশ কেটে ফেলা, অ্যানিমেশন বা মিউজিক যোগ করে না।</p>
     <label>Subtitle Language</label><select id="studioSubtitle"><option value="auto">Auto Detect</option><option value="bn">বাংলা</option><option value="en">English</option></select>
     <label class="check"><input id="studioBurn" type="checkbox" checked> ভিডিওতে Subtitle Burn-in করো</label>
     <button id="studioProcessVideo">Upload & Process Video</button><div class="studio-status" id="studioVideoStatus"></div><div id="studioVideoResult"></div>
@@ -443,7 +443,7 @@ function handle(text){
 
 /* ---------- Views, sheets, buttons ---------- */
 const on=(id,fn)=>{const e=$(id);if(e)e.addEventListener('click',fn)};
-function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9;if(v==='act')prepareMediaTools();if(v==='act')prepareMediaTools()}
+function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9;if(v==='act')prepareMediaTools()}
 function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=document.createElement('h3');h.textContent=title;b.appendChild(h);build(b);$('sheet').classList.add('open')}
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
@@ -460,7 +460,7 @@ on('saveStudioConfig',async()=>{
  const base=stripSlash($('studioApi').value.trim());const token=$('studioToken').value.trim();
  if(!base.startsWith('https://')||!token){$('studioConfigStatus').textContent='HTTPS Backend URL এবং Access Token দিতে হবে।';return}
  LS.set('rumin_studio_api',base);LS.set('rumin_studio_token',token);$('studioConfigStatus').textContent='সংযোগ পরীক্ষা করছি…';
- try{const r=await fetch(base+'/health');if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();$('studioConfigStatus').textContent=j.ok?'Backend Online ✓':'Backend response যাচাই হয়নি'}catch(e){$('studioConfigStatus').textContent='Backend check failed: '+e.message+'। URL ও server deployment যাচাই করুন।'}
+ try{const r=await fetch(base+'/ready',{headers:{Authorization:'Bearer '+token}});const j=await r.json();const checks=j.checks||{};const report='Redis: '+(checks.redis?'OK':'বন্ধ/ভুল কনফিগার')+' · Storage: '+(checks.object_storage?'OK':'বন্ধ/ভুল কনফিগার')+' · ElevenLabs: '+(checks.elevenlabs?'কী আছে':'API Key নেই')+' · Gemini: '+((j.optional||{}).gemini_scene_arrangement?'চালু':'ঐচ্ছিক / সেট করা নেই');$('studioConfigStatus').textContent=(r.ok?'সব প্রয়োজনীয় সার্ভিস প্রস্তুত ✓\n':'Backend প্রস্তুত নয় — নিচের সার্ভিসগুলো ঠিক করুন।\n')+report;if(!r.ok)throw Error('Readiness check অসম্পূর্ণ')}catch(e){$('studioConfigStatus').textContent+='\nসংযোগ পরীক্ষা ব্যর্থ: '+e.message+'। Backend deploy ও environment variables যাচাই করুন।'}
 });
 on('studioProcessVideo',async()=>{
  if(!studioReady())return;const f=$('studioVideo').files[0];if(!f){$('studioVideoStatus').textContent='আগে একটি ভিডিও নির্বাচন করুন।';return}
