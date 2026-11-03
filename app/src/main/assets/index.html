@@ -124,13 +124,11 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
     <button class="lk" data-k="apk"><span>📦</span>APK Link<small>অ্যাপ ডাউনলোড</small></button>
     <button class="lk" data-k="web"><span>🔗</span>Web Link<small>ওয়েব সাইট</small></button>
     <button class="lk" data-k="remini"><span>🖼</span>Remini<small>ছবি উন্নত করুন</small></button>
-    <button class="lk" id="bStudio"><span>🎬</span>AI Studio<small>Video & Voice</small></button>
+    
   </div>
  </section>
  <section class="view" id="v-chat"><div id="log"></div></section>
- <section class="view" id="v-act"><div id="grid"></div></section>
- <section class="view" id="v-studio">
-  <h2 class="studio-head">RUMIN AI STUDIO</h2>
+ <section class="view" id="v-act"><div id="grid"></div><div id="med2 class="studio-head">RUMIN AI STUDIO</h2>
   <p class="studio-note">Cloud processing প্রয়োজন। প্রথমবার Backend URL ও access token সেট করুন। API secret/ElevenLabs key এখানে দেবেন না।</p>
   <div class="studio-card">
    <h3>Backend Connection</h3>
@@ -440,7 +438,7 @@ function handle(text){
 
 /* ---------- Views, sheets, buttons ---------- */
 const on=(id,fn)=>{const e=$(id);if(e)e.addEventListener('click',fn)};
-function go(v){document.body.dataset.v=v;['home','chat','act','studio'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9}
+function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9;if(v==='act')prepareMediaTools()}
 function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=document.createElement('h3');h.textContent=title;b.appendChild(h);build(b);$('sheet').classList.add('open')}
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
@@ -452,7 +450,7 @@ function stripSlash(value){while(value.endsWith('/'))value=value.slice(0,-1);ret
 function studioConfig(){return {base:stripSlash(LS.get('rumin_studio_api','')),token:LS.get('rumin_studio_token','')}}
 function studioHeaders(){const c=studioConfig();return {Authorization:'Bearer '+c.token}}
 function studioReady(){const c=studioConfig();if(!c.base||!c.token){$('studioConfigStatus').textContent='আগে Backend URL ও Access Token সেভ করুন।';return false}return true}
-on('bStudio',()=>{go('studio');$('studioApi').value=LS.get('rumin_studio_api','');$('studioToken').value=LS.get('rumin_studio_token','');$('studioVoiceId').value=LS.get('rumin_eleven_voice_id','')});
+function prepareMediaTools(){$('studioApi').value=LS.get('rumin_studio_api','');$('studioToken').value=LS.get('rumin_studio_token','');$('studioVoiceId').value=LS.get('rumin_eleven_voice_id','')}
 on('saveStudioConfig',async()=>{
  const base=stripSlash($('studioApi').value.trim());const token=$('studioToken').value.trim();
  if(!base.startsWith('https://')||!token){$('studioConfigStatus').textContent='HTTPS Backend URL এবং Access Token দিতে হবে।';return}
@@ -503,9 +501,10 @@ function startVoice(){
 function openUrl(u){u=/^https?:\/\//i.test(u)?u:'https://'+u;try{if(N&&typeof N.openUrl==='function'){N.openUrl(u);return}}catch(e){}add('লিংক খুলতে অ্যাপের Kotlin অংশে openUrl যোগ করতে হবে। লিংক: '+u,'s');go('chat')}
 
 const QUICK=['হোম স্ক্রিনে কী আছে বলো','এই স্ক্রিনে কী লেখা আছে বলো','ভলিউম বাড়াও','ভলিউম কমাও','৫ মিনিটের টাইমার দাও','আমার অ্যালার্মগুলো দেখাও','আমার মন ভালো করার মতো কিছু বলো'];
-const TILES=[['▶','YouTube','youtube'],['📘','Facebook','facebook'],['💬','WhatsApp','whatsapp'],['📸','Instagram','instagram'],['✉','Gmail','gmail'],['🛍','Play Store','playstore'],['🗺','Maps','maps'],['📷','ক্যামেরা','camera'],['🌐','ব্রাউজার','browser'],['⚙','সেটিংস','settings'],['📶','Wi-Fi','wifi'],['🔵','ব্লুটুথ','bluetooth'],['🔊','ভলিউম +','volumeup'],['🔉','ভলিউম −','volumedown'],['🔇','মিউট','volumemute'],['🏠','হোম','home'],['↩','ব্যাক','back'],['🔔','নোটিফিকেশন','notifications'],['👁','স্ক্রিন পড়ো','@screen'],['🧭','হোম স্ক্রিন পড়ো','@home']];
+const TILES=[['🎬','ভিডিও এডিট','@video'],['🎙','ভয়েস তৈরি','@voice'],['▶','YouTube','youtube'],['📘','Facebook','facebook'],['💬','WhatsApp','whatsapp'],['📸','Instagram','instagram'],['✉','Gmail','gmail'],['🛍','Play Store','playstore'],['🗺','Maps','maps'],['📷','ক্যামেরা','camera'],['🌐','ব্রাউজার','browser'],['⚙','সেটিংস','settings'],['📶','Wi-Fi','wifi'],['🔵','ব্লুটুথ','bluetooth'],['🔊','ভলিউম +','volumeup'],['🔉','ভলিউম −','volumedown'],['🔇','মিউট','volumemute'],['🏠','হোম','home'],['↩','ব্যাক','back'],['🔔','নোটিফিকেশন','notifications'],['👁','স্ক্রিন পড়ো','@screen'],['🧭','হোম স্ক্রিন পড়ো','@home']];
 TILES.forEach(([ic,nm,t])=>{const b=document.createElement('button');b.className='tl';b.innerHTML='<span>'+ic+'</span>'+nm;b.onclick=()=>{
-  if(t==='@screen')runTool('inspect_screen');
+  if(t==='@video'||t==='@voice'){const target=$(t==='@video'?'studioVideo':'studioTtsText');target.scrollIntoView({behavior:'smooth',block:'center'});target.focus();}
+  else if(t==='@screen')runTool('inspect_screen');
   else if(t==='@home')agent('হোম স্ক্রিনে যাও এবং দেখে বলো কোন অ্যাপ, ফোল্ডার ও উইজেট আছে');
   else{runTool(t);status(nm+'…')}};$('grid').appendChild(b)});
 
