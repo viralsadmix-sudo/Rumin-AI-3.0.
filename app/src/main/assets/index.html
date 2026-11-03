@@ -448,13 +448,14 @@ $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
 function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-3.8-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')}
 
 /* ---------- Cloud AI Studio ---------- */
-function studioConfig(){return {base:LS.get('rumin_studio_api','').replace(/\\/$/,''),token:LS.get('rumin_studio_token','')}}
+function stripSlash(value){while(value.endsWith('/'))value=value.slice(0,-1);return value}
+function studioConfig(){return {base:stripSlash(LS.get('rumin_studio_api','')),token:LS.get('rumin_studio_token','')}}
 function studioHeaders(){const c=studioConfig();return {Authorization:'Bearer '+c.token}}
 function studioReady(){const c=studioConfig();if(!c.base||!c.token){$('studioConfigStatus').textContent='আগে Backend URL ও Access Token সেভ করুন।';return false}return true}
 on('bStudio',()=>{go('studio');$('studioApi').value=LS.get('rumin_studio_api','');$('studioToken').value=LS.get('rumin_studio_token','');$('studioVoiceId').value=LS.get('rumin_eleven_voice_id','')});
 on('saveStudioConfig',async()=>{
- const base=$('studioApi').value.trim().replace(/\\/$/,'');const token=$('studioToken').value.trim();
- if(!/^https:\\/\\//i.test(base)||!token){$('studioConfigStatus').textContent='HTTPS Backend URL এবং Access Token দিতে হবে।';return}
+ const base=stripSlash($('studioApi').value.trim());const token=$('studioToken').value.trim();
+ if(!base.startsWith('https://')||!token){$('studioConfigStatus').textContent='HTTPS Backend URL এবং Access Token দিতে হবে।';return}
  LS.set('rumin_studio_api',base);LS.set('rumin_studio_token',token);$('studioConfigStatus').textContent='সংযোগ পরীক্ষা করছি…';
  try{const r=await fetch(base+'/health');if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();$('studioConfigStatus').textContent=j.ok?'Backend Online ✓':'Backend response যাচাই হয়নি'}catch(e){$('studioConfigStatus').textContent='Backend check failed: '+e.message+'। URL ও server deployment যাচাই করুন।'}
 });
@@ -464,7 +465,7 @@ on('studioProcessVideo',async()=>{
  $('studioProcessVideo').disabled=true;$('studioVideoResult').innerHTML='';$('studioVideoStatus').textContent='ভিডিও আপলোড হচ্ছে…';
  try{
   const r=await fetch(c.base+'/v1/video/jobs',{method:'POST',headers:studioHeaders(),body:data});const j=await r.json();if(!r.ok)throw Error(j.detail||'Upload failed HTTP '+r.status);
-  $('studioVideoStatus').textContent='Job queued: '+j.job_id+'\\nCloud worker প্রসেস করছে…';
+  $('studioVideoStatus').textContent='Job queued: '+j.job_id+'\nCloud worker প্রসেস করছে…';
   for(let i=0;i<1800;i++){
    await new Promise(resolve=>setTimeout(resolve,4000));const q=await fetch(c.base+'/v1/video/jobs/'+encodeURIComponent(j.job_id),{headers:studioHeaders()});const state=await q.json();if(!q.ok)throw Error(state.detail||'Job status failed');
    $('studioVideoStatus').textContent='Processing status: '+state.status;
@@ -482,7 +483,7 @@ on('studioCloneVoice',async()=>{
  if(!$('studioVoiceConsent').checked){$('studioVoiceStatus').textContent='Voice owner-এর অনুমতি নিশ্চিত করতে checkbox নির্বাচন করুন।';return}
  const data=new FormData();data.append('name',$('studioVoiceName').value.trim()||'Rumin authorized voice');data.append('consent_confirmed','true');data.append('sample',sample);
  $('studioVoiceStatus').textContent='ElevenLabs-এ voice sample পাঠানো হচ্ছে…';
- try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/clone',{method:'POST',headers:studioHeaders(),body:data}),j=await r.json();if(!r.ok)throw Error(j.detail||'Clone request failed');$('studioVoiceId').value=j.voice_id||'';LS.set('rumin_eleven_voice_id',j.voice_id||'');$('studioVoiceStatus').textContent='Voice ID তৈরি হয়েছে: '+j.voice_id+(j.requires_verification?'\\nElevenLabs voice verification প্রয়োজন।':'\\nClone API response সফল।')}
+ try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/clone',{method:'POST',headers:studioHeaders(),body:data}),j=await r.json();if(!r.ok)throw Error(j.detail||'Clone request failed');$('studioVoiceId').value=j.voice_id||'';LS.set('rumin_eleven_voice_id',j.voice_id||'');$('studioVoiceStatus').textContent='Voice ID তৈরি হয়েছে: '+j.voice_id+(j.requires_verification?'\nElevenLabs voice verification প্রয়োজন।':'\nClone API response সফল।')}
  catch(e){$('studioVoiceStatus').textContent='Voice clone failed: '+e.message}
 });
 on('studioMakeSpeech',async()=>{
