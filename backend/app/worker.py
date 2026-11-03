@@ -1,10 +1,11 @@
-import os, subprocess, tempfile, base64, json
+import subprocess, tempfile, base64, json
 import httpx
 from pathlib import Path
 from scenedetect import open_video, SceneManager
 from scenedetect.detectors import ContentDetector
 from faster_whisper import WhisperModel
 from .storage import download_file, upload_file
+from .config import settings
 
 def run(cmd):
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -14,7 +15,7 @@ def run(cmd):
 
 
 def plan_scene_order(prompt, scenes, source, root):
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = settings().gemini_api_key.strip()
     if not api_key or not prompt.strip():
         return None
     if len(scenes) > 40:
@@ -26,7 +27,7 @@ def plan_scene_order(prompt, scenes, source, root):
         run(["ffmpeg", "-y", "-ss", str(midpoint), "-i", str(source), "-frames:v", "1", "-vf", "scale=320:-1", "-q:v", "6", str(frame)])
         parts.append({"text": f"Scene index {index}; start {start:.2f}s; end {end:.2f}s"})
         parts.append({"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(frame.read_bytes()).decode("ascii")}})
-    model = os.getenv("GEMINI_VIDEO_MODEL", "gemini-2.5-flash")
+    model = settings().gemini_video_model
     response = httpx.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         params={"key": api_key},
@@ -60,7 +61,7 @@ def process_video(job_id: str, source_key: str, prompt: str, subtitle_language: 
         if not scenes: scenes = [(0.0, duration)]
         scene_order = list(range(len(scenes)))
         prompt_status = "prompt_not_provided" if not prompt.strip() else "chronological_fallback_no_gemini_key"
-        if prompt.strip() and os.getenv("GEMINI_API_KEY", "").strip():
+        if prompt.strip() and settings().gemini_api_key.strip():
             try:
                 planned = plan_scene_order(prompt, scenes, source, root)
                 if planned is not None:
@@ -83,7 +84,7 @@ def process_video(job_id: str, source_key: str, prompt: str, subtitle_language: 
         final = concat; subtitle_status = "not_requested"
         if burn_subtitles:
             try:
-                model = WhisperModel(os.getenv("WHISPER_MODEL","small"), device="cpu", compute_type="int8")
+                model = WhisperModel(settings().whisper_model, device="cpu", compute_type="int8")
                 segments, info = model.transcribe(str(concat), language=None if subtitle_language=="auto" else subtitle_language, vad_filter=True)
                 srt = root / "captions.srt"
                 def stamp(t):
