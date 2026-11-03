@@ -32,7 +32,7 @@ async def create_video_job(file: UploadFile = File(...), prompt: str = Form(""),
     job_id = str(uuid.uuid4())
     source_key = f"jobs/{job_id}/source"
     put_bytes(source_key, data, file.content_type or "video/mp4")
-    job = queue().enqueue("app.worker.process_video", job_id, source_key, prompt[:4000], subtitle_language[:16], burn_subtitles, job_timeout=14400, result_ttl=86400, failure_ttl=86400)
+    job = queue().enqueue("app.worker.process_video", job_id, source_key, prompt[:4000], subtitle_language[:16], burn_subtitles, job_id=job_id, job_timeout=14400, result_ttl=86400, failure_ttl=86400)
     return {"job_id": job_id, "queue_id": job.id, "status": "queued"}
 
 @app.get("/v1/video/jobs/{job_id}", dependencies=[Depends(require_bearer)])
@@ -66,7 +66,7 @@ async def clone_voice(name: str = Form(...), consent_confirmed: bool = Form(...)
     if response.status_code >= 400:
         raise HTTPException(response.status_code, "ElevenLabs voice cloning request failed: " + response.text[:500])
     result = response.json()
-    return {"voice_id": result.get("voice_id"), "name": name, "provider": "elevenlabs"}
+    return {"voice_id": result.get("voice_id"), "name": name, "provider": "elevenlabs", "requires_verification": result.get("requires_verification", False)}
 
 @app.post("/v1/voice/tts", dependencies=[Depends(require_bearer)])
 async def text_to_speech(text: str = Form(...), voice_id: str = Form(...), language: str = Form("bn"), speed: float = Form(1.0), style: float = Form(0.0)):
@@ -75,7 +75,7 @@ async def text_to_speech(text: str = Form(...), voice_id: str = Form(...), langu
     if not 0.7 <= speed <= 1.2 or not 0.0 <= style <= 1.0:
         raise HTTPException(400, "Speed must be 0.7–1.2 and style 0–1")
     s = settings()
-    body = {"text": text, "model_id": s.elevenlabs_model_id, "language_code": "ben" if language.lower().startswith("bn") else "eng", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "style": style, "use_speaker_boost": True, "speed": speed}}
+    body = {"text": text, "model_id": s.elevenlabs_model_id, "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "style": style, "use_speaker_boost": True, "speed": speed}}
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}", headers={"xi-api-key": s.elevenlabs_api_key, "Accept": "audio/mpeg", "Content-Type": "application/json"}, json=body)
     if response.status_code >= 400:
