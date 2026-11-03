@@ -128,37 +128,41 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
   </div>
  </section>
  <section class="view" id="v-chat"><div id="log"></div></section>
- <section class="view" id="v-act"><div id="grid"></div><div id="med2 class="studio-head">RUMIN AI STUDIO</h2>
-  <p class="studio-note">Cloud processing প্রয়োজন। প্রথমবার Backend URL ও access token সেট করুন। API secret/ElevenLabs key এখানে দেবেন না।</p>
-  <div class="studio-card">
-   <h3>Backend Connection</h3>
-   <label>Managed Backend HTTPS URL</label><input id="studioApi" type="url" placeholder="https://your-api-domain.example">
-   <label>Access Token</label><input id="studioToken" type="password" autocomplete="off" placeholder="Backend bearer token">
-   <button id="saveStudioConfig">Connection Save & Check</button><div class="studio-status" id="studioConfigStatus"></div>
-  </div>
-  <div class="studio-card">
-   <h3>🎬 AI Video Studio</h3>
-   <label>ভিডিও আপলোড</label><input id="studioVideo" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm">
-   <label>Editing Prompt</label><textarea id="studioPrompt" placeholder="আপনার ভিডিওতে কী পরিবর্তন চান লিখুন…"></textarea>
-   <label>Subtitle Language</label><select id="studioSubtitle"><option value="auto">Auto Detect</option><option value="bn">বাংলা</option><option value="en">English</option></select>
-   <label class="check"><input id="studioBurn" type="checkbox" checked> ভিডিওতে Subtitle Burn-in করো</label>
-   <button id="studioProcessVideo">Upload & Process Video</button><div class="studio-status" id="studioVideoStatus"></div><div id="studioVideoResult"></div>
-  </div>
-  <div class="studio-card">
-   <h3>🎙 AI Voice Studio · ElevenLabs</h3>
-   <label>Voice Name</label><input id="studioVoiceName" placeholder="আমার বাংলা কণ্ঠ">
-   <label>নিজের/অনুমতিপ্রাপ্ত কণ্ঠের Sample (MP3/WAV/M4A)</label><input id="studioVoiceSample" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/m4a">
-   <label class="check"><input id="studioVoiceConsent" type="checkbox"> আমি এই কণ্ঠের মালিক অথবা মালিকের স্পষ্ট অনুমতি আছে এবং Voice Cloning-এ সম্মতি দিয়েছি।</label>
-   <button id="studioCloneVoice">Create Authorized Voice Clone</button><div class="studio-status" id="studioVoiceStatus"></div>
-   <label>ElevenLabs Voice ID</label><input id="studioVoiceId" placeholder="Clone করার পর Voice ID এখানে আসবে">
-   <label>Text to Speech</label><textarea id="studioTtsText" placeholder="বাংলা বা English লেখা লিখুন…"></textarea>
-   <p class="studio-note">বাংলা অথবা English লিখুন। ElevenLabs Multilingual model লেখার ভাষা স্বয়ংক্রিয়ভাবে শনাক্ত করে।</p>
-   <label>Voice Speed (0.7–1.2)</label><input id="studioTtsSpeed" type="number" min="0.7" max="1.2" step="0.05" value="1">
-   <label>Voice Style (0–1)</label><input id="studioTtsStyle" type="number" min="0" max="1" step="0.05" value="0">
-   <button id="studioMakeSpeech">Generate MP3</button><div class="studio-status" id="studioTtsStatus"></div><div id="studioAudioResult"></div>
+ <section class="view" id="v-act">
+  <div id="grid"></div>
+  <div id="mediaTools">
+   <h2 class="studio-head">মিডিয়া ও ভয়েস টুলস</h2>
+   <p class="studio-note">এগুলো Rumin-এর বিদ্যমান Actions অংশের মধ্যেই রাখা হয়েছে; আলাদা Studio পেজ নেই। প্রথমবার Backend URL ও access token সেট করুন। API secret/ElevenLabs key অ্যাপে দেবেন না।</p>
+   <div class="studio-card" id="studioBackendConfig">
+    <h3>⚙️ মিডিয়া ফিচারের সংযোগ সেটিংস</h3>
+    <label>Managed Backend HTTPS URL</label><input id="studioApi" type="url" placeholder="https://your-api-domain.example">
+    <label>Access Token</label><input id="studioToken" type="password" autocomplete="off" placeholder="Backend bearer token">
+    <button id="saveStudioConfig">Connection Save & Check</button><div class="studio-status" id="studioConfigStatus"></div>
+   </div>
+   <div class="studio-card">
+    <h3>🎬 ভিডিও এডিটিং</h3>
+    <label>ভিডিও আপলোড</label><input id="studioVideo" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm">
+    <label>Editing Prompt</label><textarea id="studioPrompt" placeholder="আপনার ভিডিওতে কী পরিবর্তন চান লিখুন…"></textarea>
+    <label>Subtitle Language</label><select id="studioSubtitle"><option value="auto">Auto Detect</option><option value="bn">বাংলা</option><option value="en">English</option></select>
+    <label class="check"><input id="studioBurn" type="checkbox" checked> ভিডিওতে Subtitle Burn-in করো</label>
+    <button id="studioProcessVideo">Upload & Process Video</button><div class="studio-status" id="studioVideoStatus"></div><div id="studioVideoResult"></div>
+   </div>
+   <div class="studio-card">
+    <h3>🎙 ভয়েস ও টেক্সট-টু-স্পিচ</h3>
+    <label>Voice Name</label><input id="studioVoiceName" placeholder="আমার বাংলা কণ্ঠ">
+    <label>নিজের/অনুমতিপ্রাপ্ত কণ্ঠের Sample (MP3/WAV/M4A)</label><input id="studioVoiceSample" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/m4a">
+    <label class="check"><input id="studioVoiceConsent" type="checkbox"> আমি এই কণ্ঠের মালিক অথবা মালিকের স্পষ্ট অনুমতি আছে এবং Voice Cloning-এ সম্মতি দিয়েছি।</label>
+    <button id="studioCloneVoice">Create Authorized Voice Clone</button><div class="studio-status" id="studioVoiceStatus"></div>
+    <label>ElevenLabs Voice ID</label><input id="studioVoiceId" placeholder="Clone করার পর Voice ID এখানে আসবে">
+    <label>Text to Speech</label><textarea id="studioTtsText" placeholder="বাংলা বা English লেখা লিখুন…"></textarea>
+    <p class="studio-note">বাংলা অথবা English লিখুন। ElevenLabs Multilingual model লেখার ভাষা স্বয়ংক্রিয়ভাবে শনাক্ত করে।</p>
+    <label>Voice Speed (0.7–1.2)</label><input id="studioTtsSpeed" type="number" min="0.7" max="1.2" step="0.05" value="1">
+    <label>Voice Style (0–1)</label><input id="studioTtsStyle" type="number" min="0" max="1" step="0.05" value="0">
+    <button id="studioMakeSpeech">Generate MP3</button><div class="studio-status" id="studioTtsStatus"></div><div id="studioAudioResult"></div>
+   </div>
   </div>
  </section>
-</main>
+
 <div id="bar"><input id="txt" placeholder="লিখুন বা বলুন…" autocomplete="off"><button id="send" aria-label="পাঠান">➤</button></div>
 <nav>
   <button class="on" data-v="home"><span>🏠</span>Home</button>
@@ -438,7 +442,7 @@ function handle(text){
 
 /* ---------- Views, sheets, buttons ---------- */
 const on=(id,fn)=>{const e=$(id);if(e)e.addEventListener('click',fn)};
-function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9;if(v==='act')prepareMediaTools()}
+function go(v){document.body.dataset.v=v;['home','chat','act'].forEach(k=>$('v-'+k).classList.toggle('on',k===v));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='chat')$('log').scrollTop=1e9;if(v==='act')prepareMediaTools();if(v==='act')prepareMediaTools()}
 function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=document.createElement('h3');h.textContent=title;b.appendChild(h);build(b);$('sheet').classList.add('open')}
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
