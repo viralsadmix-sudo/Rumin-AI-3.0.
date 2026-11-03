@@ -10,7 +10,7 @@ Included in this backend increment:
 - ElevenLabs multilingual TTS returning a short-lived MP3 download URL. Bengali/English language is inferred by the multilingual model from the text; speed and style are configurable.
 
 Not yet implemented / not to be advertised as complete:
-- Prompt-driven AI scene rearrangement (prompt is accepted, but scene ordering remains chronological).
+- Prompt-based scene arrangement is available only when GEMINI_API_KEY is configured; Gemini reviews up to 40 scene thumbnails and can reorder scenes. It does not remove scenes or generate effects.
 - Motion graphics, animated templates, generated intro/outro, background music and sound-effect mixing.
 - Subtitle editing UI and subtitle sidecar export.
 - Android video preview/export-to-gallery integration.
