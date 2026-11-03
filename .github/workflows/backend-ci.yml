@@ -1,0 +1,28 @@
+name: Rumin Studio Backend CI
+on:
+  push:
+    branches: [main, feature/ai-video-voice-studio]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements-ci.txt
+      - run: pip install -r requirements-ci.txt
+      - run: python -m compileall -q app tests
+      - run: python -m pytest -q

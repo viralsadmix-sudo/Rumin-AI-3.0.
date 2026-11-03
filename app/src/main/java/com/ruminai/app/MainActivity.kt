@@ -15,6 +15,7 @@ import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -31,6 +32,11 @@ class MainActivity : ComponentActivity() {
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var pendingPermissionRequest: PermissionRequest? = null
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        fileChooserCallback?.onReceiveValue(if (uri != null) arrayOf(uri) else null)
+        fileChooserCallback = null
+    }
     private var pendingNativeSpeech = false
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
@@ -105,6 +111,20 @@ class MainActivity : ComponentActivity() {
         webView.addJavascriptInterface(NativeBridge(), "RuminNative")
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(webView: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: WebChromeClient.FileChooserParams): Boolean {
+                fileChooserCallback?.onReceiveValue(null)
+                fileChooserCallback = filePathCallback
+                val accepted = fileChooserParams.acceptTypes.filter { it.isNotBlank() }.toTypedArray().ifEmpty { arrayOf("*/*") }
+                return try {
+                    filePickerLauncher.launch(accepted)
+                    true
+                } catch (_: Exception) {
+                    fileChooserCallback?.onReceiveValue(null)
+                    fileChooserCallback = null
+                    false
+                }
+            }
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
                     if (request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
