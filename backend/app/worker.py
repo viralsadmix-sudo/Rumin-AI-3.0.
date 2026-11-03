@@ -3,7 +3,7 @@ from pathlib import Path
 from scenedetect import open_video, SceneManager
 from scenedetect.detectors import ContentDetector
 from faster_whisper import WhisperModel
-from .storage import get_bytes, put_bytes
+from .storage import download_file, upload_file
 
 def run(cmd):
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -15,7 +15,7 @@ def process_video(job_id: str, source_key: str, prompt: str, subtitle_language: 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         source = root / "input-video"
-        source.write_bytes(get_bytes(source_key))
+        download_file(source_key, source)
         scenes = []
         try:
             video = open_video(str(source)); manager = SceneManager()
@@ -54,5 +54,5 @@ def process_video(job_id: str, source_key: str, prompt: str, subtitle_language: 
                 final = burned; subtitle_status = "generated_and_burned"
             except Exception as exc: subtitle_status = "failed: " + str(exc)[:300]
         output_key = f"jobs/{job_id}/final.mp4"
-        put_bytes(output_key, final.read_bytes(), "video/mp4")
+        upload_file(output_key, final, "video/mp4")
         return {"output_key": output_key, "details": {"scenes_detected":len(scenes),"scenes_kept":len(parts),"subtitle_status":subtitle_status,"prompt_received":bool(prompt),"prompt_editing":"not_enabled_in_initial_backend","scene_order":"chronological","effects_music_intro_outro":"not_implemented"}}
