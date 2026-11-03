@@ -17,3 +17,12 @@ def get_bytes(key: str) -> bytes:
 
 def signed_url(key: str, expires: int = 3600) -> str:
     return client().generate_presigned_url("get_object", Params={"Bucket": settings().s3_bucket, "Key": key}, ExpiresIn=expires)
+
+def put_fileobj(key: str, fileobj, content_type: str):
+    client().upload_fileobj(fileobj, settings().s3_bucket, key, ExtraArgs={"ContentType": content_type})
+
+def download_file(key: str, destination):
+    client().download_file(settings().s3_bucket, key, str(destination))
+
+def upload_file(key: str, source, content_type: str):
+    client().upload_file(str(source), settings().s3_bucket, key, ExtraArgs={"ContentType": content_type})
