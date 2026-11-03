@@ -48,7 +48,9 @@ def video_job_status(job_id: str):
     except Exception:
         raise HTTPException(404, "Job not found")
     result = job.result if job.is_finished else None
-    payload = {"job_id": job_id, "status": job.get_status(), "error": str(job.exc_info)[-1500:] if job.is_failed else None}
+    raw_status = job.get_status()
+    status_value = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+    payload = {"job_id": job_id, "status": status_value.lower(), "error": str(job.exc_info)[-1500:] if job.is_failed else None}
     if isinstance(result, dict) and result.get("output_key"):
         payload["download_url"] = signed_url(result["output_key"])
         payload["details"] = result.get("details", {})
