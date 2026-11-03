@@ -7,7 +7,7 @@ import httpx
 from .config import settings
 from .security import require_bearer
 from starlette.concurrency import run_in_threadpool
-from .storage import put_fileobj, signed_url
+from .storage import put_bytes, put_fileobj, signed_url
 
 app = FastAPI(title="Rumin AI Studio API", version="0.1.0")
 s = settings()
