@@ -76,7 +76,7 @@ async def clone_voice(name: str = Form(...), consent_confirmed: bool = Form(...)
     return {"voice_id": result.get("voice_id"), "name": name, "provider": "elevenlabs", "requires_verification": result.get("requires_verification", False)}
 
 @app.post("/v1/voice/tts", dependencies=[Depends(require_bearer)])
-async def text_to_speech(text: str = Form(...), voice_id: str = Form(...), language: str = Form("bn"), speed: float = Form(1.0), style: float = Form(0.0)):
+async def text_to_speech(text: str = Form(...), voice_id: str = Form(...), speed: float = Form(1.0), style: float = Form(0.0)):
     if not text.strip() or len(text) > 5000:
         raise HTTPException(400, "Text must contain 1–5000 characters")
     if not 0.7 <= speed <= 1.2 or not 0.0 <= style <= 1.0:
