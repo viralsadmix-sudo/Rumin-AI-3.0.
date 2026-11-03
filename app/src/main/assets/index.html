@@ -154,7 +154,7 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
    <button id="studioCloneVoice">Create Authorized Voice Clone</button><div class="studio-status" id="studioVoiceStatus"></div>
    <label>ElevenLabs Voice ID</label><input id="studioVoiceId" placeholder="Clone করার পর Voice ID এখানে আসবে">
    <label>Text to Speech</label><textarea id="studioTtsText" placeholder="বাংলা বা English লেখা লিখুন…"></textarea>
-   <label>Language</label><select id="studioTtsLanguage"><option value="bn">বাংলা</option><option value="en">English</option></select>
+   <p class="studio-note">বাংলা অথবা English লিখুন। ElevenLabs Multilingual model লেখার ভাষা স্বয়ংক্রিয়ভাবে শনাক্ত করে।</p>
    <label>Voice Speed (0.7–1.2)</label><input id="studioTtsSpeed" type="number" min="0.7" max="1.2" step="0.05" value="1">
    <label>Voice Style (0–1)</label><input id="studioTtsStyle" type="number" min="0" max="1" step="0.05" value="0">
    <button id="studioMakeSpeech">Generate MP3</button><div class="studio-status" id="studioTtsStatus"></div><div id="studioAudioResult"></div>
@@ -488,7 +488,7 @@ on('studioCloneVoice',async()=>{
 });
 on('studioMakeSpeech',async()=>{
  if(!studioReady())return;const voiceId=$('studioVoiceId').value.trim()||LS.get('rumin_eleven_voice_id',''),textValue=$('studioTtsText').value.trim();if(!voiceId||!textValue){$('studioTtsStatus').textContent='Voice ID এবং Text দিতে হবে।';return}
- const data=new FormData();data.append('voice_id',voiceId);data.append('text',textValue);data.append('language',$('studioTtsLanguage').value);data.append('speed',$('studioTtsSpeed').value);data.append('style',$('studioTtsStyle').value);
+ const data=new FormData();data.append('voice_id',voiceId);data.append('text',textValue);data.append('speed',$('studioTtsSpeed').value);data.append('style',$('studioTtsStyle').value);
  $('studioTtsStatus').textContent='ElevenLabs MP3 তৈরি করছে…';$('studioAudioResult').innerHTML='';
  try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/tts',{method:'POST',headers:studioHeaders(),body:data}),j=await r.json();if(!r.ok)throw Error(j.detail||'TTS failed');const a=document.createElement('a');a.href=j.audio_url;a.target='_blank';a.rel='noopener';a.textContent='Open / Download MP3';$('studioAudioResult').appendChild(a);const audio=document.createElement('audio');audio.controls=true;audio.src=j.audio_url;$('studioAudioResult').appendChild(audio);$('studioTtsStatus').textContent='MP3 তৈরি হয়েছে। Link ১ ঘণ্টা পর্যন্ত কার্যকর থাকবে।'}catch(e){$('studioTtsStatus').textContent='TTS error: '+e.message}
 });
