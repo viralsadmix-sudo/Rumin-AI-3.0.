@@ -454,23 +454,24 @@ function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=L
 function stripSlash(value){while(value.endsWith('/'))value=value.slice(0,-1);return value}
 function studioConfig(){return {base:stripSlash(LS.get('rumin_studio_api','')),token:LS.get('rumin_studio_token','')}}
 function studioHeaders(){const c=studioConfig();return {Authorization:'Bearer '+c.token}}
-function studioReady(){const c=studioConfig();if(!c.base||!c.token){$('studioConfigStatus').textContent='আগে Backend URL ও Access Token সেভ করুন।';return false}return true}
+function studioReady(statusId){const c=studioConfig();if(!c.base||!c.token){const msg='কাজ শুরু হয়নি: আগে Actions-এর উপরের “মিডিয়া ফিচারের সংযোগ সেটিংস” অংশে Backend HTTPS URL ও Access Token দিয়ে Connection Save & Check করুন।';if(statusId)$(statusId).textContent=msg;$('studioConfigStatus').textContent=msg;return false}return true}
+async function studioJson(response){const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={detail:raw.slice(0,400)||'Backend থেকে JSON response পাওয়া যায়নি'}}if(!response.ok)throw Error(data.detail||('HTTP '+response.status));return data}
 function prepareMediaTools(){$('studioApi').value=LS.get('rumin_studio_api','');$('studioToken').value=LS.get('rumin_studio_token','');$('studioVoiceId').value=LS.get('rumin_eleven_voice_id','')}
 on('saveStudioConfig',async()=>{
  const base=stripSlash($('studioApi').value.trim());const token=$('studioToken').value.trim();
  if(!base.startsWith('https://')||!token){$('studioConfigStatus').textContent='HTTPS Backend URL এবং Access Token দিতে হবে।';return}
  LS.set('rumin_studio_api',base);LS.set('rumin_studio_token',token);$('studioConfigStatus').textContent='সংযোগ পরীক্ষা করছি…';
- try{const r=await fetch(base+'/ready',{headers:{Authorization:'Bearer '+token}});const j=await r.json();const checks=j.checks||{};const report='Redis: '+(checks.redis?'OK':'বন্ধ/ভুল কনফিগার')+' · Storage: '+(checks.object_storage?'OK':'বন্ধ/ভুল কনফিগার')+' · ElevenLabs: '+(checks.elevenlabs?'কী আছে':'API Key নেই')+' · Gemini: '+((j.optional||{}).gemini_scene_arrangement?'চালু':'ঐচ্ছিক / সেট করা নেই');$('studioConfigStatus').textContent=(r.ok?'সব প্রয়োজনীয় সার্ভিস প্রস্তুত ✓\n':'Backend প্রস্তুত নয় — নিচের সার্ভিসগুলো ঠিক করুন।\n')+report;if(!r.ok)throw Error('Readiness check অসম্পূর্ণ')}catch(e){$('studioConfigStatus').textContent+='\nসংযোগ পরীক্ষা ব্যর্থ: '+e.message+'। Backend deploy ও environment variables যাচাই করুন।'}
+ try{const r=await fetch(base+'/ready',{headers:{Authorization:'Bearer '+token}});const j=await studioJson(r);const checks=j.checks||{};const report='Redis: '+(checks.redis?'OK':'বন্ধ/ভুল কনফিগার')+' · Storage: '+(checks.object_storage?'OK':'বন্ধ/ভুল কনফিগার')+' · ElevenLabs: '+(checks.elevenlabs?'কী আছে':'API Key নেই')+' · Gemini: '+((j.optional||{}).gemini_scene_arrangement?'চালু':'ঐচ্ছিক / সেট করা নেই');$('studioConfigStatus').textContent=(r.ok?'সব প্রয়োজনীয় সার্ভিস প্রস্তুত ✓\n':'Backend প্রস্তুত নয় — নিচের সার্ভিসগুলো ঠিক করুন।\n')+report;if(!r.ok)throw Error('Readiness check অসম্পূর্ণ')}catch(e){$('studioConfigStatus').textContent+='\nসংযোগ পরীক্ষা ব্যর্থ: '+e.message+'। Backend deploy ও environment variables যাচাই করুন।'}
 });
 on('studioProcessVideo',async()=>{
- if(!studioReady())return;const f=$('studioVideo').files[0];if(!f){$('studioVideoStatus').textContent='আগে একটি ভিডিও নির্বাচন করুন।';return}
+ if(!studioReady('studioVideoStatus'))return;const f=$('studioVideo').files[0];if(!f){$('studioVideoStatus').textContent='আগে একটি ভিডিও নির্বাচন করুন।';return}
  const c=studioConfig(),data=new FormData();data.append('file',f);data.append('prompt',$('studioPrompt').value);data.append('subtitle_language',$('studioSubtitle').value);data.append('burn_subtitles',$('studioBurn').checked?'true':'false');
  $('studioProcessVideo').disabled=true;$('studioVideoResult').innerHTML='';$('studioVideoStatus').textContent='ভিডিও আপলোড হচ্ছে…';
  try{
-  const r=await fetch(c.base+'/v1/video/jobs',{method:'POST',headers:studioHeaders(),body:data});const j=await r.json();if(!r.ok)throw Error(j.detail||'Upload failed HTTP '+r.status);
+  const r=await fetch(c.base+'/v1/video/jobs',{method:'POST',headers:studioHeaders(),body:data});const j=await studioJson(r);
   $('studioVideoStatus').textContent='Job queued: '+j.job_id+'\nCloud worker প্রসেস করছে…';
   for(let i=0;i<1800;i++){
-   await new Promise(resolve=>setTimeout(resolve,4000));const q=await fetch(c.base+'/v1/video/jobs/'+encodeURIComponent(j.job_id),{headers:studioHeaders()});const state=await q.json();if(!q.ok)throw Error(state.detail||'Job status failed');
+   await new Promise(resolve=>setTimeout(resolve,4000));const q=await fetch(c.base+'/v1/video/jobs/'+encodeURIComponent(j.job_id),{headers:studioHeaders()});const state=await studioJson(q);
    $('studioVideoStatus').textContent='Processing status: '+state.status;
    if(state.status==='finished'){
     $('studioVideoStatus').textContent='Processing complete. Details: '+JSON.stringify(state.details||{});
@@ -482,18 +483,18 @@ on('studioProcessVideo',async()=>{
  finally{$('studioProcessVideo').disabled=false}
 });
 on('studioCloneVoice',async()=>{
- if(!studioReady())return;const sample=$('studioVoiceSample').files[0];if(!sample){$('studioVoiceStatus').textContent='কণ্ঠের নমুনা নির্বাচন করুন।';return}
+ if(!studioReady('studioVoiceStatus'))return;const sample=$('studioVoiceSample').files[0];if(!sample){$('studioVoiceStatus').textContent='কণ্ঠের নমুনা নির্বাচন করুন।';return}
  if(!$('studioVoiceConsent').checked){$('studioVoiceStatus').textContent='Voice owner-এর অনুমতি নিশ্চিত করতে checkbox নির্বাচন করুন।';return}
  const data=new FormData();data.append('name',$('studioVoiceName').value.trim()||'Rumin authorized voice');data.append('consent_confirmed','true');data.append('sample',sample);
  $('studioVoiceStatus').textContent='ElevenLabs-এ voice sample পাঠানো হচ্ছে…';
- try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/clone',{method:'POST',headers:studioHeaders(),body:data}),j=await r.json();if(!r.ok)throw Error(j.detail||'Clone request failed');$('studioVoiceId').value=j.voice_id||'';LS.set('rumin_eleven_voice_id',j.voice_id||'');$('studioVoiceStatus').textContent='Voice ID তৈরি হয়েছে: '+j.voice_id+(j.requires_verification?'\nElevenLabs voice verification প্রয়োজন।':'\nClone API response সফল।')}
+ try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/clone',{method:'POST',headers:studioHeaders(),body:data}),j=await studioJson(r);$('studioVoiceId').value=j.voice_id||'';LS.set('rumin_eleven_voice_id',j.voice_id||'');$('studioVoiceStatus').textContent='Voice ID তৈরি হয়েছে: '+j.voice_id+(j.requires_verification?'\nElevenLabs voice verification প্রয়োজন।':'\nClone API response সফল।')}
  catch(e){$('studioVoiceStatus').textContent='Voice clone failed: '+e.message}
 });
 on('studioMakeSpeech',async()=>{
- if(!studioReady())return;const voiceId=$('studioVoiceId').value.trim()||LS.get('rumin_eleven_voice_id',''),textValue=$('studioTtsText').value.trim();if(!voiceId||!textValue){$('studioTtsStatus').textContent='Voice ID এবং Text দিতে হবে।';return}
+ if(!studioReady('studioTtsStatus'))return;const voiceId=$('studioVoiceId').value.trim()||LS.get('rumin_eleven_voice_id',''),textValue=$('studioTtsText').value.trim();if(!voiceId||!textValue){$('studioTtsStatus').textContent='Voice ID এবং Text দিতে হবে।';return}
  const data=new FormData();data.append('voice_id',voiceId);data.append('text',textValue);data.append('speed',$('studioTtsSpeed').value);data.append('style',$('studioTtsStyle').value);
  $('studioTtsStatus').textContent='ElevenLabs MP3 তৈরি করছে…';$('studioAudioResult').innerHTML='';
- try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/tts',{method:'POST',headers:studioHeaders(),body:data}),j=await r.json();if(!r.ok)throw Error(j.detail||'TTS failed');const a=document.createElement('a');a.href=j.audio_url;a.target='_blank';a.rel='noopener';a.textContent='Open / Download MP3';$('studioAudioResult').appendChild(a);const audio=document.createElement('audio');audio.controls=true;audio.src=j.audio_url;$('studioAudioResult').appendChild(audio);$('studioTtsStatus').textContent='MP3 তৈরি হয়েছে। Link ১ ঘণ্টা পর্যন্ত কার্যকর থাকবে।'}catch(e){$('studioTtsStatus').textContent='TTS error: '+e.message}
+ try{const c=studioConfig(),r=await fetch(c.base+'/v1/voice/tts',{method:'POST',headers:studioHeaders(),body:data}),j=await studioJson(r);const a=document.createElement('a');a.href=j.audio_url;a.target='_blank';a.rel='noopener';a.textContent='Open / Download MP3';$('studioAudioResult').appendChild(a);const audio=document.createElement('audio');audio.controls=true;audio.src=j.audio_url;$('studioAudioResult').appendChild(audio);$('studioTtsStatus').textContent='MP3 তৈরি হয়েছে। Link ১ ঘণ্টা পর্যন্ত কার্যকর থাকবে।'}catch(e){$('studioTtsStatus').textContent='TTS error: '+e.message}
 });
 
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
