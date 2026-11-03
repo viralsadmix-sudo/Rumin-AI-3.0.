@@ -1,13 +1,15 @@
 import uuid
+from pathlib import Path
 from fastapi import FastAPI, Depends, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from redis import Redis
 from rq import Queue
 import httpx
 from .config import settings
 from .security import require_bearer
 from starlette.concurrency import run_in_threadpool
-from .storage import put_bytes, put_fileobj, signed_url
+from .storage import client as storage_client, put_bytes, put_fileobj, signed_url
 
 app = FastAPI(title="Rumin AI Studio API", version="0.1.0")
 s = settings()
@@ -21,11 +23,37 @@ def queue():
 def health():
     return {"ok": True, "service": "rumin-studio-api"}
 
+
+@app.get("/ready", dependencies=[Depends(require_bearer)])
+def readiness():
+    checks = {"redis": False, "object_storage": False, "elevenlabs": bool(settings().elevenlabs_api_key.strip())}
+    try:
+        Redis.from_url(settings().redis_url).ping()
+        checks["redis"] = True
+    except Exception:
+        pass
+    try:
+        storage_client().head_bucket(Bucket=settings().s3_bucket)
+        checks["object_storage"] = True
+    except Exception:
+        pass
+    ready = all(checks.values())
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"ok": ready, "service": "rumin-studio-api", "checks": checks,
+                 "optional": {"gemini_scene_arrangement": bool(settings().gemini_api_key.strip())}},
+    )
+
 @app.post("/v1/video/jobs", dependencies=[Depends(require_bearer)])
 async def create_video_job(file: UploadFile = File(...), prompt: str = Form(""), subtitle_language: str = Form("auto"), burn_subtitles: bool = Form(True)):
     allowed = {"video/mp4","video/quicktime","video/x-matroska","video/webm"}
-    if file.content_type not in allowed:
+    extension_types = {".mp4":"video/mp4", ".mov":"video/quicktime", ".mkv":"video/x-matroska", ".webm":"video/webm"}
+    detected_type = file.content_type or ""
+    if detected_type == "application/octet-stream" or detected_type not in allowed:
+        detected_type = extension_types.get(Path(file.filename or "").suffix.lower(), detected_type)
+    if detected_type not in allowed:
         raise HTTPException(415, "Upload MP4, MOV, MKV or WebM video")
+    file_content_type = detected_type
     limit = settings().max_upload_mb * 1024 * 1024
     file.file.seek(0, 2)
     size = file.file.tell()
@@ -36,7 +64,7 @@ async def create_video_job(file: UploadFile = File(...), prompt: str = Form(""),
         raise HTTPException(400, "Uploaded video is empty")
     job_id = str(uuid.uuid4())
     source_key = f"jobs/{job_id}/source"
-    await run_in_threadpool(put_fileobj, source_key, file.file, file.content_type or "video/mp4")
+    await run_in_threadpool(put_fileobj, source_key, file.file, file_content_type)
     job = queue().enqueue("app.worker.process_video", job_id, source_key, prompt[:4000], subtitle_language[:16], burn_subtitles, job_id=job_id, job_timeout=14400, result_ttl=86400, failure_ttl=86400)
     return {"job_id": job_id, "queue_id": job.id, "status": "queued"}
 
@@ -60,7 +88,12 @@ def video_job_status(job_id: str):
 async def clone_voice(name: str = Form(...), consent_confirmed: bool = Form(...), sample: UploadFile = File(...)):
     if consent_confirmed is not True:
         raise HTTPException(400, "Explicit voice-owner consent is required")
-    if sample.content_type not in {"audio/mpeg","audio/mp3","audio/wav","audio/x-wav","audio/mp4","audio/m4a"}:
+    audio_types = {"audio/mpeg","audio/mp3","audio/wav","audio/x-wav","audio/mp4","audio/m4a"}
+    extension_types = {".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4"}
+    audio_content_type = sample.content_type or ""
+    if audio_content_type == "application/octet-stream" or audio_content_type not in audio_types:
+        audio_content_type = extension_types.get(Path(sample.filename or "").suffix.lower(), audio_content_type)
+    if audio_content_type not in audio_types:
         raise HTTPException(415, "Upload an MP3, WAV or M4A voice sample")
     data = await sample.read(25 * 1024 * 1024 + 1)
     if len(data) > 25 * 1024 * 1024:
@@ -69,7 +102,7 @@ async def clone_voice(name: str = Form(...), consent_confirmed: bool = Form(...)
         raise HTTPException(400, "Voice sample is too small")
     s = settings()
     async with httpx.AsyncClient(timeout=120) as client:
-        response = await client.post("https://api.elevenlabs.io/v1/voices/add", headers={"xi-api-key": s.elevenlabs_api_key}, data={"name": name[:80], "description": "User-authorized voice clone for Rumin AI"}, files={"files": (sample.filename or "voice-sample.wav", data, sample.content_type)})
+        response = await client.post("https://api.elevenlabs.io/v1/voices/add", headers={"xi-api-key": s.elevenlabs_api_key}, data={"name": name[:80], "description": "User-authorized voice clone for Rumin AI"}, files={"files": (sample.filename or "voice-sample.wav", data, audio_content_type)})
     if response.status_code >= 400:
         raise HTTPException(response.status_code, "ElevenLabs voice cloning request failed: " + response.text[:500])
     result = response.json()
