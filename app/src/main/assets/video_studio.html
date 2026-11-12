@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rumin AI 3.5 Video Studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(120% 80% at 50% 0,#24104f,#0a0d24 58%,#060818);color:#eef1fb;font-family:system-ui,'Noto Sans Bengali',sans-serif;padding:env(safe-area-inset-top) 14px calc(22px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;gap:12px;padding:12px 0 20px}button,input,textarea,select{font:inherit;color:inherit}button{border:0;cursor:pointer}.back{width:42px;height:42px;border-radius:13px;background:#ffffff12;border:1px solid #7a6cff66;font-size:22px}.brand{font-size:20px;font-weight:800}.brand span{color:#ff2bd6}.sub{color:#9aa3c7;font-size:12px}
+h1{font-size:22px;margin:4px 0 6px}p{color:#aab2d3;font-size:13px;line-height:1.6}
+.card{background:#ffffff0c;border:1px solid #7a6cff55;border-radius:18px;padding:14px;margin:14px 0;box-shadow:0 8px 28px #0003}
+label{display:block;color:#b9b3ff;font-size:13px;margin:12px 0 6px}
+input,textarea,select{width:100%;border:1px solid #6d63a855;border-radius:11px;background:#0d1230;padding:12px;font-size:14px;outline:none}
+textarea{min-height:94px;resize:vertical}
+button.primary{width:100%;border-radius:12px;padding:13px;background:linear-gradient(90deg,#8b35d9,#315fe8);font-weight:700;margin-top:12px}
+button.secondary{width:100%;border-radius:12px;padding:12px;background:#1b2144;border:1px solid #7a6cff55;margin-top:8px}
+.pipelines{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.pipeline{padding:12px 9px;text-align:left;border-radius:12px;background:#151b3b;border:1px solid #554b8a;font-size:13px}
+.pipeline.active{border-color:#ff2bd6;box-shadow:0 0 14px #ff2bd633;background:#241440}
+.pipeline small{display:block;color:#9aa3c7;font-size:11px;margin-top:4px}
+#status{white-space:pre-wrap;word-break:break-word;background:#090e25;border-radius:12px;padding:12px;font-size:12px;color:#b9c6f5;min-height:44px}
+#picked{color:#73e0b1;font-size:12px;margin-top:8px;word-break:break-all}
+.note{font-size:11px;color:#8d96bd}
+</style>
+</head>
+<body>
+<header><button class="back" onclick="RuminStudio.closeStudio()">‹</button><div><div class="brand">RUMIN <span>AI</span> 3.5</div><div class="sub">AI Video Studio · OpenMontage backend</div></div></header>
+<h1>ভিডিও তৈরি ও সম্পাদনা</h1>
+<p>ভিডিও বাছাই করে কাজের ধরন নির্বাচন করুন। Render হবে সংযুক্ত Rumin backend-এর OpenMontage worker-এ; APK নিজে ভিডিও render করে না।</p>
+<section class="card">
+  <b>১. কাজের ধরন নির্বাচন করুন</b>
+  <div class="pipelines">
+    <button class="pipeline active" data-pipeline="clip-factory">✂️ Video to Shorts<small>লম্বা ভিডিও থেকে Shorts</small></button>
+    <button class="pipeline" data-pipeline="documentary-montage">🎬 AI Video Edit<small>Scene ও montage edit</small></button>
+    <button class="pipeline" data-pipeline="localization-dub">🗣 বাংলা Voiceover<small>Dub ও subtitle workflow</small></button>
+    <button class="pipeline" data-pipeline="animated-explainer">✨ Text to Video<small>Script ও animated explainer</small></button>
+  </div>
+  <button class="secondary" onclick="RuminStudio.pickVideo()">ভিডিও নির্বাচন করুন</button>
+  <div id="picked">কোনো ভিডিও নির্বাচন করা হয়নি</div>
+  <label>আপনার নির্দেশনা</label>
+  <textarea id="prompt" placeholder="যেমন: ভিডিও থেকে ৩টি ৩০-৬০ সেকেন্ডের vertical Shorts তৈরি করো, বাংলা subtitle যোগ করো।"></textarea>
+</section>
+<section class="card">
+  <b>২. Backend সংযোগ</b>
+  <p>OpenMontage চালানোর জন্য একটি deploy করা HTTPS Rumin backend URL ও access token প্রয়োজন। এগুলো APK-তে আগে থেকে রাখা নেই।</p>
+  <label>Backend HTTPS URL</label><input id="backend" type="url" placeholder="https://your-rumin-backend.example">
+  <label>Backend Access Token</label><input id="token" type="password" autocomplete="off" placeholder="আপনার backend token">
+  <button class="primary" id="submit">ভিডিও প্রসেসিং শুরু করুন</button>
+</section>
+<section class="card">
+  <b>৩. Job Status</b>
+  <label>Job ID</label><input id="jobId" placeholder="প্রসেসিং শুরু হলে Job ID আসবে">
+  <button class="secondary" id="refresh">Status পরীক্ষা করুন</button>
+  <div id="status">এখনো কোনো job শুরু হয়নি।</div>
+  <p class="note">ভিডিও আপলোড সর্বোচ্চ ৫০০ MB। শুধু নিজের বা ব্যবহারের অনুমতি থাকা ভিডিও/ভয়েস/মিউজিক ব্যবহার করুন।</p>
+</section>
+<script>
+let pipeline='clip-factory',selectedName='';
+document.querySelectorAll('.pipeline').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.pipeline').forEach(x=>x.classList.remove('active'));b.classList.add('active');pipeline=b.dataset.pipeline}));
+function status(t){document.getElementById('status').textContent=t}
+window.onRuminVideoPicked=(name,mime,size)=>{selectedName=name;document.getElementById('picked').textContent='নির্বাচিত: '+name+' · '+mime+(size>0?' · '+(size/1048576).toFixed(1)+' MB':'')};
+window.onRuminStudioMessage=status;
+window.onRuminStudioResult=(ok,raw)=>{
+  let parsed;try{parsed=JSON.parse(raw)}catch(e){}
+  if(ok&&parsed){const id=parsed.job_id||parsed.id;if(id)document.getElementById('jobId').value=id;status('সফলভাবে backend-এ পাঠানো হয়েছে।\n'+JSON.stringify(parsed,null,2))}
+  else status('সমস্যা: '+raw);
+};
+document.getElementById('submit').addEventListener('click',()=>{
+  const base=document.getElementById('backend').value.trim(),token=document.getElementById('token').value.trim(),prompt=document.getElementById('prompt').value.trim();
+  if(!base||!token||!prompt){status('Backend URL, token এবং নির্দেশনা পূরণ করুন।');return}
+  status('ভিডিও backend-এ আপলোড হচ্ছে… বড় ভিডিও হলে সময় লাগতে পারে।');
+  RuminStudio.submitVideoJob(base,token,pipeline,prompt);
+});
+document.getElementById('refresh').addEventListener('click',()=>{
+  const base=document.getElementById('backend').value.trim(),token=document.getElementById('token').value.trim(),id=document.getElementById('jobId').value.trim();
+  if(!base||!token||!id){status('Backend URL, token এবং Job ID দিন।');return}
+  status('Job status পরীক্ষা হচ্ছে…');RuminStudio.getVideoJobStatus(base,token,id);
+});
+</script>
+</body>
+</html>
