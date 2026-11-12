@@ -130,7 +130,7 @@ class VideoStudioActivity : ComponentActivity() {
                         field("output_format", "mp4")
                         field("subtitle_language", "bn")
                         val mime = contentResolver.getType(uri) ?: "video/mp4"
-                        val filename = displayName(uri)
+                        val filename = displayName(uri).replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "video.mp4" }
                         out.writeBytes("--$boundary\r\n")
                         out.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"$filename\"\r\n")
                         out.writeBytes("Content-Type: $mime\r\n\r\n")
