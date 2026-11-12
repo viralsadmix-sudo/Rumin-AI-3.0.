@@ -11,6 +11,7 @@ Integrate the real OpenMontage production engine with Rumin AI 3.5 while preserv
 - Upstream: https://github.com/OpenMontageInc/OpenMontage
 - License reported by GitHub: GNU Affero General Public License v3.0 (AGPL-3.0).
 - Upstream default branch at audit: main.
+- Upstream main commit observed on 2026-11-12: `fecb9a1e3cc23ef84de30b272059457a427f16f8` (Pika H3 Flex hosted-provider change). This is an audit reference only, not yet an approved production pin.
 - Main stack observed: Python tool registry and pipeline definitions, FastAPI/uvicorn Backlot components, Remotion/React composer, FFmpeg-based media processing, provider integrations.
 - Upstream prerequisite declarations observed: Python 3.10+, FFmpeg, and Node.js 22.23.4+, 24.22.1+, or 26.12.1+ for the Remotion composer.
 - Relevant pipeline definitions observed: clip-factory, documentary-montage, animated-explainer, localization-dub, podcast-repurpose, screen-demo, and talking-head.
