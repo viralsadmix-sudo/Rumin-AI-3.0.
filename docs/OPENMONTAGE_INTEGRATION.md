@@ -35,7 +35,8 @@ Proposed request path:
 
 ## Proposed backend API contract
 
-- `POST /api/v1/video/jobs` — create a job; accept pipeline, prompt, target format, optional source media references, and budget ceiling.
+- `POST /api/v1/video/jobs` — create a job using authenticated `multipart/form-data`: `pipeline`, `prompt`, `output_format`, `subtitle_language`, and one `file` upload (Android client currently caps uploads at 500 MB). Return JSON with a non-empty `job_id` (or `id`) and initial status.
+- `GET /api/v1/video/jobs/{job_id}` — read status and progress; return JSON with status/progress and, when ready, authorized artifact metadata/URLs.
 - `GET /api/v1/video/jobs/{job_id}` — read status and progress.
 - `POST /api/v1/video/jobs/{job_id}/approval` — approve/reject a human checkpoint.
 - `POST /api/v1/video/jobs/{job_id}/cancel` — request cancellation.
@@ -50,6 +51,12 @@ The API must not expose arbitrary shell commands, filesystem paths, provider cre
 2. Bangla localization: transcription, Bengali translation/review, Bangla TTS provider selection, subtitle timing, dubbed output.
 3. Animated explainer: script, storyboard, approved assets, Remotion composition and MP4 render.
 4. Documentary montage and other pipelines after the first slices are stable.
+
+## Android client adapter status
+
+The feature branch now contains an Android Video Studio screen and native upload/status client. It supports the pipeline identifiers listed above, requires an HTTPS backend URL and bearer token entered by the user, and sends video uploads to `POST /api/v1/video/jobs`. The client does not store the token in browser local storage and does not bundle provider credentials.
+
+This is a client-side integration slice only. No Rumin backend, durable queue, object storage, or OpenMontage worker has been deployed or connected yet. The screen cannot render a video until a compatible authenticated backend implements this contract. The backend must validate file type and actual size independently; the Android-side 500 MB cap is not a server-side security boundary.
 
 ## Security and reliability requirements
 
