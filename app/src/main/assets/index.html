@@ -149,7 +149,7 @@ const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinki
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
 const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
+let afterSpeak=null,speakTok=0,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0,errN=0;
 
 /* ---------- UI helpers ---------- */
 function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;if(cls==='b'){const bb=$('bubble');if(bb)bb.textContent=text.length>90?text.slice(0,88)+'…':text}return d}
@@ -169,26 +169,36 @@ function stopSpeaking(){try{if(N&&typeof N.stopSpeaking==='function')N.stopSpeak
 
 /* ---------- Speech input ---------- */
 let webRec=null;
+function micOn(){return $('mic').classList.contains('on')}
 function startListening(){
   if(busy)return;
+  clearTimeout(listenTimer);
   status('শুনছি…');mood('listening',true);$('mic').classList.add('on');
+  /* watchdog: if the native layer never answers, don't stay stuck */
+  listenTimer=setTimeout(()=>{if(micOn()&&!busy){try{if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}$('mic').classList.remove('on');retryListen(300)}},30000);
   try{
     if(N&&typeof N.startSpeechRecognition==='function'){N.startSpeechRecognition();return}
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(SR){webRec=new SR();webRec.lang='bn-BD';webRec.interimResults=false;
       webRec.onresult=e=>onHeard(e.results[0][0].transcript);
-      webRec.onerror=()=>{status('ভয়েস শোনা যায়নি। আবার চেষ্টা করুন বা লিখুন।');idle()};
-      webRec.onend=()=>{if(!busy&&!live)idle()};
+      webRec.onerror=()=>{status('ভয়েস শোনা যায়নি।');$('mic').classList.remove('on');retryListen(1200)};
+      webRec.onend=()=>{if(micOn()&&!busy)retryListen(500)};
       webRec.start();return}
   }catch(e){}
-  status('এই ফোনে ভয়েস ইনপুট পাওয়া যায়নি। লিখে বলুন।');idle();live=false
+  status('এই ফোনে ভয়েস ইনপুট পাওয়া যায়নি। লিখে বলুন।');$('mic').classList.remove('on');clearTimeout(listenTimer);voiceMode=false;idle()
 }
 function stopListening(){clearTimeout(listenTimer);try{if(webRec)webRec.abort();if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}idle()}
 function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
-function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
+/* retry listening a few times, then give up cleanly so the next mic tap works */
+function retryListen(ms){
+  clearTimeout(listenTimer);
+  if(voiceMode&&!live&&!busy&&!agentRun&&errN<3){errN++;listenTimer=setTimeout(startListening,ms)}
+  else{if(errN>=3){voiceMode=false;status('ভয়েস শোনা যাচ্ছে না। মাইক চেপে আবার বলুন।')}idle()}
+}
+function onHeard(t){clearTimeout(listenTimer);$('mic').classList.remove('on');t=(t||'').trim();if(t){errN=0;handle(t)}else retryListen(500)}
 /* Native layer may call any of these names with the recognized text */
 ['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
-['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
+['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');$('mic').classList.remove('on');retryListen(1200)}});
 
 /* ---------- Phone tools ---------- */
 const waiters={};const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -222,7 +232,8 @@ window.onNativeCommandResult=(ok,msg,id)=>{
   if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)
 };
 window.onNativeActionResult=(raw,id)=>{
-  let r;try{r=JSON.parse(raw)}catch(e){r={ok:false,message:'ফলাফল পড়া যায়নি।'}}
+  let r;try{r=typeof raw==='string'?JSON.parse(raw):raw}catch(e){r={ok:false,message:'ফলাফল পড়া যায়নি।'}}
+  if(!r)r={ok:false,message:'ফলাফল পড়া যায়নি।'};
   if(id&&waiters[id]){waiters[id](r);return}
   const p=pending;pending='';
   if(p==='inspect_screen'&&r.ok){
@@ -238,8 +249,8 @@ const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){live=false;agentRun=false;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
-  if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
+  if(t.split(' ').length<=3&&/(থামো|থাম|চুপ|stop|be quiet)/.test(t)){live=false;agentRun=false;pendingConfirm=null;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(/((^| )(কে|কারা) .*(বানিয়েছে|তৈরি করেছে|বানিয়েছ))|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(mem[2]);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, মনে রাখলাম: '+mem[2],'happy');return true}
   if(/ভলিউম|volume/.test(t)){
@@ -252,21 +263,41 @@ function local(raw){
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
+/* multi-step phone task? -> go straight to the agent instead of relying on the model to say agent:true */
+function looksLikePhoneTask(t){
+  const s=bn2en(t).toLowerCase();
+  const verb=/(খুলে|ওপেন করে|সার্চ|খুঁজ|স্ক্রল|scroll|search|টাইপ|লিখে|তারপর|এরপর|প্লে|play|লাইক|সাবস্ক্রাইব|চাপ|ক্লিক|click|ডাউনলোড|পাঠাও)/.test(s);
+  const app=/(ইউ ?টিউব|ফেইস?বুক|হোয়াটস|ইনস্টা|জি ?মেইল|ম্যাপ|ব্রাউজার|সেটিংস|প্লে ?স্টোর|ক্যামেরা|গ্যালারি|টেলিগ্রাম|youtube|facebook|whatsapp|instagram|gmail|maps|browser|settings|play ?store|telegram|chrome|স্ক্রিন)/.test(s);
+  return verb&&app;
+}
 
 /* ---------- AI ---------- */
 function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
+  const factLine=facts.length?'\nব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):'';
+  const argLine='আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=সেকেন্ড (যেমন ৫ মিনিট = ৩০০); call: a=ফোন নম্বর বা নাম; sms: a=ফোন নম্বর বা নাম, b=বার্তা; click_text: a=স্ক্রিনে থাকা হুবহু লেখা যাতে চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।';
+  /* agent mode gets its own, non-conflicting prompt */
+  if(extra===AGENT_RULES){
+    return `তুমি "রুমিন AI", Android ফোন চালানোর এজেন্ট। কখনো "আমি পারি না" বলবে না; একটা উপায় কাজ না করলে অন্য উপায় ভাবো। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল।
+টুল: ${TOOLS.join(', ')}
+${argLine}${factLine}
+${extra}`;
+  }
   return `তুমি "রুমিন AI" — বাংলাভাষী ব্যক্তিগত ভয়েস অ্যাসিস্ট্যান্ট, যে ব্যবহারকারীর Android ফোন সরাসরি নিয়ন্ত্রণ করতে পারে। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল; নির্মাতা বা ডেভেলপার সম্পর্কে জানতে চাইলে এটাই বলবে।
 নিয়ম:
 1. ব্যবহারকারীর কথার সাথে তার আবেগও বোঝো (খুশি, মন খারাপ, রাগ, চাপ, ক্লান্তি)। সেই অনুযায়ী আন্তরিক, ছোট ও স্বাভাবিক বাংলায় উত্তর দাও। ব্যবহারকারীকে "বস" বলতে পারো।
 2. ফোনের কাজ চাইলে কখনো "আমি পারি না" বা "আমি শুধু AI" বলবে না। actions-এ টুল দাও, অ্যাপ নিজেই কাজটি চালাবে।
 3. শুধু একটি JSON অবজেক্ট ফেরত দাও, অন্য কোনো লেখা নয়: {"reply":"বাংলা উত্তর","emotion":"calm|happy|sad|angry|thinking","actions":[{"tool":"নাম","a":"","b":""}],"agent":false,"goal":""}
 4. কাজ না থাকলে actions খালি অ্যারে।
-6. ফোনে একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো। এক ধাপের কাজে agent দিও না। যেকোনো অ্যাপ খোলা বা তার ভেতরের কাজ, এবং "হোম স্ক্রিনে কী আছে" ধরনের প্রশ্নও agent:true দিয়ে করবে।
+5. এক ধাপের কাজ (অ্যাপ খোলা, ভলিউম, অ্যালার্ম, টাইমার, ওয়াইফাই, ব্লুটুথ) actions-এ দাও, agent:false রাখো।
+6. একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো", অ্যাপের ভেতরের কাজ, "হোম স্ক্রিনে কী আছে") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো।
+7. কল বা SMS-এর জন্য নম্বর (বা নাম) ও বার্তা পরিষ্কার হলে actions-এ call/sms দাও (অ্যাপ নিজেই ব্যবহারকারীর কাছ থেকে নিশ্চিত করে নেবে)।
 টুল: ${TOOLS.join(', ')}
-আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=সেকেন্ড (যেমন ৫ মিনিট = ৩০০);  call: a=ফোন নম্বর; sms: a=ফোন নম্বর, b=বার্তা; click_text: a=যে লেখায় চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।
-5. কল বা SMS-এর জন্য নম্বর ও বার্তা পরিষ্কার হলে actions-এ call/sms দাও (অ্যাপ নিজেই ব্যবহারকারীর কাছ থেকে নিশ্চিত করে নেবে)। নাম দিলেও চলবে, অ্যাপ কন্টাক্ট থেকে নম্বর খুঁজে নেবে।
-${facts.length?'ব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):''}
+${argLine}
+উদাহরণ:
+- "৫ মিনিটের টাইমার দাও" → {"reply":"ঠিক আছে বস, ৫ মিনিটের টাইমার দিচ্ছি","emotion":"happy","actions":[{"tool":"timer","a":"300","b":""}],"agent":false,"goal":""}
+- "ইউটিউব খুলে বাংলা গান সার্চ করো" → {"reply":"ঠিক আছে বস, করছি","emotion":"happy","actions":[],"agent":true,"goal":"ইউটিউব খুলে বাংলা গান সার্চ করা"}
+- "আমার মন খারাপ" → {"reply":"আমি আছি বস, কী হয়েছে বলবেন?","emotion":"sad","actions":[],"agent":false,"goal":""}${factLine}
 ${extra}`;
 }
 async function gemini(key,model,msgs,extra){
@@ -286,16 +317,22 @@ window.onNativeAiResponse=(id,ok,message)=>{
 };
 function nativeAiRequest(provider,key,msgs,extra){
   return new Promise((resolve,reject)=>{
-    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
+    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native AI সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
-    conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
+    const model=provider==='gemini'?LS.get('rumin_gemini_model','gemini-3.8-flash'):LS.get('rumin_groq_model','llama-3.3-70b-versatile');
     const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,model,system(extra),JSON.stringify(conversation),current,id)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
+}
+/* native bridge first; plain browser/old APK falls back to direct web calls */
+function aiCall(provider,key,msgs,extra){
+  if(N&&typeof N.requestAi==='function')return nativeAiRequest(provider,key,msgs,extra);
+  if(provider==='gemini')return gemini(key,LS.get('rumin_gemini_model','gemini-3.8-flash'),msgs,extra);
+  return groq(key,LS.get('rumin_groq_model','llama-3.3-70b-versatile'),msgs,extra);
 }
 async function askAI(msgs=hist,extra=''){
   const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key'),pref=LS.get('rumin_provider','auto');
@@ -303,7 +340,7 @@ async function askAI(msgs=hist,extra=''){
   if(pref==='groq'){if(kq)order.push(['groq',kq]);if(kg)order.push(['gemini',kg])}
   else{if(kg)order.push(['gemini',kg]);if(kq)order.push(['groq',kq])}
   if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
-  let err;for(const [provider,key] of order){try{return await nativeAiRequest(provider,key,msgs,extra)}catch(e){err=e}}
+  let err;for(const [provider,key] of order){try{return await aiCall(provider,key,msgs,extra)}catch(e){err=e}}
   throw err||new Error('AI অনুরোধ ব্যর্থ হয়েছে');
 }
 function parse(s){
@@ -314,7 +351,14 @@ function parse(s){
 /* ---------- Main flow ---------- */
 function reply(text,emotion){
   add(text,'b');hist.push({r:'b',t:text});if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'b',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}mood(emotion||'calm',true);
-  if(voiceMode&&!live){status('বলছি…');afterSpeak=()=>{afterSpeak=null;mood('calm',false);status('শুনছি…');if(voiceMode&&!busy)startListening()};speak(text);if(!(N&&typeof N.speakText==='function'))setTimeout(()=>{if(afterSpeak){afterSpeak();afterSpeak=null}},Math.min(9000,900+text.length*65))}
+  if(voiceMode&&!live){
+    status('বলছি…');
+    const tok=++speakTok,hasN=!!(N&&typeof N.speakText==='function');
+    afterSpeak=()=>{afterSpeak=null;mood('calm',false);status('শুনছি…');if(voiceMode&&!busy)startListening()};
+    speak(text);
+    /* backup timer: if the native layer never reports "speech done", still resume listening */
+    setTimeout(()=>{if(afterSpeak&&speakTok===tok){const f=afterSpeak;afterSpeak=null;f()}},hasN?Math.min(30000,5000+text.length*120):Math.min(9000,900+text.length*65));
+  }
   else{status('মাইক চেপে কথা বলুন');mood(emotion||'calm',false)}
 }
 window.onNativeTtsDone=()=>{const f=afterSpeak;afterSpeak=null;if(f)setTimeout(f,250)};
@@ -335,6 +379,7 @@ window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
 async function think(text,hidden){
   if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
+  while(hist.length&&hist[0].r!=='u')hist.shift();
   try{
     const o=parse(await askAI(hist,modeExtra()));
     busy=false;
@@ -345,13 +390,13 @@ async function think(text,hidden){
     reply(o.reply||'ঠিক আছে বস।',o.emotion);
     acts.forEach((x,i)=>setTimeout(()=>runTool(x.tool,x.a||'',x.b||''),600+i*900));
   }catch(e){
-    busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();if(!live){voiceMode=false;idle()}else status('আবার চেষ্টা করুন');
+    busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');hist.pop();idle();status('আবার চেষ্টা করুন')
   }
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
-const AGENT_RULES=`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে done:true দিয়ে কারণ জানাও। যেকোনো অ্যাপের কাজ করতে পারো, শুধু তালিকার অ্যাপ নয়। তালিকায় নেই এমন অ্যাপ খুলতে আগে home দাও, তারপর inspect_screen দিয়ে অ্যাপের নাম খোঁজো; পেলে click_text-এ সেই নাম দাও। না পেলে scroll_down বা scroll_up করে পাতা বদলাও, তবুও না পেলে হোম স্ক্রিনের সার্চ বা অ্যাপ ড্রয়ার খুলে নাম টাইপ করো (type_text)। হোম স্ক্রিনে কী আছে জানতে চাইলে home দাও, তারপর স্ক্রিনের লেখা দেখে কোন অ্যাপ, ফোল্ডার, উইজেট আছে তা done:true দিয়ে reply-তে বলো। অ্যাপের ভেতরে ঢুকে মেনু, বোতাম, ট্যাব চেপে কাজ করো; প্রতিবার স্ক্রিনের লেখা দেখে পরের ধাপ ঠিক করো। call, sms, power নিজে থেকে কখনো দেবে না।`;
+const AGENT_RULES=`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে অন্য উপায় চেষ্টা করো; তবুও না হলে done:true দিয়ে কারণ জানাও। যেকোনো অ্যাপের কাজ করতে পারো, শুধু তালিকার অ্যাপ নয়। তালিকায় নেই এমন অ্যাপ খুলতে আগে home দাও, তারপর inspect_screen দিয়ে অ্যাপের নাম খোঁজো; পেলে click_text-এ সেই নাম দাও। না পেলে scroll_down বা scroll_up করে পাতা বদলাও, তবুও না পেলে হোম স্ক্রিনের সার্চ বা অ্যাপ ড্রয়ার খুলে নাম টাইপ করো (type_text)। হোম স্ক্রিনে কী আছে জানতে চাইলে home দাও, তারপর স্ক্রিনের লেখা দেখে কোন অ্যাপ, ফোল্ডার, উইজেট আছে তা done:true দিয়ে reply-তে বলো। অ্যাপের ভেতরে ঢুকে মেনু, বোতাম, ট্যাব চেপে কাজ করো; প্রতিবার স্ক্রিনের লেখা দেখে পরের ধাপ ঠিক করো। call, sms, power নিজে থেকে কখনো দেবে না।`;
 async function agent(goal){
   if(agentRun)return;
   agentRun=true;live=false;busy=true;stopListening();
@@ -387,12 +432,15 @@ function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
   if(pendingConfirm){
-    const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
-    if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
-    if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
+    const n=bn2en(text).toLowerCase();
+    if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){const p=pendingConfirm;pendingConfirm=null;execConfirmed(p);return}
+    if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){pendingConfirm=null;reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
+    if(n.split(' ').length<=2){reply('বস, “হ্যাঁ” নাকি “না”?','calm');return}
+    pendingConfirm=null; /* a new, longer command replaces the pending one */
   }
   if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
-  if(smartMode){agent(text);return}
+  if(busy){status('একটু অপেক্ষা করুন, আগের কাজ চলছে…');add('একটু অপেক্ষা করুন বস, আগের কাজটা চলছে। থামাতে “থামো” বলুন।','s');return}
+  if(smartMode||looksLikePhoneTask(text)){agent(text);return}
   think(text);
 }
 
@@ -405,10 +453,11 @@ function opt(b,label,fn){const o=document.createElement('button');o.className='o
 $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
 function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-3.8-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')}
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
+
 function startVoice(){
   go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();
   // The mic always uses Android SpeechRecognizer (bn-BD). Gemini Live is deliberately not started here.
-  live=false;voiceMode=true;smartMode=false;
+  live=false;voiceMode=true;smartMode=false;errN=0;
   status('বাংলা ভয়েস ইনপুট চালু হচ্ছে…');startListening();
 }
 function openUrl(u){u=/^https?:\/\//i.test(u)?u:'https://'+u;try{if(N&&typeof N.openUrl==='function'){N.openUrl(u);return}}catch(e){}add('লিংক খুলতে অ্যাপের Kotlin অংশে openUrl যোগ করতে হবে। লিংক: '+u,'s');go('chat')}
@@ -443,7 +492,8 @@ document.querySelectorAll('.lk').forEach(el=>{
 on('send',()=>handle($('txt').value));
 $('txt').addEventListener('keydown',e=>{if(e.key==='Enter')handle($('txt').value)});
 on('mic',()=>{
-  if(agentRun||live||voiceMode||$('mic').classList.contains('on')){live=false;voiceMode=false;agentRun=false;stopSpeaking();stopListening();try{if(N&&typeof N.stopLiveVoice==='function')N.stopLiveVoice()}catch(e){}status('বন্ধ করা হয়েছে');return}
+  /* tap while listening or while an agent task runs = stop; otherwise = start listening */
+  if(agentRun||micOn()){live=false;voiceMode=false;agentRun=false;stopSpeaking();stopListening();try{if(N&&typeof N.stopLiveVoice==='function')N.stopLiveVoice()}catch(e){}status('বন্ধ করা হয়েছে');return}
   startVoice()
 });
 on('close',()=>$('set').classList.remove('open'));
