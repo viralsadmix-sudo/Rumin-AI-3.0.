@@ -317,14 +317,14 @@ window.onNativeAiResponse=(id,ok,message)=>{
 };
 function nativeAiRequest(provider,key,msgs,extra){
   return new Promise((resolve,reject)=>{
-    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
+    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native AI সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
-    conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
+    const model=provider==='gemini'?LS.get('rumin_gemini_model','gemini-3.8-flash'):LS.get('rumin_groq_model','llama-3.3-70b-versatile');
     const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,model,system(extra),JSON.stringify(conversation),current,id)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
