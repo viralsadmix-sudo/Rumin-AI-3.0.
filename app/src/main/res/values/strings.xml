@@ -1,2 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources><string name="rumin_accessibility_description">RUMIN AI navigation commands for home, back, recent apps, and notification panel.</string></resources>
+<resources>
+    <string name="rumin_accessibility_description">RUMIN AI: with your explicit request, read visible screen text, capture a screen image for Gemini visual understanding, scroll, and interact with labeled controls. Screen images are sent to Gemini only while carrying out an explicitly requested screen inspection or in-app action; capture is not continuous. Do not enable if you do not want this access.</string>
+</resources>
