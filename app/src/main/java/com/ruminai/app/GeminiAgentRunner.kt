@@ -1,0 +1,676 @@
+package com.ruminai.app
+
+import android.content.Context
+import android.content.Intent
+import android.media.AudioManager
+import android.net.Uri
+import android.provider.AlarmClock
+import android.provider.Settings
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Gemini tool loop with an allow-listed, policy-checked Android execution layer. */
+internal class GeminiAgentRunner(
+    private val activity: MainActivity,
+    private val agentCore: AgentCore
+) {
+    private val taskIds = AtomicLong(System.currentTimeMillis())
+    @Volatile private var nativeActionAttempted = false
+
+    internal fun hasNativeActionAttempted(): Boolean = nativeActionAttempted
+
+    internal fun openAiToolDefinitions(): JSONArray {
+        val result = JSONArray()
+        for (i in 0 until tools.length()) {
+            val source = tools.optJSONObject(i) ?: continue
+            val function = JSONObject()
+                .put("name", source.optString("name"))
+                .put("description", source.optString("description"))
+                .put("parameters", source.optJSONObject("parameters") ?: JSONObject())
+            result.put(JSONObject().put("type", "function").put("function", function))
+        }
+        return result
+    }
+
+    private val tools = JSONArray().apply {
+        put(tool("open_app", "Open any installed app that has a launcher icon when the user asks. Resolve by visible app name; ask if the name is ambiguous. This does not itself complete an action inside that app.",
+            schema("app" to string("Visible name of any installed launcher app, such as Facebook, YouTube, Photos, or Messages"), required = listOf("app"))))
+        put(tool("inspect_screen", "Read visible screen text from the active app. When the user explicitly asks what is on the screen, the current screen image is also attached to the request for visual understanding. Sensitive-looking text values from the accessibility tree are redacted.", schema()))
+        put(tool("screen_interact", "Only when the user explicitly asks for an in-app action: exact visible-label click, focused-field text entry, scroll, swipe, or tap a visible labeled clickable control using coordinates from the current screenshot. Coordinate taps are rejected for unlabeled or sensitive controls. Never interact with send, delete, payment, purchase, transfer, or permission-grant controls.", schema(
+            "action" to enum("Screen action", "click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe"),
+            "text" to string("Exact visible label to click or text for the already-focused input; max 1000 characters"),
+            "x" to integer("Normalized tap X coordinate, 0 to 1000; tap_at only"),
+            "y" to integer("Normalized tap Y coordinate, 0 to 1000; tap_at only"),
+            "x1" to integer("Normalized swipe start X coordinate, 0 to 1000; swipe only"),
+            "y1" to integer("Normalized swipe start Y coordinate, 0 to 1000; swipe only"),
+            "x2" to integer("Normalized swipe end X coordinate, 0 to 1000; swipe only"),
+            "y2" to integer("Normalized swipe end Y coordinate, 0 to 1000; swipe only"),
+            "duration_ms" to integer("Swipe duration 150 to 1200 milliseconds; optional"),
+            required = listOf("action")
+        )))
+        put(tool("remember_fact", "Save a user fact or preference to encrypted on-device memory only when the user explicitly asks Rumin to remember it. Never save passwords, OTPs, phone numbers, email addresses, payment data, or other credentials.",
+            schema("fact" to string("One explicit user-approved preference or fact, 1-400 characters"), required = listOf("fact"))))
+        put(tool("recall_saved_facts", "Retrieve user-approved saved facts from encrypted on-device memory when the user asks what Rumin remembers or asks for a task to use their saved preferences. Do not call for unrelated requests.", schema()))
+        put(tool("get_recent_actions", "Read recent redacted Rumin task states for recovery and diagnostics. Does not replay actions.", schema()))
+        put(tool("github_repo_status", "Read public status of the configured Rumin GitHub repository and open pull requests. Read-only; cannot edit files or branches.", schema()))
+        put(tool("phone_navigation", "Perform one basic navigation action when explicitly requested. Requires RUMIN Accessibility service.",
+            schema("action" to enum("Navigation action", "back", "home", "recents", "notifications", "quicksettings"), required = listOf("action"))))
+        put(tool("adjust_volume", "Adjust media volume one step, mute, or unmute when explicitly requested.",
+            schema("action" to enum("Volume action", "up", "down", "mute", "unmute"), required = listOf("action"))))
+        put(tool("open_settings", "Open an Android settings page. Opening a page does not grant a permission or change a setting.",
+            schema("page" to enum("Settings page", "system", "wifi", "bluetooth", "display", "sound", "accessibility", "notification_access", "app_permissions", "write_settings", "text_to_speech"), required = listOf("page"))))
+        put(tool("create_alarm", "Open Clock with an alarm time prefilled. User must confirm/save it; do not claim it is saved.",
+            schema("hour" to integer("Hour 0-23"), "minute" to integer("Minute 0-59"), "label" to string("Optional label"), required = listOf("hour", "minute"))))
+        put(tool("create_timer", "Open Clock with a timer prefilled. User may need to confirm/start it.",
+            schema("seconds" to integer("Duration 1-86400 seconds"), "label" to string("Optional label"), required = listOf("seconds"))))
+        put(tool("open_dialer", "Open the phone dialer, optionally with a number filled in. Never place a call.",
+            schema("phone_number" to string("Optional phone number"))))
+        put(tool("compose_sms_draft", "Open an SMS draft addressed to the supplied number. Never send it; user must review and press Send.",
+            schema("phone_number" to string("Recipient phone number"), "message" to string("Draft message, max 1000 characters"), required = listOf("phone_number", "message"))))
+    }
+
+    init { recoverInterruptedTask() }
+
+    fun run(apiKey: String, prompt: String): String {
+        nativeActionAttempted = false
+        val safePrompt = """
+            # RUMIN AI 3.0 — UNIVERSAL PERSONAL AGENT
+
+            তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত AI ফোন অ্যাসিস্ট্যান্ট। ব্যবহারকারীকে 'বস' বলে সম্বোধন করবে এবং স্বাভাবিক, পরিষ্কার বাংলাদেশি বাংলায় উত্তর দেবে। বাংলা, ইংরেজি, বাংলা-ইংরেজি মিশ্র ভাষা ও কথ্য বাক্য বুঝবে।
+
+            ## ১. Universal Understanding
+            - নির্দিষ্ট keyword বা মুখস্থ command-এর ওপর নির্ভর করবে না; বাক্যের অর্থ, উদ্দেশ্য ও কথোপকথনের প্রেক্ষাপট বুঝবে।
+            - একই উদ্দেশ্যের ভিন্ন বাক্যকে একই intent হিসেবে ধরবে। যেমন: ফেসবুক খোলো/ফেসবুকে নিয়ে চলো = open_app(app="Facebook"); ইউটিউব চালাও/ইউটিউবে যাও = open_app(app="YouTube")।
+            - ব্যবহারকারীর অনুরোধ থেকে লক্ষ্য, অ্যাপ, লেখা, সময়, নম্বর, স্থান এবং প্রয়োজনীয় শর্ত আলাদা করে শনাক্ত করবে।
+            - প্রাসঙ্গিক ও নির্ভরযোগ্য পূর্ববর্তী context ব্যবহার করবে; তথ্য না থাকলে বানিয়ে নেবে না। অপরিহার্য তথ্য অনুপস্থিত বা একাধিক অর্থ সম্ভব হলে একটি সংক্ষিপ্ত, নির্দিষ্ট প্রশ্ন করবে।
+            - অনুমান করলে সেটিকে অনুমান হিসেবে জানাবে; অনিশ্চিত তথ্যকে নিশ্চিত বলে উপস্থাপন করবে না।
+
+            ## ২. Personal Memory
+            - ব্যবহারকারী স্পষ্টভাবে "মনে রাখো/মনে রেখো/remember this" বললে remember_fact ব্যবহার করবে; অনুমতি ছাড়া স্থায়ী তথ্য সংরক্ষণ করবে না।
+            - ব্যবহারকারী কী মনে আছে জানতে চাইলে বা নিজের সংরক্ষিত পছন্দ ব্যবহার করতে বললে recall_saved_facts ব্যবহার করবে; অন্য সাধারণ অনুরোধে অকারণে মেমোরি পড়বে না।
+            - মেমোরি বন্ধ, unreadable বা save ব্যর্থ হলে তা স্পষ্ট জানাবে; সংরক্ষিত হয়েছে বলে দাবি করবে না।
+            - অ্যাপ থেকে বাস্তবে সরবরাহ করা saved memory বা conversation context থাকলে তা প্রাসঙ্গিকভাবে ব্যবহার করবে।
+            - memory context না পেলে কোনো ব্যক্তিগত পছন্দ, অভ্যাস বা অতীত ঘটনা মনে আছে বলে দাবি করবে না।
+            - ব্যবহারকারী স্পষ্টভাবে মনে রাখতে বললে কেবল অ্যাপে উপলভ্য ও অনুমোদিত memory-save ব্যবস্থা থাকলেই সংরক্ষণের চেষ্টা করবে; সফল save result না পেলে সংরক্ষিত হয়েছে বলবে না।
+            - অপ্রয়োজনীয় বা সংবেদনশীল তথ্য নিজে থেকে সংরক্ষণ করবে না। ব্যবহারকারীর অনুমতি ছাড়া ব্যক্তিগত তথ্য অন্যত্র পাঠাবে না।
+            - বর্তমান task-এর সাময়িক তথ্যকে স্থায়ী memory হিসেবে ধরে নেবে না।
+
+            ## ৩. Action Planning & Autonomous Execution
+            - একটি স্বাভাবিক নির্দেশনার মধ্যে একাধিক কাজ থাকলে সেগুলোকে ছোট ছোট ধাপে ভাগ করে dependency ও নিরাপদ ক্রম নির্ধারণ করবে।
+            - প্রতিটি ধাপের জন্য কেবল এই prompt-এ ঘোষিত Function Tool ব্যবহার করবে; Tool নেই এমন ক্ষমতা আছে বলে দাবি করবে না।
+            - প্রয়োজনীয় permission, precondition ও target যাচাই করে কাজ করবে। permission না থাকলে সেটি চালু করার Settings পেজ দেখাতে পারবে; নিজে permission grant করবে না।
+            - UI বা screen বদলায় এমন কাজ একবারে একটি করে করবে। প্রতিটি ধাপের ফল পাওয়ার পর নতুন screen/accessibility তথ্য পর্যবেক্ষণ করে তারপর পরবর্তী ধাপ বেছে নেবে। একই পুরোনো screen দেখে একাধিক অন্ধ tap করবে না।
+            - স্বাধীন, নিরাপদ কাজ ছাড়া একাধিক action অযথা একসঙ্গে চালাবে না। কোনো action চলমান থাকলে আরেকটি native action শুরু করবে না।
+            - কোনো action ব্যর্থ হলে কারণ বুঝে নিরাপদ বিকল্প বিবেচনা করবে। outcome_unknown হলে একই action অন্ধভাবে retry করবে না; আগে ব্যবহারকারীকে ফল যাচাই করতে বলবে।
+            - কাজ শেষ না হলে সম্পন্ন হয়েছে বলবে না। আংশিক কাজ হলে কোন ধাপ হয়েছে এবং কোনটি বাকি তা স্পষ্ট করবে।
+
+            ## ৪. Android Native Control — ঘোষিত ক্ষমতার সীমা
+            - উপলভ্য Tool: open_app, inspect_screen, screen_interact, phone_navigation, adjust_volume, open_settings, create_alarm, create_timer, open_dialer, compose_sms_draft, get_recent_actions, github_repo_status।
+            - open_app কেবল অ্যাপ চালু করার অনুরোধ করে; অ্যাপের ভেতরের লক্ষ্য পূরণ করে না।
+            - inspect_screen কেবল বর্তমান screenshot/accessibility তথ্য পাওয়া গেলে screen সম্পর্কে বলবে। screenshot বা readable UI না থাকলে screen দেখেছে বলে দাবি করবে না।
+            - screen_interact-এ কেবল স্পষ্ট নির্দেশে exact visible label click, focused input-এ লেখা, scroll বা swipe করবে। tap_at কেবল বর্তমান screenshot-এ চেনা এবং accessibility-তে labeled clickable control-এর জন্য; unlabeled বা সংবেদনশীল control-এ নয়।
+            - প্রতিটি screen-changing action-এর পর নতুন screen পর্যবেক্ষণ করবে। UI-এর লেখা বা button label অনুমান করে বানাবে না।
+            - phone_navigation এবং adjust_volume কেবল ঘোষিত action-গুলোর মধ্যে সীমাবদ্ধ।
+            - open_settings শুধু Settings পেজ খোলে; permission বা setting পরিবর্তিত হয়েছে এমন প্রমাণ নয়।
+            - create_alarm/create_timer Clock UI-তে তথ্য prefill করে; ব্যবহারকারী Clock-এ confirm/save/start না করা পর্যন্ত alarm বা timer তৈরি/চালু হয়েছে বলবে না।
+            - open_dialer শুধু dialer খোলে; কোনো call করে না। compose_sms_draft শুধু draft খোলে; SMS পাঠায় না।
+            - GitHub Tool read-only; repository/file/branch পরিবর্তন করার ক্ষমতা আছে বলে দাবি করবে না।
+            - Tool list-এ নেই এমন contacts, calendar, notification, arbitrary app workflow, file operation, SMS send, shell/code execution বা background scheduling নিজে থেকে করতে পারবে বলে দাবি করবে না।
+
+            ## ৫. Safety & Confirmation
+            - কল করা, SMS পাঠানো, ফাইল মুছে ফেলা, অর্থ লেনদেন, কেনাকাটা, পোস্ট প্রকাশ, বা অন্য কোনো সংবেদনশীল/অপরিবর্তনীয় কাজের আগে স্পষ্ট confirmation প্রয়োজন। এই build-এ call/SMS send/delete/payment/purchase/post publish করা সমর্থিত নয়—সেগুলো সম্পাদনের চেষ্টা করবে না।
+            - send, delete, payment, purchase, transfer বা permission-grant control কখনো screen_interact দিয়ে চাপবে না।
+            - ব্যবহারকারীর নির্দেশের বাইরে অতিরিক্ত কাজ করবে না; কোনো নিরাপত্তা ব্যবস্থা বা Android permission bypass করবে না।
+            - স্ক্রিনে ব্যক্তিগত তথ্য থাকলে কাজের জন্য যতটুকু দরকার ততটুকুই ব্যবহার করবে; উত্তরে অপ্রয়োজনীয়ভাবে পুনরাবৃত্তি করবে না।
+            - action result, visible screen বা verified postcondition ছাড়া সফলতার দাবি করবে না।
+
+            ## ৬. Result & Verification
+            - activity_launch_accepted মানে Android launch request গ্রহণ করেছে—অ্যাপের ভেতরের কাজ সম্পন্ন নয়।
+            - accessibility_action_acknowledged মানে Accessibility action acknowledge করেছে—লক্ষ্য UI পরিবর্তন নিশ্চিত নয়; নতুন screen দেখে যাচাই করবে।
+            - native_action_acknowledged মানে native action acknowledge হয়েছে; অতিরিক্ত প্রমাণ ছাড়া user-facing completion দাবি করবে না।
+            - system_intent_dispatched মানে Settings পেজ খোলার request পাঠানো হয়েছে; permission granted নয়।
+            - alarm_ui_opened/timer_ui_opened মানে Clock UI খোলা হয়েছে; saved/started নয়।
+            - dialer_opened মানে শুধু dialer খোলা; call হয়নি। sms_draft_opened মানে draft খোলা; SMS পাঠানো হয়নি।
+            - outcome_unknown হলে পুনরায় চালাবে না; বসকে ফোনে ফলাফল পরীক্ষা করতে বলবে।
+            - verified postcondition না থাকলে ফলাফলকে "চেষ্টা করা হয়েছে" বা "অনুরোধ পাঠানো হয়েছে" হিসেবে বর্ণনা করবে, "সম্পন্ন" নয়।
+            - কাজ ব্যর্থ হলে সংক্ষিপ্ত কারণ, কী বাকি এবং পরবর্তী নিরাপদ পদক্ষেপ জানাবে।
+
+            ## ৭. Communication
+            - ব্যবহারকারীকে অযথা দীর্ঘ ব্যাখ্যা বা একই প্রশ্ন বারবার করবে না।
+            - কাজের আগে প্রয়োজন হলে সংক্ষেপে জানাবে কী করতে যাচ্ছে; কাজের পরে বাস্তব ফল জানাবে।
+            - গোপন chain-of-thought প্রকাশ করবে না; প্রয়োজনে সংক্ষিপ্ত সিদ্ধান্তের কারণ দেবে।
+            - তথ্য নিশ্চিত না হলে স্পষ্টভাবে বলবে যে জানা নেই। তথ্য, অনুমান ও যাচাইকৃত ফল আলাদা রাখবে।
+
+            ## বর্তমান Tool mapping
+            - "আগের পেজে ফেরত যাও/পেছনে যাও" = phone_navigation(action="back"); "হোমে যাও" = phone_navigation(action="home"); "নোটিফিকেশন নামাও" = phone_navigation(action="notifications")।
+            - "ভলিউম বাড়াও/কমাও/মিউট করো" = adjust_volume।
+            - "নিচে নামাও/উপরে ওঠাও" = screen_interact(scroll_down/scroll_up)।
+            - "স্ক্রিনে কী আছে/এখানে কী দেখাচ্ছে/এই পেজটা পড়ে বলো/কোন বাটন আছে" = inspect_screen।
+            - "অ্যালার্ম দাও" = create_alarm (সময় না জানলে জিজ্ঞেস করবে); "টাইমার চালু করো" = create_timer (সময় না জানলে জিজ্ঞেস করবে)।
+            - "সেটিংস খোলো" = open_settings।
+            - "এটা মনে রাখো/আমার পছন্দ মনে রেখো" = remember_fact(fact); "আমি তোমাকে কী কী মনে রাখতে বলেছি" = recall_saved_facts.\n            - Tool argument অবশ্যই schema অনুযায়ী হবে; প্রয়োজনীয় তথ্য অনুপস্থিত হলে নিজে থেকে বানাবে না।
+
+            ## বর্তমান ব্যবহারকারীর অনুরোধ ও কথোপকথনের প্রেক্ষাপট
+            ${prompt.replace("\\n", "\n")}
+        """.trimIndent()
+
+        val latestRequest = prompt.substringAfterLast("ব্যবহারকারী:").trim().lowercase()
+        val screenIntents = listOf(
+            "স্ক্রিন", "স্ক্রীন", "স্কিন", "screen", "display",
+            "এখানে কী", "এখানে কি", "এখানে কী আছে", "এখানে কি আছে", "এখানে কী লেখা", "এখানে কি লেখা",
+            "কি দেখাচ্ছে", "কী দেখাচ্ছে", "কী দেখা যাচ্ছে", "কি দেখা যাচ্ছে", "কেমন দেখাচ্ছে",
+            "সামনে কী", "সামনে কি", "কী দেখছ", "কি দেখছ", "দেখে বল", "দেখে বলো", "দেখে আমাকে বল",
+            "পড়ে বল", "পড়ে বল", "পড়ে শোনাও", "পেজটা", "এই পেজ", "এই পেইজ", "বর্তমান পেজ", "হোমটা",
+            "কোন বাটন", "কোথায়", "কোথায়", "কোথায় চাপ", "কোথায় চাপ", "এইটা কী", "এটা কী", "এটা কি",
+            "স্ক্রিনে", "স্ক্রীনে", "পর্দায়", "পর্দায়", "এই অ্যাপে কী", "এই অ্যাপের",
+            "স্ক্রল", "scroll", "ট্যাপ", "tap", "ক্লিক", "click", "swipe", "টাইপ", "type"
+        )
+        val screenRequested = screenIntents.any { latestRequest.contains(it) }
+        val initialContent = JSONArray().put(JSONObject().put("type", "text").put("text", safePrompt))
+        if (screenRequested) {
+            val screenshot = RuminAccessibilityService.captureScreenJpegBase64()
+            if (!screenshot.isNullOrBlank()) {
+                initialContent.put(JSONObject().put("type", "image").put("mime_type", "image/jpeg").put("data", screenshot))
+            } else {
+                initialContent.put(JSONObject().put("type", "text").put("text",
+                    RuminAccessibilityService.screenshotStatus() + " স্ক্রিন দেখেছ বলে দাবি করবে না; accessibility text পাওয়া গেলে শুধু সেটুকু দিয়ে উত্তর দাও।"))
+            }
+        }
+        val input = JSONArray().put(JSONObject().put("type", "user_input").put("content", initialContent))
+        var response = post(apiKey, JSONObject().put("model", MODEL).put("store", false).put("input", input).put("tools", tools))
+
+        repeat(MAX_TOOL_ROUNDS) {
+            val steps = response.optJSONArray("steps") ?: response.optJSONArray("output") ?: JSONArray()
+            val modelSteps = (0 until steps.length()).mapNotNull { steps.optJSONObject(it) }
+            val calls = modelSteps.filter { it.optString("type") == "function_call" }
+            if (calls.isEmpty()) return extractText(response)
+
+            // Stateless mode requires the initial user_input plus every model step verbatim.
+            modelSteps.forEach { input.put(it) }
+            var screenMayHaveChanged = false
+            var screenWasInspected = false
+            calls.forEachIndexed { index, call ->
+                val name = call.optString("name")
+                val callId = call.optString("id").ifBlank { call.optString("call_id") }
+                val result = when {
+                    callId.isBlank() -> fail("Gemini Tool call-এর ID নেই; চালানো হয়নি।", "invalid_call")
+                    index >= MAX_CALLS_PER_ROUND -> fail("এক পর্যবেক্ষণ ধাপে একটিমাত্র Tool চালানো যায়; পরবর্তী কাজের আগে নতুন screen/context পর্যবেক্ষণ করতে হবে।", "tool_limit")
+                    else -> executeTool(name, parseArgs(call.opt("arguments")))
+                }
+                if (name == "inspect_screen") screenWasInspected = true
+                if (name == "screen_interact" || name == "open_app" || name == "phone_navigation" || name == "open_settings") {
+                    screenMayHaveChanged = true
+                }
+                input.put(JSONObject().put("type", "function_result").put("name", name).put("call_id", callId)
+                    .put("result", JSONArray().put(JSONObject().put("type", "text").put("text", result.toString()))))
+            }
+            if (screenMayHaveChanged || screenWasInspected) {
+                // Allow the UI to settle and respect Android's screenshot interval limit.
+                try { Thread.sleep(1100) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+                val updatedScreen = RuminAccessibilityService.captureScreenJpegBase64()
+                val screenNote = if (screenMayHaveChanged)
+                    "সর্বশেষ UI action-এর পরের বর্তমান স্ক্রিন। আগের action-এর ফল যাচাই করে তারপর পরবর্তী কাজ বেছে নাও।"
+                else
+                    "বস স্ক্রিন দেখতে বলেছেন। এই screenshot এবং আগের inspect_screen accessibility text একসাথে দেখে উত্তর দাও।"
+                if (!updatedScreen.isNullOrBlank()) {
+                    input.put(JSONObject().put("type", "user_input").put("content", JSONArray()
+                        .put(JSONObject().put("type", "text").put("text", screenNote))
+                        .put(JSONObject().put("type", "image").put("mime_type", "image/jpeg").put("data", updatedScreen))))
+                } else {
+                    input.put(JSONObject().put("type", "user_input").put("content", JSONArray().put(
+                        JSONObject().put("type", "text").put("text", RuminAccessibilityService.screenshotStatus() +
+                            " Screenshot পাওয়া যায়নি। accessibility text যতটুকু আছে শুধু ততটুকু ব্যবহার করো; ছবি দেখেছ বলে দাবি করবে না."))))
+                }
+            }
+            response = post(apiKey, JSONObject().put("model", MODEL).put("store", false).put("input", input).put("tools", tools))
+        }
+        return extractText(response).ifBlank {
+            "বস, নিরাপত্তার জন্য Agent Tool ধাপের সীমায় থেমেছি। শেষ ফলাফল সম্পূর্ণ যাচাই করা যায়নি।"
+        }
+    }
+
+    internal fun executeTool(name: String, args: JSONObject): JSONObject {
+        // Read-only diagnostics do not enter the Native action lifecycle.
+        if (name == "remember_fact") {
+            val fact = args.optString("fact").trim()
+            if (fact.isBlank() || fact.length > 400) return fail("মনে রাখার তথ্য ১–৪০০ অক্ষরের মধ্যে হতে হবে।", "invalid_arguments")
+            return activity.nativeMemoryStore.rememberFact(fact)
+        }
+        if (name == "recall_saved_facts") return activity.nativeMemoryStore.recallSavedFacts()
+        if (name == "get_recent_actions") return recentAuditJsonObject()
+        if (name == "github_repo_status") return GitHubAgent().repoStatus()
+
+        val taskId = "rumin-tool-${taskIds.incrementAndGet()}"
+        val action: String
+        val category: String
+        var first: String
+        val second: String
+
+        when (name) {
+            "open_app" -> {
+                action = "open_app"; category = "command"; first = args.optString("app").trim(); second = ""
+                if (first.isBlank() || first.length > 80) return fail("অ্যাপের দৃশ্যমান নাম ১–৮০ অক্ষরের মধ্যে দিন।", "invalid_arguments")
+            }
+            "inspect_screen" -> { action = "inspect_screen"; category = "accessibility"; first = ""; second = "" }
+            "screen_interact" -> {
+                action = args.optString("action").trim().lowercase()
+                first = args.optString("text")
+                second = ""
+                if (action !in setOf("click_text", "type_text", "scroll_down", "scroll_up", "tap_at", "swipe")) {
+                    return fail("এই screen action অনুমোদিত নয়।", "rejected")
+                }
+                if (action == "click_text" && (first.isBlank() || first.length > 120)) {
+                    return fail("চাপ দেওয়ার জন্য নির্দিষ্ট দৃশ্যমান লেখা দিন (সর্বোচ্চ ১২০ অক্ষর)।", "invalid_arguments")
+                }
+                if (action == "type_text" && (first.isBlank() || first.length > 1000)) {
+                    return fail("ফোকাস করা ইনপুটে লেখার জন্য ১–১০০০ অক্ষরের টেক্সট দিন।", "invalid_arguments")
+                }
+                if (action == "tap_at") {
+                    val x = args.optInt("x", -1); val y = args.optInt("y", -1)
+                    if (x !in 0..1000 || y !in 0..1000) return fail("Tap coordinate ০–১০০০ সীমার মধ্যে দিতে হবে।", "invalid_arguments")
+                    first = "$x|$y"
+                }
+                if (action == "swipe") {
+                    val coords = listOf(args.optInt("x1", -1), args.optInt("y1", -1), args.optInt("x2", -1), args.optInt("y2", -1))
+                    if (coords.any { it !in 0..1000 }) return fail("Swipe-এর চারটি coordinate ০–১০০০ সীমার মধ্যে দিতে হবে।", "invalid_arguments")
+                    first = coords.joinToString("|") + "|" + args.optInt("duration_ms", 350).coerceIn(150, 1200)
+                }
+                category = "accessibility"
+            }
+            "phone_navigation" -> {
+                first = args.optString("action").trim().lowercase()
+                action = mapOf("back" to "back", "home" to "home", "recents" to "recents", "notifications" to "notifications", "quicksettings" to "quicksettings")[first]
+                    ?: return fail("অজানা নেভিগেশন কমান্ড প্রত্যাখ্যান করা হয়েছে।", "rejected")
+                category = "accessibility"; second = ""
+            }
+            "adjust_volume" -> {
+                first = args.optString("action").trim().lowercase()
+                action = mapOf("up" to "volumeup", "down" to "volumedown", "mute" to "volumemute", "unmute" to "volumeunmute")[first]
+                    ?: return fail("অজানা ভলিউম কমান্ড প্রত্যাখ্যান করা হয়েছে।", "rejected")
+                category = "command"; second = ""
+            }
+            "open_settings" -> {
+                first = args.optString("page").trim().lowercase()
+                action = mapOf("system" to "settings", "wifi" to "wifi", "bluetooth" to "bluetooth", "display" to "display",
+                    "sound" to "sound", "accessibility" to "accessibility", "notification_access" to "notificationaccess",
+                    "app_permissions" to "apppermissions", "write_settings" to "writesettings", "text_to_speech" to "ttssettings")[first]
+                    ?: return fail("অজানা Settings পেজ প্রত্যাখ্যান করা হয়েছে।", "rejected")
+                category = "command"; second = ""
+            }
+            "create_alarm" -> {
+                val hour = args.optInt("hour", -1); val minute = args.optInt("minute", -1)
+                if (hour !in 0..23 || minute !in 0..59) return fail("অ্যালার্মের সময় সঠিক নয়।", "invalid_arguments")
+                action = "alarm"; category = "command"; first = hour.toString()
+                second = minute.toString() + "|" + args.optString("label").take(80)
+            }
+            "create_timer" -> {
+                val seconds = args.optInt("seconds", -1)
+                if (seconds !in 1..86400) return fail("টাইমার ১ সেকেন্ড থেকে ২৪ ঘণ্টার মধ্যে হতে হবে।", "invalid_arguments")
+                action = "timer"; category = "command"; first = seconds.toString(); second = args.optString("label").take(80)
+            }
+            "open_dialer" -> {
+                first = args.optString("phone_number").trim()
+                if (first.isNotBlank() && !PHONE_PATTERN.matches(first)) return fail("ফোন নম্বরের ফরম্যাট সঠিক নয়।", "invalid_arguments")
+                action = if (first.isBlank()) "dialer" else "call"; category = "command"; second = ""
+            }
+            "compose_sms_draft" -> {
+                first = args.optString("phone_number").trim(); second = args.optString("message")
+                if (!PHONE_PATTERN.matches(first) || second.isBlank() || second.length > 1000) return fail("SMS খসড়ার নম্বর বা বার্তা সঠিক নয়।", "invalid_arguments")
+                action = "sms"; category = "command"
+            }
+            else -> return fail("অজানা Tool প্রত্যাখ্যান করা হয়েছে।", "unknown_tool")
+        }
+
+        if (!agentCore.begin(action, first, second, category, taskId)) {
+            audit(taskId, action, "rejected")
+            return fail("Agent Tool Registry এই কাজটি অনুমোদন করেনি।", "registry_rejected")
+        }
+        audit(taskId, action, "running")
+        nativeActionAttempted = true
+        val result = dispatch(taskId, name, action, first, second)
+        val verified = result.optBoolean("ok", false) && result.optString("verification").isNotBlank()
+        agentCore.complete(taskId, verified, result.optString("message"))
+        audit(taskId, action, if (verified) "succeeded" else "failed")
+        return result
+    }
+
+    private fun dispatch(taskId: String, tool: String, action: String, first: String, second: String): JSONObject {
+        val latch = CountDownLatch(1)
+        val cancelled = AtomicBoolean(false)
+        val started = AtomicBoolean(false)
+        val result = AtomicReference<JSONObject?>()
+        activity.runOnUiThread {
+            if (cancelled.get()) { latch.countDown(); return@runOnUiThread }
+            started.set(true)
+            try {
+                result.set(when (tool) {
+                    "open_app" -> openApp(first)
+                    "inspect_screen" -> inspectScreen()
+                    "screen_interact" -> RuminAccessibilityService.nativeAction(action, first).also { if (it.optBoolean("ok") && it.optString("verification").isBlank()) it.put("verification", "accessibility_action_acknowledged") }
+                    "phone_navigation" -> {
+                        val native = RuminAccessibilityService.nativeAction(action, "")
+                        if (native.optBoolean("ok")) native.put("verification", "native_action_acknowledged")
+                        native
+                    }
+                    "adjust_volume" -> adjustVolume(action)
+                    "open_settings" -> openSettings(action)
+                    "create_alarm" -> createAlarm(first.toInt(), second.substringBefore("|").toInt(), second.substringAfter("|", ""))
+                    "create_timer" -> createTimer(first.toInt(), second)
+                    "open_dialer" -> openDialer(first)
+                    "compose_sms_draft" -> composeSmsDraft(first, second)
+                    else -> fail("Tool সমর্থিত নয়।", "unsupported")
+                })
+            } catch (e: Exception) {
+                result.set(fail("Native action ব্যর্থ হয়েছে: ${e.message ?: "অজানা সমস্যা"}", "native_error"))
+            } finally { latch.countDown() }
+        }
+        if (!latch.await(TOOL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            cancelled.set(true)
+            val message = if (started.get())
+                "Native action শুরু হয়েছিল কিন্তু ফলাফল সময়মতো পাওয়া যায়নি। একই কাজ আবার চালানো হয়নি; ফোনে ফলাফল পরীক্ষা করুন।"
+            else "Native action শুরু হওয়ার আগেই সময় শেষ হয়েছে; এটি চালানো হয়নি।"
+            return JSONObject().put("ok", false).put("message", message).put("verification", "outcome_unknown").put("retry_safe", false)
+        }
+        return result.get() ?: fail("Native action কোনো ফলাফল দেয়নি।", "empty_result")
+    }
+
+    private fun openApp(app: String): JSONObject {
+        val intent = when (app) {
+            "youtube" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.youtube") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))
+            "facebook" -> activity.packageManager.getLaunchIntentForPackage("com.facebook.katana") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com"))
+            "whatsapp" -> activity.packageManager.getLaunchIntentForPackage("com.whatsapp") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))
+            "instagram" -> activity.packageManager.getLaunchIntentForPackage("com.instagram.android") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))
+            "gmail" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.gm") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))
+            "maps" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.apps.maps") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))
+            "camera" -> Intent("android.media.action.IMAGE_CAPTURE")
+            "settings" -> Intent(Settings.ACTION_SETTINGS)
+            "browser" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+            "playstore" -> activity.packageManager.getLaunchIntentForPackage("com.android.vending") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))
+            "github" -> activity.packageManager.getLaunchIntentForPackage("com.github.android") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com"))
+            "messages" -> activity.packageManager.getLaunchIntentForPackage("com.google.android.apps.messaging")
+                ?: activity.packageManager.getLaunchIntentForPackage("com.android.messaging")
+                ?: Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING)
+            else -> return openInstalledApp(app)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.startActivity(intent)
+        return JSONObject().put("ok", true).put("message", "$app খোলার অনুরোধ Android গ্রহণ করেছে।").put("verification", "activity_launch_accepted")
+    }
+
+    private fun openInstalledApp(appName: String): JSONObject {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = activity.packageManager.queryIntentActivities(launcher, 0)
+        val visibleApps = activities.distinctBy { it.activityInfo.packageName }
+        val exact = visibleApps.filter { it.loadLabel(activity.packageManager).toString().equals(appName, ignoreCase = true) }
+        val matches = if (exact.isNotEmpty()) exact else visibleApps.filter {
+            it.loadLabel(activity.packageManager).toString().contains(appName, ignoreCase = true)
+        }
+        if (matches.isEmpty()) return fail("‘$appName’ নামে launcher-এ থাকা কোনো ইনস্টল করা অ্যাপ পাওয়া যায়নি।", "app_not_found")
+        if (matches.size > 1) {
+            val labels = matches.take(6).joinToString(", ") { it.loadLabel(activity.packageManager).toString() }
+            return fail("‘$appName’ নামে একাধিক অ্যাপ আছে: $labels। সঠিক অ্যাপের নাম বলুন।", "ambiguous_app")
+        }
+        val packageName = matches.first().activityInfo.packageName
+        val intent = activity.packageManager.getLaunchIntentForPackage(packageName)
+            ?: return fail("‘$appName’ অ্যাপের launch intent পাওয়া যায়নি।", "app_not_launchable")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.startActivity(intent)
+        val label = matches.first().loadLabel(activity.packageManager).toString()
+        return JSONObject().put("ok", true).put("message", "‘$label’ খোলার অনুরোধ Android গ্রহণ করেছে।")
+            .put("verification", "activity_launch_accepted")
+    }
+
+    private fun inspectScreen(): JSONObject {
+        val raw = RuminAccessibilityService.nativeAction("inspect_screen", "")
+        if (!raw.optBoolean("ok")) return raw.put("verification", "screen_unavailable")
+        val source = raw.optJSONArray("items") ?: JSONArray()
+        val safe = JSONArray()
+        for (i in 0 until source.length()) {
+            val line = source.optString(i).trim()
+            if (line.isBlank()) continue
+            val lower = line.lowercase()
+            val sensitive = listOf("password", "passcode", "otp", "verification code", "pin code", "পাসওয়ার্ড", "পাসওয়ার্ড", "ওটিপি", "যাচাইকরণ কোড", "পিন").any { lower.contains(it) }
+            val redacted = when {
+                sensitive -> "[সংবেদনশীল তথ্য আড়াল করা হয়েছে]"
+                EMAIL_PATTERN.containsMatchIn(line) -> EMAIL_PATTERN.replace(line, "[ইমেইল আড়াল]")
+                PHONE_IN_TEXT.containsMatchIn(line) -> PHONE_IN_TEXT.replace(line, "[নম্বর আড়াল]")
+                LONG_DIGITS.containsMatchIn(line) -> LONG_DIGITS.replace(line, "[সংখ্যা আড়াল]")
+                else -> line.take(160)
+            }
+            safe.put(redacted)
+            if (safe.length() >= 80) break
+        }
+        return JSONObject().put("ok", true).put("items", safe)
+            .put("message", if (safe.length() == 0) "স্ক্রিনের লেখা পাওয়া যায়নি।" else "সংবেদনশীল অংশ আড়াল করে স্ক্রিনের লেখা পড়েছি।")
+            .put("verification", "screen_observed")
+    }
+
+    private fun adjustVolume(action: String): JSONObject {
+        val audio = activity.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val adjustment = when (action) {
+            "volumeup" -> AudioManager.ADJUST_RAISE
+            "volumedown" -> AudioManager.ADJUST_LOWER
+            "volumemute" -> AudioManager.ADJUST_MUTE
+            "volumeunmute" -> AudioManager.ADJUST_UNMUTE
+            else -> return fail("ভলিউম কমান্ডটি সমর্থিত নয়।", "rejected")
+        }
+        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustment, AudioManager.FLAG_SHOW_UI)
+        return JSONObject().put("ok", true).put("current_media_volume", audio.getStreamVolume(AudioManager.STREAM_MUSIC))
+            .put("message", "মিডিয়া ভলিউম কমান্ড Android গ্রহণ করেছে।").put("verification", "volume_adjusted")
+    }
+
+    private fun openSettings(action: String): JSONObject {
+        val intent = when (action) {
+            "settings" -> Intent(Settings.ACTION_SETTINGS)
+            "wifi" -> Intent(Settings.ACTION_WIFI_SETTINGS)
+            "bluetooth" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+            "display" -> Intent(Settings.ACTION_DISPLAY_SETTINGS)
+            "sound" -> Intent(Settings.ACTION_SOUND_SETTINGS)
+            "accessibility" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "notificationaccess" -> Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            "apppermissions" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))
+            "writesettings" -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${activity.packageName}"))
+            "ttssettings" -> Intent("com.android.settings.TTS_SETTINGS")
+            else -> return fail("Settings পেজটি সমর্থিত নয়।", "rejected")
+        }
+        activity.startActivity(intent)
+        return JSONObject().put("ok", true).put("message", "Android Settings পেজ খোলার অনুরোধ গ্রহণ করেছে; কোনো অনুমতি নিজে থেকে দেওয়া হয়নি.")
+            .put("verification", "system_intent_dispatched")
+    }
+
+    private fun createAlarm(hour: Int, minute: Int, label: String): JSONObject {
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, hour); putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+        }
+        activity.startActivity(intent)
+        val time = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+        return JSONObject().put("ok", true).put("message", "Clock অ্যাপে $time সময়টি প্রস্তাব করে খুলেছি। সেখানে Save/Confirm করতে হবে.")
+            .put("verification", "alarm_ui_opened")
+    }
+
+    private fun createTimer(seconds: Int, label: String): JSONObject {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+            putExtra(AlarmClock.EXTRA_MESSAGE, label.ifBlank { "Rumin AI Timer" })
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+        }
+        activity.startActivity(intent)
+        return JSONObject().put("ok", true).put("message", "Clock অ্যাপে $seconds সেকেন্ডের Timer প্রস্তাব করে খুলেছি। প্রয়োজনে Start/Confirm করতে হবে.")
+            .put("verification", "timer_ui_opened")
+    }
+
+    private fun openDialer(phone: String): JSONObject {
+        val intent = if (phone.isBlank()) Intent(Intent.ACTION_DIAL) else Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null))
+        activity.startActivity(intent)
+        return JSONObject().put("ok", true).put("message", if (phone.isBlank()) "ডায়ালার খুলেছি; কল করা হয়নি।" else "নম্বরটি ডায়ালারে দেখিয়েছি; কল করা হয়নি।")
+            .put("verification", "dialer_opened")
+    }
+
+    private fun composeSmsDraft(phone: String, message: String): JSONObject {
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", phone, null)).apply { putExtra("sms_body", message) }
+        activity.startActivity(intent)
+        return JSONObject().put("ok", true).put("message", "SMS অ্যাপে খসড়া খুলেছি। বার্তা পাঠানো হয়নি; পাঠানোর আগে বস নিজে যাচাই করবেন.")
+            .put("verification", "sms_draft_opened")
+    }
+
+
+    private fun recentAuditJsonObject(): JSONObject {
+        val events = try { JSONArray(auditPrefs().getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+        val recent = JSONArray()
+        for (i in (events.length() - 30).coerceAtLeast(0) until events.length()) {
+            val item = events.optJSONObject(i) ?: continue
+            recent.put(JSONObject()
+                .put("time", item.optLong("time"))
+                .put("task_id", item.optString("task_id"))
+                .put("action", item.optString("action"))
+                .put("state", item.optString("state")))
+        }
+        val active = auditPrefs().getString(KEY_ACTIVE_TASK, null)
+        return JSONObject().put("ok", true).put("events", recent)
+            .put("active_task", active ?: JSONObject.NULL)
+            .put("message", "সর্বশেষ redacted action log পড়েছি; কোনো কাজ পুনরায় চালানো হয়নি।")
+            .put("verification", "audit_log_read")
+    }
+
+    private fun recoverInterruptedTask() {
+        val prefs = auditPrefs()
+        val active = prefs.getString(KEY_ACTIVE_TASK, null) ?: return
+        if (active.isNotBlank()) audit(active, "unknown", "interrupted")
+        prefs.edit().remove(KEY_ACTIVE_TASK).apply()
+    }
+
+    /** Bounded, persistent and deliberately redacted: no arguments, phone numbers, messages or screen text. */
+    private fun audit(taskId: String, action: String, state: String) = recordAudit(activity, taskId, action, state)
+
+    private fun auditPrefs() = activity.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+
+    private fun parseArgs(value: Any?): JSONObject = when (value) {
+        is JSONObject -> value
+        is String -> try { JSONObject(value) } catch (_: Exception) { JSONObject() }
+        else -> JSONObject()
+    }
+
+    private fun fail(message: String, code: String) =
+        JSONObject().put("ok", false).put("message", message).put("verification", code)
+
+    private fun tool(name: String, description: String, parameters: JSONObject) =
+        JSONObject().put("type", "function").put("name", name).put("description", description).put("parameters", parameters)
+
+    private fun schema(vararg fields: Pair<String, JSONObject>, required: List<String> = emptyList()): JSONObject {
+        val properties = JSONObject()
+        fields.forEach { properties.put(it.first, it.second) }
+        return JSONObject().put("type", "object").put("properties", properties).put("required", JSONArray(required))
+    }
+
+    private fun string(description: String) = JSONObject().put("type", "string").put("description", description)
+    private fun integer(description: String) = JSONObject().put("type", "integer").put("description", description)
+    private fun enum(description: String, vararg values: String) =
+        JSONObject().put("type", "string").put("description", description).put("enum", JSONArray(values.toList()))
+
+    private fun post(apiKey: String, body: JSONObject): JSONObject {
+        val connection = URL(INTERACTIONS_URL).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"; connection.connectTimeout = 20000; connection.readTimeout = 45000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.setRequestProperty("x-goog-api-key", apiKey)
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            val parsed = try { JSONObject(raw) } catch (_: Exception) { JSONObject() }
+            if (status !in 200..299) {
+                val detail = parsed.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() } ?: "HTTP $status"
+                throw IllegalStateException("Gemini API HTTP $status: $detail")
+            }
+            return parsed
+        } finally { connection.disconnect() }
+    }
+
+    private fun extractText(response: JSONObject): String {
+        response.optString("output_text").takeIf { it.isNotBlank() }?.let { return it }
+        val parts = mutableListOf<String>()
+        fun collect(array: JSONArray?) {
+            if (array == null) return
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                if (item.optString("type") == "text") item.optString("text").takeIf { it.isNotBlank() }?.let(parts::add)
+                collect(item.optJSONArray("content"))
+            }
+        }
+        collect(response.optJSONArray("output"))
+        if (parts.isEmpty()) collect(response.optJSONArray("steps"))
+        return parts.joinToString("\n")
+    }
+
+    companion object {
+        fun recordAudit(context: Context, taskId: String, action: String, state: String) {
+            if (taskId.isBlank()) return
+            val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+            val old = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+            old.put(JSONObject().put("time", System.currentTimeMillis())
+                .put("task_id", taskId.take(80)).put("action", action.take(80)).put("state", state.take(40)))
+            val bounded = JSONArray()
+            for (i in (old.length() - MAX_EVENTS).coerceAtLeast(0) until old.length()) bounded.put(old.getJSONObject(i))
+            val editor = prefs.edit().putString(KEY_EVENTS, bounded.toString())
+            if (state == "running") editor.putString(KEY_ACTIVE_TASK, taskId)
+            else if (prefs.getString(KEY_ACTIVE_TASK, null) == taskId) editor.remove(KEY_ACTIVE_TASK)
+            editor.apply()
+        }
+
+        fun readAuditJson(context: Context): String {
+            val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+            val events = try { JSONArray(prefs.getString(KEY_EVENTS, "[]")) } catch (_: Exception) { JSONArray() }
+            val recent = JSONArray()
+            for (i in (events.length() - 30).coerceAtLeast(0) until events.length()) {
+                val item = events.optJSONObject(i) ?: continue
+                recent.put(JSONObject().put("time", item.optLong("time"))
+                    .put("task_id", item.optString("task_id"))
+                    .put("action", item.optString("action"))
+                    .put("state", item.optString("state")))
+            }
+            return JSONObject().put("ok", true).put("events", recent)
+                .put("active_task", prefs.getString(KEY_ACTIVE_TASK, null) ?: JSONObject.NULL)
+                .put("message", "সর্বশেষ redacted action log পড়েছি; কোনো কাজ পুনরায় চালানো হয়নি।")
+                .put("verification", "audit_log_read").toString()
+        }
+
+        fun clearAuditLog(context: Context): JSONObject {
+            return try {
+                val prefs = context.getSharedPreferences(AUDIT_PREFS, Context.MODE_PRIVATE)
+                val active = prefs.getString(KEY_ACTIVE_TASK, null)
+                val editor = prefs.edit().remove(KEY_EVENTS)
+                if (!active.isNullOrBlank()) editor.putString(KEY_EVENTS, JSONArray().put(
+                    JSONObject().put("time", System.currentTimeMillis())
+                        .put("task_id", active).put("action", "unknown").put("state", "running")
+                ).toString())
+                editor.apply()
+                JSONObject().put("ok", true).put("message", "Redacted agent log পরিষ্কার করা হয়েছে।")
+            } catch (e: Exception) {
+                JSONObject().put("ok", false).put("message", e.message ?: "Log clear failed")
+            }
+        }
+        private const val MODEL = "gemini-3.8-flash"
+        private const val INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
+        private const val MAX_TOOL_ROUNDS = 8
+        private const val MAX_CALLS_PER_ROUND = 1
+        private const val TOOL_TIMEOUT_SECONDS = 15L
+        private const val AUDIT_PREFS = "rumin_agent_audit"
+        private const val KEY_EVENTS = "events"
+        private const val KEY_ACTIVE_TASK = "active_task"
+        private const val MAX_EVENTS = 120
+        private val PHONE_PATTERN = Regex("^[+0-9*#]{3,20}$")
+        private val PHONE_IN_TEXT = Regex("(?<!\\w)(?:\\+?\\d[\\d .()/-]{7,}\\d)(?!\\w)")
+        private val EMAIL_PATTERN = Regex("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", RegexOption.IGNORE_CASE)
+        private val LONG_DIGITS = Regex("(?<!\\d)\\d{4,8}(?!\\d)")
+    }
+}
