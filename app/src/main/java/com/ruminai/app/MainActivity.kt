@@ -213,7 +213,9 @@ class MainActivity : ComponentActivity() {
 
         val registry = ToolRegistry(PhoneAccessibilityTools().asAgentTools())
         val planner = GeminiAgentPlanner({ credentialStore.readGeminiApiKey() }, registry) { memoryStore.readAll().map { it.text } }
-        val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {\n            override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }\n        })
+        val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {
+            override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }
+        })
         val progress = AlertDialog.Builder(this)
             .setMessage("রুমিন কাজটি বুঝে পরিকল্পনা তৈরি করছে...")
             .setCancelable(false)
