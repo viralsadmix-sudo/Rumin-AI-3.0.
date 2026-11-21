@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.os.Bundle
+import android.content.Intent
 
 /**
  * User-enabled bridge for narrowly scoped, explicit phone-control tools.
@@ -26,6 +27,15 @@ class PhoneAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         if (activeService === this) activeService = null
         super.onDestroy()
+    }
+
+
+    /** Launches an installed app by package name; caller must obtain user approval first. */
+    fun launchApp(packageName: String): Boolean {
+        if (!packageName.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+"))) return false
+        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return false
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { startActivity(intent); true }.getOrDefault(false)
     }
 
     /** Returns visible text from the current window; caller decides what to display. */
