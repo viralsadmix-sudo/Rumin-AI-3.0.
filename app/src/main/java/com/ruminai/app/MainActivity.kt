@@ -4,6 +4,15 @@ import androidx.activity.ComponentActivity
 import android.app.AlertDialog
 import android.os.Bundle
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.os.Handler
+import android.os.Looper
+import androidx.core.content.ContextCompat
+import com.ruminai.app.core.ui.AnimatedAgentCoreView
 import android.provider.Settings
 import android.view.Gravity
 import android.view.ViewGroup
@@ -34,6 +43,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var credentialStore: AgentCredentialStore
     private lateinit var agentRunStore: AgentRunStore
     private lateinit var taskInput: EditText
+    private var speechRecognizer: SpeechRecognizer? = null
+    private lateinit var voiceStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +75,9 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         root.addView(brand, matchWidth())
+
+        val avatar = AnimatedAgentCoreView(this)
+        root.addView(avatar, LinearLayout.LayoutParams(260, 230).apply { topMargin = 12 })
 
         val greeting = TextView(this).apply {
             text = "আসসালামু আলাইকুম, বস!\nআমি রুমিন।"
@@ -133,6 +147,20 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(taskInput, matchWidth())
 
+        voiceStatus = TextView(this).apply {
+            text = "লাইভ ভয়েস: মাইক্রোফোন প্রস্তুত"
+            textSize = 14f
+            setTextColor(0xFF8DE1FF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, 12, 0, 4)
+        }
+        root.addView(voiceStatus, matchWidth())
+        val voiceButton = Button(this).apply {
+            text = "🎙️ কথা বলে কাজ দিন"
+            setOnClickListener { startVoiceCommand() }
+        }
+        root.addView(voiceButton, matchWidth())
+
         val planButton = Button(this).apply {
             text = "Agent দিয়ে কাজের পরিকল্পনা করুন"
             setOnClickListener { createAgentPlan() }
@@ -149,6 +177,66 @@ class MainActivity : ComponentActivity() {
         root.addView(info, matchWidth())
         val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
         setContentView(scroll)
+    }
+
+    private fun startVoiceCommand() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            showMessage("এই ফোনে Speech Recognition পাওয়া যাচ্ছে না। Google Speech Services আপডেট করে চেষ্টা করুন।")
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7401)
+            return
+        }
+        speechRecognizer?.destroy()
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { voiceStatus.text = "শুনছি, বস… এখন কথা বলুন" }
+                override fun onBeginningOfSpeech() { voiceStatus.text = "আপনার কথা শুনছি…" }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() { voiceStatus.text = "কথা বুঝে নিচ্ছি…" }
+                override fun onError(error: Int) {
+                    voiceStatus.text = "ভয়েস শোনা যায়নি। আবার মাইক্রোফোন চাপুন। (কোড: $error)"
+                }
+                override fun onResults(results: Bundle?) {
+                    val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (spoken.isNotBlank()) {
+                        taskInput.setText(spoken)
+                        voiceStatus.text = "আপনি বলেছেন: $spoken"
+                        createAgentPlan()
+                    } else voiceStatus.text = "কথা বোঝা যায়নি, আবার চেষ্টা করুন।"
+                }
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!partial.isNullOrBlank()) voiceStatus.text = "শুনছি: $partial"
+                }
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "রুমিনকে কী কাজ করতে বলবেন?")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            }
+            recognizer.startListening(intent)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7401 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startVoiceCommand()
+        } else if (requestCode == 7401) {
+            showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
+        }
+    }
+
+    override fun onDestroy() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        super.onDestroy()
     }
 
     private fun showSaveMemoryDialog() {
