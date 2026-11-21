@@ -38,6 +38,7 @@ import com.ruminai.app.core.model.ExecutionStatus
 import com.ruminai.app.core.security.AgentCredentialStore
 import com.ruminai.app.core.phone.PhoneAccessibilityTools
 import com.ruminai.app.core.memory.LocalMemoryStore
+import com.ruminai.app.core.voice.GeminiLiveVoiceSession
 import com.ruminai.app.core.phone.PhoneAccessibilityService
 
 class MainActivity : ComponentActivity() {
@@ -52,8 +53,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var chatReplyView: TextView
     private var voiceToChat = false
     private var textToSpeech: TextToSpeech? = null
+    private var liveVoiceSession: GeminiLiveVoiceSession? = null
+    private var liveVoicePending = false
+    private lateinit var liveVoiceButton: Button
     private val micPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startVoiceCommand() else showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
+        if (granted) { if (liveVoicePending) startLiveVoice() else startVoiceCommand() } else showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -189,6 +193,12 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(voiceChatButton, matchWidth())
 
+        liveVoiceButton = Button(this).apply {
+            text = "🔴 Live Voice চালু করুন"
+            setOnClickListener { toggleLiveVoice() }
+        }
+        root.addView(liveVoiceButton, matchWidth())
+
         val voiceButton = Button(this).apply {
             text = "🎙️ কথা বলে ফোনে কাজ দিন"
             setOnClickListener { voiceToChat = false; startVoiceCommand() }
@@ -229,6 +239,54 @@ class MainActivity : ComponentActivity() {
                 else -> "উত্তর পাওয়া যায়নি: ${result.exceptionOrNull()?.message ?: "অজানা সমস্যা"}"
             }
         }
+    }
+
+    private fun toggleLiveVoice() {
+        if (liveVoiceSession != null) {
+            liveVoiceSession?.stop()
+            liveVoiceSession = null
+            liveVoiceButton.text = "🔴 Live Voice চালু করুন"
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            liveVoicePending = true
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startLiveVoice()
+    }
+
+    private fun startLiveVoice() {
+        liveVoicePending = false
+        val key = credentialStore.readGeminiApiKey().orEmpty()
+        if (key.isBlank()) {
+            showMessage("Live Voice চালু করতে আগে Gemini API Key সেট করুন।")
+            return
+        }
+        liveVoiceButton.isEnabled = false
+        liveVoiceButton.text = "সংযোগ হচ্ছে…"
+        val session = GeminiLiveVoiceSession(
+            apiKey = key,
+            scope = lifecycleScope,
+            onStatus = { status ->
+                runOnUiThread {
+                    voiceStatus.text = status
+                    liveVoiceButton.text = if (status.contains("চালু") || status.contains("বলুন")) "⏹ Live Voice বন্ধ করুন" else "Live Voice: সংযোগ হচ্ছে…"
+                    liveVoiceButton.isEnabled = true
+                }
+            },
+            onTranscript = { transcript -> runOnUiThread { voiceStatus.text = transcript } },
+            onError = { error ->
+                runOnUiThread {
+                    voiceStatus.text = error
+                    liveVoiceButton.text = "🔴 Live Voice চালু করুন"
+                    liveVoiceButton.isEnabled = true
+                    liveVoiceSession = null
+                }
+            }
+        )
+        liveVoiceSession = session
+        session.start()
     }
 
     private fun startVoiceCommand() {
