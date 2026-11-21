@@ -11,6 +11,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.ScrollView
 import android.text.InputType
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -146,7 +147,8 @@ class MainActivity : Activity() {
             setPadding(0, 28, 0, 0)
         }
         root.addView(info, matchWidth())
-        setContentView(root)
+        val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
+        setContentView(scroll)
     }
 
     private fun showSaveMemoryDialog() {
@@ -210,7 +212,7 @@ class MainActivity : Activity() {
         }
 
         val registry = ToolRegistry(PhoneAccessibilityTools().asAgentTools())
-        val planner = GeminiAgentPlanner({ credentialStore.readGeminiApiKey() }, registry)
+        val planner = GeminiAgentPlanner({ credentialStore.readGeminiApiKey() }, registry) { memoryStore.readAll().map { it.text } }
         val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {\n            override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }\n        })
         val progress = AlertDialog.Builder(this)
             .setMessage("রুমিন কাজটি বুঝে পরিকল্পনা তৈরি করছে...")
