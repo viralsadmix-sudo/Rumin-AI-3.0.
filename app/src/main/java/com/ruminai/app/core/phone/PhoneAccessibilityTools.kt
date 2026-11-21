@@ -13,7 +13,8 @@ class PhoneAccessibilityTools(
         { PhoneAccessibilityService.current() }
 ) {
     fun asAgentTools(): List<AgentTool> = listOf(
-        LaunchAppTool(serviceProvider),\n        ReadVisibleScreenTool(serviceProvider),
+        LaunchAppTool(serviceProvider),
+        ReadVisibleScreenTool(serviceProvider),
         ClickVisibleTextTool(serviceProvider),
         ScrollActiveScreenTool(serviceProvider),
         TypeFocusedTextTool(serviceProvider)
