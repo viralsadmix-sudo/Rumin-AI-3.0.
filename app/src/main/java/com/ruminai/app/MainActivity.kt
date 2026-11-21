@@ -1,6 +1,6 @@
 package com.ruminai.app
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.app.AlertDialog
 import android.os.Bundle
 import android.content.Intent
@@ -27,7 +27,7 @@ import com.ruminai.app.core.phone.PhoneAccessibilityTools
 import com.ruminai.app.core.memory.LocalMemoryStore
 import com.ruminai.app.core.phone.PhoneAccessibilityService
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var memoryStore: LocalMemoryStore
     private lateinit var memoryCount: TextView
     private lateinit var phoneControlStatus: TextView
