@@ -1,6 +1,7 @@
 package com.ruminai.app
 
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import android.app.AlertDialog
 import android.os.Bundle
 import android.content.Intent
@@ -45,6 +46,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var taskInput: EditText
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var voiceStatus: TextView
+    private val micPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startVoiceCommand() else showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -185,7 +189,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7401)
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
         speechRecognizer?.destroy()
@@ -221,15 +225,6 @@ class MainActivity : ComponentActivity() {
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
             recognizer.startListening(intent)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 7401 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            startVoiceCommand()
-        } else if (requestCode == 7401) {
-            showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
         }
     }
 
