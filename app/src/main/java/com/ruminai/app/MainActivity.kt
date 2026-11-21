@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
@@ -48,6 +50,8 @@ class MainActivity : ComponentActivity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var voiceStatus: TextView
     private lateinit var chatReplyView: TextView
+    private var voiceToChat = false
+    private var textToSpeech: TextToSpeech? = null
     private val micPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoiceCommand() else showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
     }
@@ -57,6 +61,9 @@ class MainActivity : ComponentActivity() {
         memoryStore = LocalMemoryStore(this)
         credentialStore = AgentCredentialStore(this)
         agentRunStore = AgentRunStore(this)
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) textToSpeech?.language = Locale("bn", "BD")
+        }
         renderHome()
     }
 
@@ -176,9 +183,15 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 12, 0, 4)
         }
         root.addView(voiceStatus, matchWidth())
+        val voiceChatButton = Button(this).apply {
+            text = "🎧 কথা বলে চ্যাট করুন"
+            setOnClickListener { voiceToChat = true; startVoiceCommand() }
+        }
+        root.addView(voiceChatButton, matchWidth())
+
         val voiceButton = Button(this).apply {
-            text = "🎙️ কথা বলে কাজ দিন"
-            setOnClickListener { startVoiceCommand() }
+            text = "🎙️ কথা বলে ফোনে কাজ দিন"
+            setOnClickListener { voiceToChat = false; startVoiceCommand() }
         }
         root.addView(voiceButton, matchWidth())
 
@@ -212,7 +225,7 @@ class MainActivity : ComponentActivity() {
             val result = withTimeoutOrNull(27_000L) { client.reply(message) }
             chatReplyView.text = when {
                 result == null -> "উত্তর আসতে দেরি হচ্ছে। ইন্টারনেট বা Gemini API সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।"
-                result.isSuccess -> result.getOrNull().orEmpty()
+                result.isSuccess -> result.getOrNull().orEmpty().also { answer -> textToSpeech?.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "rumin-chat-answer") }
                 else -> "উত্তর পাওয়া যায়নি: ${result.exceptionOrNull()?.message ?: "অজানা সমস্যা"}"
             }
         }
@@ -243,7 +256,7 @@ class MainActivity : ComponentActivity() {
                     if (spoken.isNotBlank()) {
                         taskInput.setText(spoken)
                         voiceStatus.text = "আপনি বলেছেন: $spoken"
-                        createAgentPlan()
+                        if (voiceToChat) sendChatMessage() else createAgentPlan()
                     } else voiceStatus.text = "কথা বোঝা যায়নি, আবার চেষ্টা করুন।"
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
@@ -266,6 +279,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         speechRecognizer?.destroy()
         speechRecognizer = null
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
         super.onDestroy()
     }
 
