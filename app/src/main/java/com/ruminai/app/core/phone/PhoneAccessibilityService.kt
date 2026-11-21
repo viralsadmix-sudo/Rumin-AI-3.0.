@@ -51,17 +51,18 @@ class PhoneAccessibilityService : AccessibilityService() {
             matches.forEach { it.recycle() }
             return false
         }
-        var target: AccessibilityNodeInfo? = matches.first()
-        var ancestor: AccessibilityNodeInfo? = null
+        val ancestors = mutableListOf<AccessibilityNodeInfo>()
         try {
-            while (target != null && !target.isClickable) {
-                ancestor?.recycle()
-                ancestor = target.parent
-                target = ancestor
+            var target = matches.first()
+            while (!target.isClickable) {
+                val parent = target.parent ?: break
+                if (target !== matches.first()) ancestors += target
+                target = parent
             }
-            target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+            if (target !== matches.first()) ancestors += target
+            target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         } finally {
-            ancestor?.recycle()
+            ancestors.forEach { it.recycle() }
             matches.forEach { it.recycle() }
         }
         } finally {
