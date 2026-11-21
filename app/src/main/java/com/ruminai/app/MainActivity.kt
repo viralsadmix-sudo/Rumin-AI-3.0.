@@ -95,6 +95,12 @@ class MainActivity : Activity() {
         }
         root.addView(phoneControlButton, matchWidth())
 
+        val screenReadButton = Button(this).apply {
+            text = "বর্তমান স্ক্রিন পড়ে পরীক্ষা করুন"
+            setOnClickListener { confirmAndReadScreen() }
+        }
+        root.addView(screenReadButton, matchWidth())
+
         val info = TextView(this).apply {
             text = "পরবর্তী ধাপ: Agent Planner → অনুমতি → Tool Execution → যাচাই।\nতারপর নতুন Live Voice অডিও ইঞ্জিন।"
             textSize = 14f
@@ -123,6 +129,33 @@ class MainActivity : Activity() {
             .show()
     }
 
+
+
+    private fun confirmAndReadScreen() {
+        AlertDialog.Builder(this)
+            .setTitle("স্ক্রিন পড়ার অনুমতি")
+            .setMessage("Rumin শুধু এখনকার দৃশ্যমান স্ক্রিনের লেখা এই ফোনেই পড়বে। কোনো তথ্য সার্ভারে পাঠানো বা সংরক্ষণ করা হবে না। চালাবেন?")
+            .setNegativeButton("বাতিল", null)
+            .setPositiveButton("পড়ুন") { _, _ ->
+                val service = PhoneAccessibilityService.current()
+                if (service == null) {
+                    AlertDialog.Builder(this)
+                        .setMessage("Accessibility Service এখনো সংযুক্ত নয়। Android Settings-এ অনুমতি চালু আছে কি না দেখুন।")
+                        .setPositiveButton("ঠিক আছে", null)
+                        .show()
+                } else {
+                    val screenText = runCatching { service.readVisibleText() }
+                        .getOrElse { "স্ক্রিন পড়তে সমস্যা হয়েছে: ${it.message ?: "অজানা সমস্যা"}" }
+                        .ifBlank { "বর্তমান স্ক্রিনে পড়ার মতো লেখা পাওয়া যায়নি।" }
+                    AlertDialog.Builder(this)
+                        .setTitle("স্ক্রিন পড়ার ফলাফল")
+                        .setMessage(screenText)
+                        .setPositiveButton("বন্ধ", null)
+                        .show()
+                }
+            }
+            .show()
+    }
 
     private fun showAccessibilityDisclosure() {
         AlertDialog.Builder(this)
