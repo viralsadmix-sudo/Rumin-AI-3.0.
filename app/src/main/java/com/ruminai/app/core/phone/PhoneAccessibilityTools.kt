@@ -13,11 +13,26 @@ class PhoneAccessibilityTools(
         { PhoneAccessibilityService.current() }
 ) {
     fun asAgentTools(): List<AgentTool> = listOf(
-        ReadVisibleScreenTool(serviceProvider),
+        LaunchAppTool(serviceProvider),\n        ReadVisibleScreenTool(serviceProvider),
         ClickVisibleTextTool(serviceProvider),
         ScrollActiveScreenTool(serviceProvider),
         TypeFocusedTextTool(serviceProvider)
     )
+}
+
+
+private class LaunchAppTool(
+    private val service: () -> PhoneAccessibilityService?
+) : AgentTool {
+    override val name = "phone.launch_app"
+    override val requiresConfirmation = true
+
+    override suspend fun execute(step: AgentStep): Result<String> = runCatching {
+        val active = service() ?: error("Rumin Accessibility চালু নেই।")
+        val packageName = step.description.trim()
+        check(active.launchApp(packageName)) { "এই package-এর launchable app পাওয়া যায়নি: $packageName" }
+        "অ্যাপ চালুর অনুরোধ পাঠানো হয়েছে: $packageName; স্ক্রিন পরিবর্তন যাচাই করতে হবে।"
+    }
 }
 
 private class ReadVisibleScreenTool(
