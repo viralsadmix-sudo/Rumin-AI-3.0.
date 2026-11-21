@@ -41,7 +41,7 @@ class GeminiAgentPlanner(
                 All steps must set requiresConfirmation to true.
                 Do not request passwords, PINs, OTPs, payment, sending messages, deleting data,
                 or other irreversible/high-impact actions. Do not claim actions are complete.
-                For phone.click_visible_text, description must be the exact visible label to tap.
+                For phone.launch_app, description must be an installed app package name (e.g. com.google.android.youtube for YouTube).\n                For phone.click_visible_text, description must be the exact visible label to tap.
                 For phone.type_focused_text, description must be the exact text to enter.
                 For phone.read_visible_screen and phone.scroll_screen_forward, description may be concise.
                 Return ONLY valid JSON: {"steps":[{"toolName":"...","description":"...","requiresConfirmation":true}]}
