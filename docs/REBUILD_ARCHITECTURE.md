@@ -10,19 +10,19 @@ The existing repository is an Android Gradle project with a WebView UI and Kotli
 
 ## Product scope — phase 1 only
 
-1. Personal Agent
+1. Personal Agent — first priority
    - Natural-language task understanding.
    - Explicit task planning and step-by-step execution.
    - Tool registry with strict allow-list.
    - User confirmation for sensitive actions.
    - Observe the screen, act, then verify the result.
    - Honest status: never claim an action succeeded without a verified result.
-2. Live Voice
+3. Live Voice — deferred until Agent and phone-control tests pass
    - Full-duplex microphone input and spoken response.
    - Interruption / barge-in handling.
    - Clear listening, thinking, speaking, connecting, and error states.
    - Audio lifecycle cleanup and diagnostics.
-3. Local Memory
+2. Local Memory — foundational support for the Agent
    - User-approved facts and task context.
    - Conversation history with clear retention controls.
    - Local persistence; secrets are never committed to the repository.
@@ -43,7 +43,7 @@ Out of scope for phase 1: video studio, voice cloning, social publishing, unrela
 
 Keep UI separate from agent execution and audio. No AI-generated text may directly invoke arbitrary Android intents or shell commands; all actions must pass through the registered tool policy.
 
-## Safety and reliability rules
+## Current implementation status (2026-11-21)\n\n- Foundation branch now contains Agent contracts, a sequential runtime with approval checks and a separate verification state, local approved memory, and a minimal native shell.\n- An opt-in Android Accessibility service is being introduced with explicit disclosure. It does not retain or forward accessibility events.\n- Initial phone tools are allow-listed and confirmation-gated: read visible screen text, click a unique visible text match, scroll the active window, and type into the focused editable field. These tools must be registered by the Agent host; they are not yet exposed as a complete natural-language phone assistant.\n- Screen reads and UI actions remain sensitive. The app must show the planned target and obtain user approval before invoking them. Tool success is not equivalent to verified task success.\n- The language-model planner, task UI, persistent task audit, and on-device verification are still required.\n\n## Safety and reliability rules
 
 - Ask before calls, messages, deleting data, payments, or other external/high-impact actions.
 - Accessibility is opt-in and must be explained clearly.
@@ -57,10 +57,12 @@ Keep UI separate from agent execution and audio. No AI-generated text may direct
 1. Replace the old app source on `main` only after the backup branch is verified.
 2. Establish a minimal native app shell and repeatable CI build.
 3. Add local memory and conversation model.
-4. Add Personal Agent planning, approval, execution, observation, and verification.
-5. Add Live Voice transport and audio pipeline.
-6. Test on the target Android phone; fix measured failures before adding features.
-7. Plan PC support as a separate companion after Android phase 1 is stable.
+4. Implement the Agent planner, policy gate, sequential executor, task state, and verification.
+5. Add the opt-in Accessibility bridge and confirmation-gated screen/read/tap/type/scroll tools.
+6. Connect an actual language-model planner and task UI; never pretend a placeholder planner is intelligent.
+7. Test on the target Android phone, including denied permission, ambiguous targets, failed actions, and cancellation.
+8. Add Live Voice only after Agent tasks and phone-control flows pass tests.
+9. Plan PC support as a separate companion after Android phase 1 is stable.
 
 ## Current-source findings to carry into the redesign
 
