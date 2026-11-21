@@ -289,25 +289,24 @@ class MainActivity : ComponentActivity() {
             showMessage("আগে Gemini API Key সেট করুন।")
             return
         }
-        if (!PhoneAccessibilityService.isEnabledInProcess()) {
-            showMessage("প্রথমে Rumin AI Phone Control Accessibility চালু করুন।")
-            return
-        }
-
         val registry = ToolRegistry(PhoneAccessibilityTools().asAgentTools())
         val planner = GeminiAgentPlanner({ credentialStore.readGeminiApiKey() }, registry) { memoryStore.readAll().map { it.text } }
         val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {
             override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }
         })
         val progress = AlertDialog.Builder(this)
-            .setMessage("রুমিন কাজটি বুঝে পরিকল্পনা তৈরি করছে...")
+            .setMessage("রুমিন কাজটি বুঝে পরিকল্পনা তৈরি করছে... সর্বোচ্চ ২৫ সেকেন্ড অপেক্ষা করুন।")
             .setCancelable(false)
             .create()
         progress.show()
 
         lifecycleScope.launch {
-            val prepared = runtime.prepare(request)
+            val prepared = withTimeoutOrNull(25_000L) { runtime.prepare(request) }
             progress.dismiss()
+            if (prepared == null) {
+                showMessage("২৫ সেকেন্ডেও Gemini থেকে উত্তর আসেনি। ইন্টারনেট, API Key এবং Google AI Studio-তে মডেল অ্যাক্সেস পরীক্ষা করুন।")
+                return@launch
+            }
             prepared.onFailure { showMessage("পরিকল্পনা তৈরি হয়নি: ${it.message}") }
             prepared.onSuccess { run ->
                 if (run.plan.steps.isEmpty()) {
@@ -330,6 +329,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun executeApprovedPlan(runtime: AgentRuntime, run: com.ruminai.app.core.agent.AgentRun) {
+        val needsPhoneControl = run.steps.any { it.step.toolName.startsWith("phone.") }
+        if (needsPhoneControl && !PhoneAccessibilityService.isEnabledInProcess()) {
+            showMessage("এই পরিকল্পনায় ফোন নিয়ন্ত্রণ দরকার। আগে Rumin AI Phone Control Accessibility চালু করুন, তারপর আবার চেষ্টা করুন।")
+            return
+        }
         val progress = AlertDialog.Builder(this)
             .setMessage("রুমিন অনুমোদিত ধাপগুলো চালাচ্ছে...")
             .setCancelable(false)
