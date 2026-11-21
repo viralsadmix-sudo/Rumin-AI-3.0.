@@ -25,6 +25,7 @@ import android.widget.ScrollView
 import android.text.InputType
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import com.ruminai.app.core.agent.AgentRuntime
 import com.ruminai.app.core.agent.AgentObserver
 import com.ruminai.app.core.agent.AgentRun
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var taskInput: EditText
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var voiceStatus: TextView
+    private lateinit var chatReplyView: TextView
     private val micPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoiceCommand() else showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।")
     }
@@ -151,6 +153,21 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(taskInput, matchWidth())
 
+        val chatButton = Button(this).apply {
+            text = "চ্যাটে উত্তর পান"
+            setOnClickListener { sendChatMessage() }
+        }
+        root.addView(chatButton, matchWidth())
+
+        chatReplyView = TextView(this).apply {
+            text = "রুমিনের উত্তর এখানে দেখা যাবে।"
+            textSize = 16f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(16, 16, 16, 16)
+            setBackgroundColor(0xFF151D32.toInt())
+        }
+        root.addView(chatReplyView, matchWidth())
+
         voiceStatus = TextView(this).apply {
             text = "লাইভ ভয়েস: মাইক্রোফোন প্রস্তুত"
             textSize = 14f
@@ -181,6 +198,24 @@ class MainActivity : ComponentActivity() {
         root.addView(info, matchWidth())
         val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
         setContentView(scroll)
+    }
+
+    private fun sendChatMessage() {
+        val message = taskInput.text.toString().trim()
+        if (message.isBlank()) {
+            showMessage("আগে মেসেজ লিখুন।")
+            return
+        }
+        val client = GeminiChatClient({ credentialStore.readGeminiApiKey() })
+        chatReplyView.text = "রুমিন উত্তর তৈরি করছে…"
+        lifecycleScope.launch {
+            val result = withTimeoutOrNull(27_000L) { client.reply(message) }
+            chatReplyView.text = when {
+                result == null -> "উত্তর আসতে দেরি হচ্ছে। ইন্টারনেট বা Gemini API সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।"
+                result.isSuccess -> result.getOrNull().orEmpty()
+                else -> "উত্তর পাওয়া যায়নি: ${result.exceptionOrNull()?.message ?: "অজানা সমস্যা"}"
+            }
+        }
     }
 
     private fun startVoiceCommand() {
