@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 class GeminiAgentPlanner(
     private val apiKeyProvider: () -> String?,
     private val registry: ToolRegistry,
-    private val model: String = "gemini-2.5-flash",
+    private val model: String = "gemini-3.8-flash",
     private val memoryProvider: () -> List<String> = { emptyList() }
 ) : AgentPlanner {
     private val client = OkHttpClient.Builder()
@@ -56,7 +56,8 @@ class GeminiAgentPlanner(
                     .put("temperature", 0.1)
                     .put("responseMimeType", "application/json"))
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
             client.newCall(request).execute().use { response ->
