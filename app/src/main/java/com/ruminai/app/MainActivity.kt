@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
         root.addView(greeting, matchWidth())
 
         val status = TextView(this).apply {
-            text = "নতুন সিস্টেমের ভিত্তি তৈরি হচ্ছে।\nAI Agent ও Live Voice এখনো সংযুক্ত হয়নি।"
+            text = "আপনার ব্যক্তিগত AI সহকারী। Chat, Voice এবং Agent আলাদা ভাবে ব্যবহার করুন।"
             textSize = 15f
             setTextColor(0xFFB9C4D8.toInt())
             gravity = Gravity.CENTER
