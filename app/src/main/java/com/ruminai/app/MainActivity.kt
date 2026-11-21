@@ -33,6 +33,7 @@ import com.ruminai.app.core.agent.AgentObserver
 import com.ruminai.app.core.agent.AgentRun
 import com.ruminai.app.core.agent.AgentRunStore
 import com.ruminai.app.core.agent.GeminiAgentPlanner
+import com.ruminai.app.core.agent.GeminiChatClient
 import com.ruminai.app.core.agent.ToolRegistry
 import com.ruminai.app.core.model.ExecutionStatus
 import com.ruminai.app.core.security.AgentCredentialStore
