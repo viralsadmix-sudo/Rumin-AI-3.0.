@@ -3,6 +3,8 @@ package com.ruminai.app
 import android.app.Activity
 import android.app.AlertDialog
 import android.os.Bundle
+import android.content.Intent
+import android.provider.Settings
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
@@ -10,10 +12,12 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.ruminai.app.core.memory.LocalMemoryStore
+import com.ruminai.app.core.phone.PhoneAccessibilityService
 
 class MainActivity : Activity() {
     private lateinit var memoryStore: LocalMemoryStore
     private lateinit var memoryCount: TextView
+    private lateinit var phoneControlStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,6 +28,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::memoryCount.isInitialized) refreshMemoryCount()
+        if (::phoneControlStatus.isInitialized) refreshPhoneControlStatus()
     }
 
     private fun renderHome() {
@@ -75,6 +80,21 @@ class MainActivity : Activity() {
         }
         root.addView(memoryButton, matchWidth())
 
+        phoneControlStatus = TextView(this).apply {
+            textSize = 14f
+            setTextColor(0xFFB9C4D8.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, 24, 0, 8)
+        }
+        root.addView(phoneControlStatus, matchWidth())
+        refreshPhoneControlStatus()
+
+        val phoneControlButton = Button(this).apply {
+            text = "ফোন নিয়ন্ত্রণের অনুমতি সেট করুন"
+            setOnClickListener { showAccessibilityDisclosure() }
+        }
+        root.addView(phoneControlButton, matchWidth())
+
         val info = TextView(this).apply {
             text = "পরবর্তী ধাপ: Agent Planner → অনুমতি → Tool Execution → যাচাই।\nতারপর নতুন Live Voice অডিও ইঞ্জিন।"
             textSize = 14f
@@ -101,6 +121,32 @@ class MainActivity : Activity() {
                 }
             }
             .show()
+    }
+
+
+    private fun showAccessibilityDisclosure() {
+        AlertDialog.Builder(this)
+            .setTitle("Rumin AI ফোন নিয়ন্ত্রণ")
+            .setMessage(
+                "এই ঐচ্ছিক সুবিধা চালু করলে, আপনার নির্দেশে Rumin দৃশ্যমান স্ক্রিনের লেখা পড়তে, " +
+                    "নির্দিষ্ট লেখা ট্যাপ করতে, ফোকাস করা ফিল্ডে টাইপ করতে এবং স্ক্রল করতে পারবে। " +
+                    "এখন কোনো স্ক্রিন ডেটা ব্যাকগ্রাউন্ডে সংরক্ষণ বা পাঠানো হয় না। " +
+                    "প্রতিটি ফোন-নিয়ন্ত্রণ কাজের আগে অ্যাপের ভেতরে আপনার অনুমতি নিতে হবে। " +
+                    "আপনি চাইলে Android Settings থেকে যেকোনো সময় এটি বন্ধ করতে পারবেন।"
+            )
+            .setNegativeButton("এখন নয়", null)
+            .setPositiveButton("Android Settings খুলুন") { _, _ ->
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .show()
+    }
+
+    private fun refreshPhoneControlStatus() {
+        phoneControlStatus.text = if (PhoneAccessibilityService.isEnabledInProcess()) {
+            "ফোন নিয়ন্ত্রণ: Accessibility Service সংযুক্ত"
+        } else {
+            "ফোন নিয়ন্ত্রণ: এখনো চালু/সংযুক্ত নয়"
+        }
     }
 
     private fun refreshMemoryCount() {
