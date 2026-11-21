@@ -15,6 +15,9 @@ import android.text.InputType
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.ruminai.app.core.agent.AgentRuntime
+import com.ruminai.app.core.agent.AgentObserver
+import com.ruminai.app.core.agent.AgentRun
+import com.ruminai.app.core.agent.AgentRunStore
 import com.ruminai.app.core.agent.GeminiAgentPlanner
 import com.ruminai.app.core.agent.ToolRegistry
 import com.ruminai.app.core.model.ExecutionStatus
@@ -28,12 +31,14 @@ class MainActivity : Activity() {
     private lateinit var memoryCount: TextView
     private lateinit var phoneControlStatus: TextView
     private lateinit var credentialStore: AgentCredentialStore
+    private lateinit var agentRunStore: AgentRunStore
     private lateinit var taskInput: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         memoryStore = LocalMemoryStore(this)
         credentialStore = AgentCredentialStore(this)
+        agentRunStore = AgentRunStore(this)
         renderHome()
     }
 
@@ -206,7 +211,7 @@ class MainActivity : Activity() {
 
         val registry = ToolRegistry(PhoneAccessibilityTools().asAgentTools())
         val planner = GeminiAgentPlanner({ credentialStore.readGeminiApiKey() }, registry)
-        val runtime = AgentRuntime(planner, registry)
+        val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {\n            override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }\n        })
         val progress = AlertDialog.Builder(this)
             .setMessage("রুমিন কাজটি বুঝে পরিকল্পনা তৈরি করছে...")
             .setCancelable(false)
