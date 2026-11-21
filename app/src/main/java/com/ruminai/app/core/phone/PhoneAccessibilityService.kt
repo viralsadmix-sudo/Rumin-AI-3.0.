@@ -45,20 +45,25 @@ class PhoneAccessibilityService : AccessibilityService() {
         if (label.isBlank()) return false
         val root = rootInActiveWindow ?: return false
         return try {
-            val matches = root.findAccessibilityNodeInfosByText(label)
-                .orEmpty()
-                .filter { it.isVisibleToUser }
-            if (matches.size != 1) return false
-            var target: AccessibilityNodeInfo? = matches.first()
-            while (target != null && !target.isClickable) {
-                val parent = target.parent
-                if (target !== matches.first()) target.recycle()
-                target = parent
-            }
-            val clicked = target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-            target?.recycle()
+            val matches = root.findAccessibilityNodeInfosByText(label).orEmpty()
+            .filter { it.isVisibleToUser }
+        if (matches.size != 1) {
             matches.forEach { it.recycle() }
-            clicked
+            return false
+        }
+        var target: AccessibilityNodeInfo? = matches.first()
+        var ancestor: AccessibilityNodeInfo? = null
+        try {
+            while (target != null && !target.isClickable) {
+                ancestor?.recycle()
+                ancestor = target.parent
+                target = ancestor
+            }
+            target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+        } finally {
+            ancestor?.recycle()
+            matches.forEach { it.recycle() }
+        }
         } finally {
             root.recycle()
         }
