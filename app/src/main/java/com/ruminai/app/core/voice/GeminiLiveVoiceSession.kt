@@ -71,7 +71,7 @@ class GeminiLiveVoiceSession(
                         .put("speechConfig", JSONObject()
                             .put("voiceConfig", JSONObject()
                                 .put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Aoede")))
-                            .put("languageCode", "bn-BD"))
+                            .put("languageCode", "bn-BD")))
                     .put("inputAudioTranscription", JSONObject())
                     .put("outputAudioTranscription", JSONObject())
                     .put("systemInstruction", JSONObject()
