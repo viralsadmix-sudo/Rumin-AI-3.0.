@@ -55,34 +55,58 @@ class GeminiAgentPlanner(
                 .put("generationConfig", JSONObject()
                     .put("temperature", 0.1)
                     .put("responseMimeType", "application/json"))
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-                .header("x-goog-api-key", apiKey)
-                .post(body.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(request).execute().use { response ->
-                val raw = response.body?.string().orEmpty()
-                if (!response.isSuccessful) error("Gemini API error ${response.code}: ${raw.take(500)}")
-                val responseText = JSONObject(raw)
-                    .getJSONArray("candidates").getJSONObject(0)
-                    .getJSONObject("content").getJSONArray("parts").getJSONObject(0)
-                    .getString("text").trim()
-                val jsonText = responseText.removePrefix("```json").removePrefix("```")
-                    .removeSuffix("```").trim()
-                val stepsJson = JSONObject(jsonText).optJSONArray("steps") ?: JSONArray()
-                val steps = (0 until stepsJson.length()).map { index ->
-                    val item = stepsJson.getJSONObject(index)
-                    val toolName = item.getString("toolName")
-                    require(toolName in tools) { "Gemini অচেনা Tool প্রস্তাব করেছে: $toolName" }
-                    AgentStep(
-                        id = UUID.randomUUID().toString(),
-                        description = item.optString("description"),
-                        toolName = toolName,
-                        requiresConfirmation = true
-                    )
+            val candidateModels = listOf(model, "gemini-3.5-flash-lite").distinct()
+            var lastServiceError: String? = null
+            var parsedPlan: AgentPlan? = null
+            for ((modelIndex, selectedModel) in candidateModels.withIndex()) {
+                val request = Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent")
+                    .header("x-goog-api-key", apiKey)
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val attempt = client.newCall(request).execute().use { response ->
+                    val raw = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        val message = "Gemini API error ${response.code}: ${raw.take(500)}"
+                        if (response.code == 503 || response.code == 429 || response.code == 500) {
+                            lastServiceError = message
+                            null
+                        } else {
+                            error(message)
+                        }
+                    } else {
+                        val responseText = JSONObject(raw)
+                            .getJSONArray("candidates").getJSONObject(0)
+                            .getJSONObject("content").getJSONArray("parts").getJSONObject(0)
+                            .getString("text").trim()
+                        val jsonText = responseText.removePrefix("```json").removePrefix("```")
+                            .removeSuffix("```").trim()
+                        val stepsJson = JSONObject(jsonText).optJSONArray("steps") ?: JSONArray()
+                        val steps = (0 until stepsJson.length()).map { index ->
+                            val item = stepsJson.getJSONObject(index)
+                            val toolName = item.getString("toolName")
+                            require(toolName in tools) { "Gemini অচেনা Tool প্রস্তাব করেছে: $toolName" }
+                            AgentStep(
+                                id = UUID.randomUUID().toString(),
+                                description = item.optString("description"),
+                                toolName = toolName,
+                                requiresConfirmation = true
+                            )
+                        }
+                        AgentPlan(UUID.randomUUID().toString(), userRequest, steps)
+                    }
                 }
-                AgentPlan(UUID.randomUUID().toString(), userRequest, steps)
+                if (attempt != null) {
+                    parsedPlan = attempt
+                    break
+                }
+                if (modelIndex == 0 && candidateModels.size > 1) {
+                    kotlinx.coroutines.delay(700)
+                }
             }
+            parsedPlan ?: error(
+                "Gemini-এর মূল ও বিকল্প মডেল এখন সাড়া দিচ্ছে না। একটু পরে আবার চেষ্টা করুন। ${lastServiceError.orEmpty()}"
+            )
         }
     }
 }
