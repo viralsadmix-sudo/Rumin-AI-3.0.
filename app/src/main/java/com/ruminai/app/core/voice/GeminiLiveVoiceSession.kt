@@ -64,21 +64,26 @@ class GeminiLiveVoiceSession(
             .build()
         socket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                val voiceConfig = JSONObject()
+                    .put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Aoede"))
+                val speechConfig = JSONObject()
+                    .put("voiceConfig", voiceConfig)
+                    .put("languageCode", "bn-BD")
+                val instructionPart = JSONObject().put(
+                    "text",
+                    "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ব্যবহারকারী কোনো ফোনের কাজ চাইলে নিজে কাজ সম্পন্ন হয়েছে বলবে না; অ্যাপের Agent-কে কাজটি পরিকল্পনা ও অনুমতির জন্য পাঠানো হবে।"
+                )
+                val systemInstruction = JSONObject()
+                    .put("parts", JSONArray().put(instructionPart))
+                val generationConfig = JSONObject()
+                    .put("responseModalities", JSONArray().put("AUDIO"))
+                    .put("speechConfig", speechConfig)
                 val setup = JSONObject()
                     .put("model", "models/$MODEL")
-                    .put("generationConfig", JSONObject()
-                        .put("responseModalities", JSONArray().put("AUDIO"))
-                        .put("speechConfig", JSONObject()
-                            .put("voiceConfig", JSONObject()
-                                .put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Aoede")))
-                            .put("languageCode", "bn-BD")))
+                    .put("generationConfig", generationConfig)
                     .put("inputAudioTranscription", JSONObject())
                     .put("outputAudioTranscription", JSONObject())
-                    .put("systemInstruction", JSONObject()
-                        .put("parts", JSONArray().put(JSONObject().put(
-                            "text",
-                            "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ব্যবহারকারী কোনো ফোনের কাজ চাইলে নিজে কাজ সম্পন্ন হয়েছে বলবে না; অ্যাপের Agent-কে কাজটি পরিকল্পনা ও অনুমতির জন্য পাঠানো হবে।"
-                        )))))
+                    .put("systemInstruction", systemInstruction)
                 webSocket.send(JSONObject().put("setup", setup).toString())
             }
 
