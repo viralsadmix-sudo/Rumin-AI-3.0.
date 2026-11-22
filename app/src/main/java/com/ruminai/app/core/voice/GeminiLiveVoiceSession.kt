@@ -99,15 +99,17 @@ class GeminiLiveVoiceSession(
                         onStatus("আপনার কথা শুনছি…")
                     }
                     val turn = serverContent.optJSONObject("modelTurn")
-                    val parts = turn?.optJSONArray("parts") ?: return
-                    for (i in 0 until parts.length()) {
-                        val part = parts.optJSONObject(i) ?: continue
-                        val inline = part.optJSONObject("inlineData") ?: continue
-                        val mime = inline.optString("mimeType")
-                        if (mime.startsWith("audio/pcm")) {
-                            val bytes = Base64.decode(inline.optString("data"), Base64.DEFAULT)
-                            ensurePlayer()
-                            player?.write(bytes, 0, bytes.size)
+                    val parts = turn?.optJSONArray("parts")
+                    if (parts != null) {
+                        for (i in 0 until parts.length()) {
+                            val part = parts.optJSONObject(i) ?: continue
+                            val inline = part.optJSONObject("inlineData") ?: continue
+                            val mime = inline.optString("mimeType")
+                            if (mime.startsWith("audio/pcm")) {
+                                val bytes = Base64.decode(inline.optString("data"), Base64.DEFAULT)
+                                ensurePlayer()
+                                player?.write(bytes, 0, bytes.size)
+                            }
                         }
                     }
                     if (serverContent.optBoolean("turnComplete", false)) {
