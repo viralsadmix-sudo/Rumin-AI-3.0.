@@ -35,7 +35,7 @@ class GeminiLiveVoiceSession(
     private val onError: (String) -> Unit
 ) {
     companion object {
-        private const val MODEL = "gemini-3.1-flash-live-preview"
+        private const val MODEL = "gemini-3.8-live"
         private const val INPUT_RATE = 16_000
         private const val OUTPUT_RATE = 24_000
     }
@@ -50,6 +50,8 @@ class GeminiLiveVoiceSession(
     private var player: AudioTrack? = null
     private var captureJob: Job? = null
     private var setupReady = false
+    @Volatile private var micPaused = false
+    private var lastTranscript = ""
 
     fun start() {
         if (apiKey.isBlank()) {
@@ -69,10 +71,12 @@ class GeminiLiveVoiceSession(
                         .put("speechConfig", JSONObject()
                             .put("voiceConfig", JSONObject()
                                 .put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Aoede")))))
+                    .put("inputAudioTranscription", JSONObject())
+                    .put("outputAudioTranscription", JSONObject())
                     .put("systemInstruction", JSONObject()
                         .put("parts", JSONArray().put(JSONObject().put(
                             "text",
-                            "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ফোনে কোনো কাজ সম্পন্ন হয়েছে বলে দাবি করবে না। ফোন নিয়ন্ত্রণের অনুরোধ এলে বলবে Agent mode-এ অনুমতি নিয়ে কাজ করতে হবে।"
+                            "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ব্যবহারকারী কোনো ফোনের কাজ চাইলে নিজে কাজ সম্পন্ন হয়েছে বলবে না; অ্যাপের Agent-কে কাজটি পরিকল্পনা ও অনুমতির জন্য পাঠানো হবে।"
                         ))))
                 webSocket.send(JSONObject().put("setup", setup).toString())
             }
@@ -89,6 +93,12 @@ class GeminiLiveVoiceSession(
                         onError(root.getJSONObject("error").toString())
                     }
                     val serverContent = root.optJSONObject("serverContent") ?: return
+                    val inputText = serverContent.optJSONObject("inputTranscription")?.optString("text").orEmpty().trim()
+                    if (inputText.isNotBlank() && inputText != lastTranscript) {
+                        lastTranscript = inputText
+                        micPaused = true
+                        onTranscript(inputText)
+                    }
                     if (serverContent.optBoolean("interrupted", false)) {
                         onStatus("আপনার কথা শুনছি…")
                     }
@@ -105,6 +115,7 @@ class GeminiLiveVoiceSession(
                         }
                     }
                     if (serverContent.optBoolean("turnComplete", false)) {
+                        resumeListening()
                         onStatus("লাইভ চালু — আপনি কথা বলতে পারেন")
                     }
                 } catch (t: Throwable) {
@@ -154,14 +165,12 @@ class GeminiLiveVoiceSession(
                     val count = input.read(buffer, 0, buffer.size)
                     if (count > 0) {
                         val audio = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
+                        if (micPaused) continue
                         val message = JSONObject().put(
                             "realtimeInput",
-                            JSONObject().put(
-                                "mediaChunks",
-                                JSONArray().put(JSONObject()
-                                    .put("mimeType", "audio/pcm;rate=16000")
-                                    .put("data", audio))
-                            )
+                            JSONObject().put("audio", JSONObject()
+                                .put("mimeType", "audio/pcm;rate=16000")
+                                .put("data", audio))
                         )
                         socket?.send(message.toString())
                     }
@@ -193,6 +202,20 @@ class GeminiLiveVoiceSession(
             .build()
         track.play()
         player = track
+    }
+
+    fun sendAgentReply(message: String) {
+        if (message.isBlank() || stopped.get() || socket == null) return
+        micPaused = true
+        socket?.send(JSONObject().put("clientContent", JSONObject()
+            .put("turns", JSONArray().put(JSONObject().put("role", "user")
+                .put("parts", JSONArray().put(JSONObject().put("text", "আমাদের ফোনের AI Agent-এর কাজের ফলাফল: $message। ব্যবহারকারীকে সংক্ষেপে বাংলায় জানাও।")))))
+            .put("turnComplete", true)).toString()
+    }
+
+    fun resumeListening() {
+        lastTranscript = ""
+        micPaused = false
     }
 
     fun stop() {
