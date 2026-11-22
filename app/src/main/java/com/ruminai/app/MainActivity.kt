@@ -40,6 +40,7 @@ import com.ruminai.app.core.security.AgentCredentialStore
 import com.ruminai.app.core.phone.PhoneAccessibilityTools
 import com.ruminai.app.core.memory.LocalMemoryStore
 import com.ruminai.app.core.phone.PhoneAccessibilityService
+import com.ruminai.app.core.voice.GeminiLiveVoiceSession
 
 class MainActivity : ComponentActivity() {
     private lateinit var memoryStore: LocalMemoryStore
@@ -52,9 +53,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var voiceStatus: TextView
     private lateinit var chatReplyView: TextView
     private var voicePending = false
+    private var liveVoiceSession: GeminiLiveVoiceSession? = null
+    private lateinit var liveVoiceButton: Button
     private var textToSpeech: TextToSpeech? = null
     private val micPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) { voicePending = false; startVoiceCommand() } else { voicePending = false; showMessage("ভয়েস কমান্ডের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।") }
+        if (granted) { voicePending = false; startLiveVoice() } else { voicePending = false; showMessage("লাইভ ভয়েসের জন্য মাইক্রোফোন অনুমতি প্রয়োজন।") }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -184,11 +187,11 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 12, 0, 4)
         }
         root.addView(voiceStatus, matchWidth())
-        val voiceButton = Button(this).apply {
-            text = "🎙️ কথা বলুন — AI Agent কাজ করবে"
-            setOnClickListener { startVoiceCommand() }
+        liveVoiceButton = Button(this).apply {
+            text = "🔴 Live Voice চালু করুন"
+            setOnClickListener { toggleLiveVoice() }
         }
-        root.addView(voiceButton, matchWidth())
+        root.addView(liveVoiceButton, matchWidth())
 
         val planButton = Button(this).apply {
             text = "Agent দিয়ে কাজের পরিকল্পনা করুন"
@@ -226,9 +229,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startVoiceCommand() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            showMessage("এই ফোনে Speech Recognition পাওয়া যাচ্ছে না। Google Speech Services আপডেট করে চেষ্টা করুন।")
+    private fun toggleLiveVoice() {
+        if (liveVoiceSession != null) {
+            liveVoiceSession?.stop()
+            liveVoiceSession = null
+            liveVoiceButton.text = "🔴 Live Voice চালু করুন"
+            voiceStatus.text = "লাইভ ভয়েস বন্ধ"
             return
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -236,46 +242,60 @@ class MainActivity : ComponentActivity() {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        speechRecognizer?.destroy()
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
-            recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { voiceStatus.text = "শুনছি, বস… এখন কথা বলুন" }
-                override fun onBeginningOfSpeech() { voiceStatus.text = "আপনার কথা শুনছি…" }
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { voiceStatus.text = "কথা বুঝে AI Agent-এ পাঠাচ্ছি…" }
-                override fun onError(error: Int) {
-                    voiceStatus.text = "কথা শোনা যায়নি। আবার চেষ্টা করুন। (কোড: $error)"
-                    speak("আপনার কথা বুঝতে পারিনি। আবার বলুন।")
+        startLiveVoice()
+    }
+
+    private fun startLiveVoice() {
+        voicePending = false
+        val key = credentialStore.readGeminiApiKey().orEmpty()
+        if (key.isBlank()) {
+            showMessage("Live Voice চালু করতে আগে Gemini API Key সেট করুন।")
+            return
+        }
+        liveVoiceButton.isEnabled = false
+        liveVoiceButton.text = "সংযোগ হচ্ছে…"
+        val session = GeminiLiveVoiceSession(
+            apiKey = key,
+            scope = lifecycleScope,
+            onStatus = { status ->
+                runOnUiThread {
+                    voiceStatus.text = status
+                    liveVoiceButton.text = if (status.contains("চালু") || status.contains("বলুন")) "⏹ Live Voice বন্ধ করুন" else "Live Voice: সংযোগ হচ্ছে…"
+                    liveVoiceButton.isEnabled = true
                 }
-                override fun onResults(results: Bundle?) {
-                    val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                    if (spoken.isNotBlank()) {
-                        taskInput.setText(spoken)
-                        voiceStatus.text = "আপনি বলেছেন: $spoken"
-                        createAgentPlan()
-                    } else voiceStatus.text = "কথা বোঝা যায়নি, আবার চেষ্টা করুন।"
+            },
+            onTranscript = { transcript ->
+                runOnUiThread {
+                    taskInput.setText(transcript)
+                    voiceStatus.text = "আপনি বলেছেন: $transcript — AI Agent-এ পাঠানো হচ্ছে"
+                    createAgentPlan()
                 }
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!partial.isNullOrBlank()) voiceStatus.text = "শুনছি: $partial"
+            },
+            onError = { error ->
+                runOnUiThread {
+                    voiceStatus.text = error
+                    liveVoiceButton.text = "🔴 Live Voice চালু করুন"
+                    liveVoiceButton.isEnabled = true
+                    liveVoiceSession = null
+                    showMessage("Live Voice সমস্যা: $error")
                 }
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "রুমিনকে কী কাজ করতে বলবেন?")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
-            recognizer.startListening(intent)
+        )
+        liveVoiceSession = session
+        session.start()
+    }
+
+    private fun sendLiveAgentFeedback(message: String) {
+        if (message.isNotBlank()) {
+            liveVoiceSession?.sendAgentReply(message)
         }
     }
 
     override fun onDestroy() {
         speechRecognizer?.destroy()
         speechRecognizer = null
+        liveVoiceSession?.stop()
+        liveVoiceSession = null
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         textToSpeech = null
@@ -361,14 +381,15 @@ class MainActivity : ComponentActivity() {
                 showMessage("২৫ সেকেন্ডেও Gemini থেকে উত্তর আসেনি। ইন্টারনেট, API Key এবং Google AI Studio-তে মডেল অ্যাক্সেস পরীক্ষা করুন।")
                 return@launch
             }
-            prepared.onFailure { showMessage("পরিকল্পনা তৈরি হয়নি: ${it.message}") }
+            prepared.onFailure { val msg = "পরিকল্পনা তৈরি হয়নি: ${it.message}"; sendLiveAgentFeedback(msg); showMessage(msg) }
             prepared.onSuccess { run ->
                 if (run.plan.steps.isEmpty()) {
-                    speak("এই নির্দেশের জন্য কোনো কাজের ধাপ তৈরি করতে পারিনি।")
-                    showMessage("এই অনুরোধের জন্য অনুমোদিত Tool পাওয়া যায়নি। এখনো কোনো কাজ করা হয়নি।")
+                    val msg = "এই অনুরোধের জন্য অনুমোদিত Tool পাওয়া যায়নি। এখনো কোনো কাজ করা হয়নি।"
+                    sendLiveAgentFeedback(msg)
+                    showMessage(msg)
                     return@onSuccess
                 }
-                speak("আপনার কথা বুঝেছি। কাজের পরিকল্পনা তৈরি করেছি। অনুমতি দিলে কাজ শুরু করব।")
+                sendLiveAgentFeedback("আপনার কাজের পরিকল্পনা তৈরি করেছি। স্ক্রিনে অনুমতি চাইছি।")
                 val planText = run.plan.steps.mapIndexed { index, step ->
                     "${index + 1}. ${step.toolName}\n${step.description}\nঅনুমতি: প্রয়োজন"
                 }.joinToString("\n\n")
@@ -377,7 +398,7 @@ class MainActivity : ComponentActivity() {
                     .setMessage("অনুরোধ: ${run.plan.userRequest}\n\n$planText\n\nপ্রতিটি ধাপ চালানোর অনুমতি দিচ্ছেন?")
                     .setNegativeButton("এখন নয়", null)
                     .setPositiveButton("সব ধাপ অনুমোদন ও চালান") { _, _ ->
-                        speak("ঠিক আছে, অনুমোদিত কাজ শুরু করছি।")
+                        sendLiveAgentFeedback("আপনার অনুমোদন পেয়েছি। কাজ শুরু করছি।")
                         executeApprovedPlan(runtime, run)
                     }
                     .show()
@@ -401,7 +422,7 @@ class MainActivity : ComponentActivity() {
                 runtime.execute(run, run.steps.map { it.step.id }.toSet())
             }
             progress.dismiss()
-            result.onFailure { speak("কাজটি চালানো যায়নি।"); showMessage("কাজ চালানো যায়নি: ${it.message}") }
+            result.onFailure { val msg = "কাজ চালানো যায়নি: ${it.message}"; sendLiveAgentFeedback(msg); showMessage(msg) }
             result.onSuccess { completed ->
                 val detail = completed.steps.joinToString("\n\n") { step ->
                     "${step.step.toolName}: ${step.status}\n${step.output ?: step.error.orEmpty()}"
