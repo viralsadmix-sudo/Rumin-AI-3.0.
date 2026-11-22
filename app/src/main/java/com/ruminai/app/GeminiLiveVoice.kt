@@ -67,7 +67,7 @@ class GeminiLiveVoice(
                         }
                     }.start()
                     val setup = JSONObject()
-                        .put("model", "models/gemini-3.8-live")
+                        .put("model", "models/gemini-3.1-flash-live-preview")
                         .put("generationConfig", JSONObject()
                             .put("responseModalities", JSONArray().put("AUDIO"))
                             .put("speechConfig", JSONObject().put("voiceConfig",
