@@ -156,6 +156,12 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(apiButton, matchWidth())
 
+        val apiTestButton = Button(this).apply {
+            text = "Gemini API সংযোগ পরীক্ষা করুন"
+            setOnClickListener { testGeminiConnection() }
+        }
+        root.addView(apiTestButton, matchWidth())
+
         taskInput = EditText(this).apply {
             hint = "রুমিনকে বাংলায় কাজ বলুন..."
             setTextColor(0xFFFFFFFF.toInt())
@@ -209,6 +215,31 @@ class MainActivity : ComponentActivity() {
         root.addView(info, matchWidth())
         val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
         setContentView(scroll)
+    }
+
+    private fun testGeminiConnection() {
+        val key = credentialStore.readGeminiApiKey().orEmpty()
+        if (key.isBlank()) {
+            showMessage("Gemini API Key সংরক্ষিত নেই। আগে Key সেট করুন।")
+            return
+        }
+        val progress = AlertDialog.Builder(this)
+            .setMessage("Gemini API Key ও মডেল অ্যাক্সেস পরীক্ষা হচ্ছে…")
+            .setCancelable(false)
+            .create()
+        progress.show()
+        lifecycleScope.launch {
+            val result = withTimeoutOrNull(20_000L) {
+                com.ruminai.app.core.agent.GeminiConnectionDiagnostics(key).run()
+            }
+            progress.dismiss()
+            val message = when {
+                result == null -> "পরীক্ষা ২০ সেকেন্ডে শেষ হয়নি। নেটওয়ার্ক বা Google API-তে সাড়া পাওয়া যায়নি।"
+                result.isSuccess -> result.getOrNull().orEmpty()
+                else -> result.exceptionOrNull()?.message ?: "অজানা API সমস্যা"
+            }
+            showMessage(message)
+        }
     }
 
     private fun sendChatMessage() {
