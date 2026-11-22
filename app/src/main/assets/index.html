@@ -188,7 +188,7 @@ function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
 function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
 /* Native layer may call any of these names with the recognized text */
 ['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
-['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
+['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live||voiceMode){clearTimeout(listenTimer);listenTimer=setTimeout(()=>{if(!busy&&(live||voiceMode))startListening()},1300)}}});
 
 /* ---------- Phone tools ---------- */
 const waiters={};const sleep=ms=>new Promise(r=>setTimeout(r,ms));
