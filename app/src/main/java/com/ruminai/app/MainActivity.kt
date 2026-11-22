@@ -135,7 +135,15 @@ class MainActivity : ComponentActivity() {
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
                 if (continuousListening) runOnUiThread {
-                    webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('শোনা বন্ধ হয়েছে, আবার শুনছি…')", null)
+                    val message = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH -> "কথা শনাক্ত হয়নি (কোড ৭), আবার শুনছি…"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "কোনো কথা শোনা যায়নি, আবার শুনছি…"
+                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech Recognition নেটওয়ার্কে সমস্যা, আবার চেষ্টা করছি…"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "মাইক্রোফোন ব্যস্ত, একটু পর আবার শুনছি…"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "মাইক্রোফোনের অনুমতি দিন"
+                        else -> "ভয়েস শোনা বন্ধ হয়েছে (কোড $error), আবার চেষ্টা করছি…"
+                    }
+                    webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError(${JSONObject.quote(message)})", null)
                 }
             }
             override fun onResults(results: Bundle?) {
