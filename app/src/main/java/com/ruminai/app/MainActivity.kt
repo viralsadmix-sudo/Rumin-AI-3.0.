@@ -275,31 +275,45 @@ class MainActivity : ComponentActivity() {
                             .put("model", "gemini-3.8-flash")
                             .put("input", lines.joinToString("\n"))
                     }
-                    connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 45000
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                        if (isGroq) setRequestProperty("Authorization", "Bearer $key")
-                        else setRequestProperty("x-goog-api-key", key)
-                    }
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                    val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                    val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
-                    if (status !in 200..299) {
-                        val errorObj = response.optJSONObject("error")
-                        val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
-                            ?: response.optString("message").takeIf { it.isNotBlank() }
-                            ?: "HTTP $status"
-                        throw IllegalStateException("HTTP $status — $message")
-                    }
-                    val reply = if (isGroq) {
-                        response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
-                    } else {
-                        extractGeminiText(response)
+                    var reply = ""
+                    val geminiModels = if (isGroq) listOf("") else listOf("gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite")
+                    for ((attempt, model) in geminiModels.withIndex()) {
+                        if (!isGroq) body.put("model", model)
+                        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 20000
+                            readTimeout = 45000
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                            if (isGroq) setRequestProperty("Authorization", "Bearer $key")
+                            else setRequestProperty("x-goog-api-key", key)
+                        }
+                        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                        val status = connection.responseCode
+                        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                        val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                        val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+                        if (status !in 200..299) {
+                            val errorObj = response.optJSONObject("error")
+                            val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
+                                ?: response.optString("message").takeIf { it.isNotBlank() }
+                                ?: "HTTP $status"
+                            connection.disconnect()
+                            connection = null
+                            if (!isGroq && status == 503 && attempt < geminiModels.lastIndex) {
+                                Thread.sleep(1200L * (attempt + 1))
+                                continue
+                            }
+                            throw IllegalStateException("HTTP $status — $message")
+                        }
+                        reply = if (isGroq) {
+                            response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
+                        } else {
+                            extractGeminiText(response)
+                        }
+                        if (reply.isNotBlank()) break
+                        connection.disconnect()
+                        connection = null
                     }
                     if (reply.isBlank()) throw IllegalStateException("AI থেকে ফাঁকা উত্তর এসেছে")
                     deliverAiResult(requestId, true, reply)
