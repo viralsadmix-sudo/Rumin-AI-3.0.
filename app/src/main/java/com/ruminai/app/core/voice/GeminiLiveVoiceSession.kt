@@ -51,7 +51,7 @@ class GeminiLiveVoiceSession(
     private var captureJob: Job? = null
     private var setupReady = false
     @Volatile private var micPaused = false
-    private var lastTranscript = ""
+    private var pendingTranscript = ""
 
     fun start() {
         if (apiKey.isBlank()) {
@@ -94,11 +94,7 @@ class GeminiLiveVoiceSession(
                     }
                     val serverContent = root.optJSONObject("serverContent") ?: return
                     val inputText = serverContent.optJSONObject("inputTranscription")?.optString("text").orEmpty().trim()
-                    if (inputText.isNotBlank() && inputText != lastTranscript) {
-                        lastTranscript = inputText
-                        micPaused = true
-                        onTranscript(inputText)
-                    }
+                    if (inputText.isNotBlank()) pendingTranscript = inputText
                     if (serverContent.optBoolean("interrupted", false)) {
                         onStatus("আপনার কথা শুনছি…")
                     }
@@ -115,8 +111,15 @@ class GeminiLiveVoiceSession(
                         }
                     }
                     if (serverContent.optBoolean("turnComplete", false)) {
-                        resumeListening()
-                        onStatus("লাইভ চালু — আপনি কথা বলতে পারেন")
+                        val spokenRequest = pendingTranscript.trim()
+                        pendingTranscript = ""
+                        if (spokenRequest.isNotBlank()) {
+                            micPaused = true
+                            onTranscript(spokenRequest)
+                        } else {
+                            resumeListening()
+                            onStatus("লাইভ চালু — আপনি কথা বলতে পারেন")
+                        }
                     }
                 } catch (t: Throwable) {
                     onError("Live response পড়া যায়নি: ${t.message}")
@@ -214,7 +217,6 @@ class GeminiLiveVoiceSession(
     }
 
     fun resumeListening() {
-        lastTranscript = ""
         micPaused = false
     }
 
