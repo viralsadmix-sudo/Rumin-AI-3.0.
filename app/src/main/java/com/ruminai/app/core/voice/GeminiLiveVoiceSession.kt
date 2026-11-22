@@ -17,6 +17,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okhttp3.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -42,7 +43,6 @@ class GeminiLiveVoiceSession(
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(20, TimeUnit.SECONDS)
         .build()
     private val stopped = AtomicBoolean(false)
     private var socket: WebSocket? = null
@@ -59,8 +59,14 @@ class GeminiLiveVoiceSession(
             return
         }
         onStatus("Gemini Live-এর সঙ্গে সংযোগ হচ্ছে…")
+        val liveUrl = "https://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+            .toHttpUrl()
+            .newBuilder()
+            .scheme("wss")
+            .addQueryParameter("key", apiKey)
+            .build()
         val request = Request.Builder()
-            .url("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey")
+            .url(liveUrl)
             .build()
         socket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
