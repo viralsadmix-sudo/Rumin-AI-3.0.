@@ -78,7 +78,7 @@ class GeminiLiveVoiceSession(
                         .put("parts", JSONArray().put(JSONObject().put(
                             "text",
                             "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ব্যবহারকারী কোনো ফোনের কাজ চাইলে নিজে কাজ সম্পন্ন হয়েছে বলবে না; অ্যাপের Agent-কে কাজটি পরিকল্পনা ও অনুমতির জন্য পাঠানো হবে।"
-                        ))))
+                        )))))
                 webSocket.send(JSONObject().put("setup", setup).toString())
             }
 
@@ -213,10 +213,10 @@ class GeminiLiveVoiceSession(
     fun sendAgentReply(message: String) {
         if (message.isBlank() || stopped.get() || socket == null) return
         micPaused = true
-        socket?.send(JSONObject().put("clientContent", JSONObject()
-            .put("turns", JSONArray().put(JSONObject().put("role", "user")
-                .put("parts", JSONArray().put(JSONObject().put("text", "আমাদের ফোনের AI Agent-এর কাজের ফলাফল: $message। ব্যবহারকারীকে সংক্ষেপে বাংলায় জানাও।")))))
-            .put("turnComplete", true)).toString()
+        val part = JSONObject().put("text", "আমাদের ফোনের AI Agent-এর কাজের ফলাফল: $message। ব্যবহারকারীকে সংক্ষেপে বাংলায় জানাও।")
+        val turn = JSONObject().put("role", "user").put("parts", JSONArray().put(part))
+        val content = JSONObject().put("turns", JSONArray().put(turn)).put("turnComplete", true)
+        socket?.send(JSONObject().put("clientContent", content).toString())
     }
 
     fun resumeListening() {
