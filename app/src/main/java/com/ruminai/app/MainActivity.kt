@@ -405,7 +405,6 @@ class MainActivity : ComponentActivity() {
                     .put("response", JSONObject().put("error", "এই কাজটি Rumin-এর অনুমোদিত ফোন টুলের মধ্যে নেই।")))
             }
             liveVoiceSession?.sendToolResponses(responses)
-            liveVoiceSession?.resumeListening()
             return
         }
         val plan = AgentPlan(UUID.randomUUID().toString(), "Live Voice থেকে পাওয়া ফোনের নির্দেশ", mapped.map { it.second })
@@ -424,7 +423,6 @@ class MainActivity : ComponentActivity() {
                         .put("response", JSONObject().put("error", error.message ?: "পরিকল্পনা তৈরি হয়নি")))
                 }
                 liveVoiceSession?.sendToolResponses(responses)
-                liveVoiceSession?.resumeListening()
             }
             prepared.onSuccess { run ->
                 val summary = run.steps.mapIndexed { index, step ->
@@ -440,7 +438,6 @@ class MainActivity : ComponentActivity() {
                                 .put("response", JSONObject().put("error", "ব্যবহারকারী এই কাজের অনুমতি দেননি।")))
                         }
                         liveVoiceSession?.sendToolResponses(responses)
-                        liveVoiceSession?.resumeListening()
                     }
                     .setPositiveButton("অনুমতি দিন ও চালান") { _, _ ->
                         executeLiveApprovedCalls(runtime, run, mapped)
@@ -452,7 +449,6 @@ class MainActivity : ComponentActivity() {
                                 .put("response", JSONObject().put("error", "অনুমতি দেওয়া হয়নি।")))
                         }
                         liveVoiceSession?.sendToolResponses(responses)
-                        liveVoiceSession?.resumeListening()
                     }
                     .show()
             }
@@ -471,7 +467,6 @@ class MainActivity : ComponentActivity() {
                     .put("response", JSONObject().put("error", "ফোন নিয়ন্ত্রণের Accessibility অনুমতি চালু নেই।")))
             }
             liveVoiceSession?.sendToolResponses(responses)
-            liveVoiceSession?.resumeListening()
             return
         }
         lifecycleScope.launch {
@@ -491,7 +486,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             liveVoiceSession?.sendToolResponses(responses)
-            liveVoiceSession?.resumeListening()
         }
     }
 
