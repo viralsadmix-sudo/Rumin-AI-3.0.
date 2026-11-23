@@ -1,2 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources><string name="rumin_accessibility_description">RUMIN AI navigation commands for home, back, recent apps, and notification panel.</string></resources>
+<resources>
+    <string name="rumin_accessibility_description">Rumin AI-এর অনুরোধে দৃশ্যমান স্ক্রিনের লেখা পড়া এবং অনুমোদিত ট্যাপ, টাইপ ও স্ক্রল করার সুবিধা। চালু করতে Android Accessibility Settings-এ আপনার সম্মতি প্রয়োজন।</string>
+</resources>
