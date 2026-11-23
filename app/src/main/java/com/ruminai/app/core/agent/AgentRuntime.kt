@@ -40,7 +40,6 @@ class AgentRuntime(
     suspend fun prepare(userRequest: String): Result<AgentRun> {
         if (userRequest.isBlank()) return Result.failure(IllegalArgumentException("কাজের নির্দেশ লিখুন।"))
         return planner.createPlan(userRequest.trim()).mapCatching { plan ->
-            require(plan.steps.isNotEmpty()) { "পরিকল্পনায় কোনো কাজের ধাপ নেই।" }
             plan.steps.forEach { step ->
                 val tool = registry.find(step.toolName)
                     ?: error("অনুমোদিত নয় এমন Tool: ${step.toolName}")
