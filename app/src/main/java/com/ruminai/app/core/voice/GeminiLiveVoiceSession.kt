@@ -154,46 +154,56 @@ class GeminiLiveVoiceSession(
 
     private fun startAudio() {
         if (stopped.get() || !setupReady || captureJob != null) return
-        val minInput = AudioRecord.getMinBufferSize(
-            INPUT_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
-        )
-        if (minInput <= 0) {
-            onError("এই ফোনে 16kHz মাইক্রোফোন অডিও শুরু করা যায়নি।")
-            return
-        }
-        val input = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            INPUT_RATE,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            maxOf(minInput * 2, 4096)
-        )
-        if (input.state != AudioRecord.STATE_INITIALIZED) {
-            input.release()
-            onError("মাইক্রোফোন AudioRecord চালু হয়নি।")
-            return
-        }
-        recorder = input
-        input.startRecording()
+        // AudioRecord must be created and started off the WebSocket callback thread.
         captureJob = scope.launch(Dispatchers.IO) {
-            val buffer = ByteArray(2048)
+            var input: AudioRecord? = null
             try {
+                val minInput = AudioRecord.getMinBufferSize(
+                    INPUT_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+                )
+                check(minInput > 0) { "এই ফোনে 16kHz মাইক্রোফোন অডিও শুরু করা যায়নি (buffer=$minInput)।" }
+                input = AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    INPUT_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    maxOf(minInput * 2, 8192)
+                )
+                check(input.state == AudioRecord.STATE_INITIALIZED) {
+                    "মাইক্রোফোন AudioRecord initialize হয়নি। Android microphone permission পরীক্ষা করুন।"
+                }
+                recorder = input
+                input.startRecording()
+                check(input.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    "Android মাইক্রোফোন recording শুরু করেনি।"
+                }
+                onStatus("লাইভ চালু — বলুন, বস")
+                val buffer = ByteArray(2048)
                 while (isActive && !stopped.get()) {
                     val count = input.read(buffer, 0, buffer.size)
-                    if (count > 0) {
+                    if (count > 0 && !micPaused) {
                         val audio = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
-                        if (micPaused) continue
                         val message = JSONObject().put(
                             "realtimeInput",
                             JSONObject().put("audio", JSONObject()
                                 .put("mimeType", "audio/pcm;rate=16000")
                                 .put("data", audio))
                         )
-                        socket?.send(message.toString())
+                        if (socket?.send(message.toString()) != true) {
+                            throw IllegalStateException("Gemini Live WebSocket অডিও গ্রহণ করছে না।")
+                        }
+                    } else if (count < 0 && count != AudioRecord.ERROR_INVALID_OPERATION) {
+                        throw IllegalStateException("মাইক্রোফোন read error: $count")
                     }
                 }
             } catch (t: Throwable) {
-                if (!stopped.get()) onError("মাইক্রোফোন স্ট্রিম বন্ধ: ${t.message}")
+                if (!stopped.get()) {
+                    onError("মাইক্রোফোন চালু/পড়তে সমস্যা: ${t.message ?: t.javaClass.simpleName}")
+                }
+            } finally {
+                if (recorder === input) recorder = null
+                runCatching { input?.stop() }
+                runCatching { input?.release() }
             }
         }
     }
