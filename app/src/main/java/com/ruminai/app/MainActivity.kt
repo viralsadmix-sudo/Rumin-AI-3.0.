@@ -243,7 +243,10 @@ class MainActivity : ComponentActivity() {
             val result = withTimeoutOrNull(18_000L) { client.reply(message) }
             chatReplyView.text = when {
                 result == null -> "উত্তর আসতে দেরি হচ্ছে। ইন্টারনেট বা Gemini API সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।"
-                result.isSuccess -> result.getOrNull().orEmpty().also { answer -> textToSpeech?.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "rumin-chat-answer") }
+                result.isSuccess -> result.getOrNull().orEmpty().also { answer ->
+                    textToSpeech?.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "rumin-chat-answer")
+                    sendLiveAgentFeedback(answer)
+                }
                 else -> "উত্তর পাওয়া যায়নি: ${result.exceptionOrNull()?.message ?: "অজানা সমস্যা"}"
             }
             homeScroll.post { homeScroll.smoothScrollTo(0, chatReplyView.bottom) }
@@ -289,7 +292,7 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     taskInput.setText(transcript)
                     voiceStatus.text = "আপনি বলেছেন: $transcript — AI Agent-এ পাঠানো হচ্ছে"
-                    createAgentPlan()
+                    routeUserRequest(transcript)
                 }
             },
             onError = { error ->
@@ -374,8 +377,31 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun isLikelyPhoneAction(request: String): Boolean {
+        val text = request.lowercase()
+        val actionTerms = listOf(
+            "খুলে দাও", "খোলো", "চালু কর", "বন্ধ কর", "কল কর", "ফোন কর",
+            "মেসেজ পাঠা", "এসএমএস পাঠা", "স্ক্রল কর", "ক্লিক কর", "ট্যাপ কর",
+            "লিখে দাও", "টাইপ কর", "ওপেন", "open ", "launch ", "click ",
+            "tap ", "scroll ", "call ", "send sms", "send message", "type "
+        )
+        return actionTerms.any { text.contains(it) }
+    }
+
+    private fun routeUserRequest(request: String) {
+        if (isLikelyPhoneAction(request)) {
+            createAgentPlan()
+        } else {
+            sendChatMessage()
+        }
+    }
+
     private fun createAgentPlan() {
         val request = taskInput.text.toString().trim()
+        if (request.isNotBlank() && !isLikelyPhoneAction(request)) {
+            sendChatMessage()
+            return
+        }
         if (request.isBlank()) {
             showMessage("আগে রুমিনকে একটি কাজ লিখে দিন।")
             return
