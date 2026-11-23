@@ -43,6 +43,12 @@ import com.ruminai.app.core.phone.PhoneAccessibilityTools
 import com.ruminai.app.core.memory.LocalMemoryStore
 import com.ruminai.app.core.phone.PhoneAccessibilityService
 import com.ruminai.app.core.voice.GeminiLiveVoiceSession
+import com.ruminai.app.core.voice.LiveToolCall
+import com.ruminai.app.core.model.AgentPlan
+import com.ruminai.app.core.model.AgentStep
+import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     private lateinit var memoryStore: LocalMemoryStore
@@ -290,9 +296,11 @@ class MainActivity : ComponentActivity() {
             onTranscript = { transcript ->
                 runOnUiThread {
                     taskInput.setText(transcript)
-                    voiceStatus.text = "আপনি বলেছেন: $transcript — AI Agent-এ পাঠানো হচ্ছে"
-                    createAgentPlan()
+                    voiceStatus.text = "আপনি বলেছেন: $transcript"
                 }
+            },
+            onToolCall = { calls ->
+                runOnUiThread { handleLiveToolCalls(calls) }
             },
             onError = { error ->
                 runOnUiThread {
@@ -374,6 +382,117 @@ class MainActivity : ComponentActivity() {
                 }
             }
             .show()
+    }
+
+    private fun handleLiveToolCalls(calls: List<LiveToolCall>) {
+        val registry = ToolRegistry(PhoneAccessibilityTools().asAgentTools())
+        val mapped = calls.mapNotNull { call ->
+            val pair = when (call.name) {
+                "launch_app" -> "phone.launch_app" to call.arguments.optString("package_name")
+                "read_visible_screen" -> "phone.read_visible_screen" to "বর্তমান দৃশ্যমান স্ক্রিন পড়ুন"
+                "click_visible_text" -> "phone.click_visible_text" to call.arguments.optString("label")
+                "scroll_screen_forward" -> "phone.scroll_screen_forward" to "বর্তমান স্ক্রিন একবার স্ক্রল করুন"
+                "type_focused_text" -> "phone.type_focused_text" to call.arguments.optString("text")
+                else -> null
+            }
+            if (pair == null || registry.find(pair.first) == null || pair.second.isBlank()) null
+            else call to AgentStep(UUID.randomUUID().toString(), pair.second, pair.first, true)
+        }
+        if (mapped.isEmpty()) {
+            val responses = JSONArray()
+            calls.forEach { call ->
+                responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                    .put("response", JSONObject().put("error", "এই কাজটি Rumin-এর অনুমোদিত ফোন টুলের মধ্যে নেই।")))
+            }
+            liveVoiceSession?.sendToolResponses(responses)
+            liveVoiceSession?.resumeListening()
+            return
+        }
+        val plan = AgentPlan(UUID.randomUUID().toString(), "Live Voice থেকে পাওয়া ফোনের নির্দেশ", mapped.map { it.second })
+        val planner = object : com.ruminai.app.core.agent.AgentPlanner {
+            override suspend fun createPlan(userRequest: String): Result<AgentPlan> = Result.success(plan)
+        }
+        val runtime = AgentRuntime(planner, registry, observer = object : AgentObserver {
+            override fun onRunUpdated(run: AgentRun) { agentRunStore.save(run) }
+        })
+        lifecycleScope.launch {
+            val prepared = runtime.prepare(plan.userRequest)
+            prepared.onFailure { error ->
+                val responses = JSONArray()
+                mapped.forEach { (call, _) ->
+                    responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                        .put("response", JSONObject().put("error", error.message ?: "পরিকল্পনা তৈরি হয়নি")))
+                }
+                liveVoiceSession?.sendToolResponses(responses)
+                liveVoiceSession?.resumeListening()
+            }
+            prepared.onSuccess { run ->
+                val summary = run.steps.mapIndexed { index, step ->
+                    "${index + 1}. ${step.step.description}"
+                }.joinToString("\n")
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("রুমিনের অনুমতি প্রয়োজন")
+                    .setMessage("তুমি Live Voice-এ যে কাজ বলেছ, রুমিন এই কাজগুলো করতে চায়:\n\n$summary\n\nঅনুমতি দিলে তবেই চালানো হবে।")
+                    .setNegativeButton("অনুমতি দেব না") { _, _ ->
+                        val responses = JSONArray()
+                        mapped.forEach { (call, _) ->
+                            responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                                .put("response", JSONObject().put("error", "ব্যবহারকারী এই কাজের অনুমতি দেননি।")))
+                        }
+                        liveVoiceSession?.sendToolResponses(responses)
+                        liveVoiceSession?.resumeListening()
+                    }
+                    .setPositiveButton("অনুমতি দিন ও চালান") { _, _ ->
+                        executeLiveApprovedCalls(runtime, run, mapped)
+                    }
+                    .setOnCancelListener {
+                        val responses = JSONArray()
+                        mapped.forEach { (call, _) ->
+                            responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                                .put("response", JSONObject().put("error", "অনুমতি দেওয়া হয়নি।")))
+                        }
+                        liveVoiceSession?.sendToolResponses(responses)
+                        liveVoiceSession?.resumeListening()
+                    }
+                    .show()
+            }
+        }
+    }
+
+    private fun executeLiveApprovedCalls(
+        runtime: AgentRuntime,
+        run: AgentRun,
+        calls: List<Pair<LiveToolCall, AgentStep>>
+    ) {
+        if (!PhoneAccessibilityService.isEnabledInProcess()) {
+            val responses = JSONArray()
+            calls.forEach { (call, _) ->
+                responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                    .put("response", JSONObject().put("error", "ফোন নিয়ন্ত্রণের Accessibility অনুমতি চালু নেই।")))
+            }
+            liveVoiceSession?.sendToolResponses(responses)
+            liveVoiceSession?.resumeListening()
+            return
+        }
+        lifecycleScope.launch {
+            val result = runCatching { runtime.execute(run, run.steps.map { it.step.id }.toSet()) }
+            val responses = JSONArray()
+            result.onSuccess { completed ->
+                completed.steps.forEachIndexed { index, step ->
+                    val call = calls.getOrNull(index)?.first ?: return@forEachIndexed
+                    responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                        .put("response", JSONObject()
+                            .put("result", step.output ?: step.error ?: step.status.name)))
+                }
+            }.onFailure { error ->
+                calls.forEach { (call, _) ->
+                    responses.put(JSONObject().put("id", call.id).put("name", call.name)
+                        .put("response", JSONObject().put("error", error.message ?: "কাজ সম্পন্ন হয়নি")))
+                }
+            }
+            liveVoiceSession?.sendToolResponses(responses)
+            liveVoiceSession?.resumeListening()
+        }
     }
 
     private fun createAgentPlan() {
