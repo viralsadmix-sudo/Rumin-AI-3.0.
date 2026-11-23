@@ -276,7 +276,7 @@ class GeminiLiveVoiceSession(
         required: Array<String>
     ): JSONObject {
         val parameters = JSONObject().put("type", "OBJECT").put("properties", properties)
-        if (required.isNotEmpty()) parameters.put("required", JSONArray(required))
+        if (required.isNotEmpty()) parameters.put("required", JSONArray().apply { required.forEach { put(it) } })
         return JSONObject().put("name", name).put("description", description).put("parameters", parameters)
     }
 
