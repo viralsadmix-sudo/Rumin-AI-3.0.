@@ -21,9 +21,9 @@ class GeminiAgentPlanner(
     private val memoryProvider: () -> List<String> = { emptyList() }
 ) : AgentPlanner {
     private val client = OkHttpClient.Builder()
-        .callTimeout(25, TimeUnit.SECONDS)
+        .callTimeout(8, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
     override suspend fun createPlan(userRequest: String): Result<AgentPlan> = withContext(Dispatchers.IO) {
