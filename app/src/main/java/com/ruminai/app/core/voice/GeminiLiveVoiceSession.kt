@@ -58,6 +58,7 @@ class GeminiLiveVoiceSession(
     private var setupReady = false
     @Volatile private var micPaused = false
     private var pendingTranscript = ""
+    @Volatile private var awaitingToolResponse = false
 
     fun start() {
         if (apiKey.isBlank()) {
@@ -125,6 +126,7 @@ class GeminiLiveVoiceSession(
                     val functionCalls = toolCall?.optJSONArray("functionCalls")
                     if (functionCalls != null && functionCalls.length() > 0) {
                         micPaused = true
+                        awaitingToolResponse = true
                         val calls = (0 until functionCalls.length()).mapNotNull { callIndex ->
                             val item = functionCalls.optJSONObject(callIndex) ?: return@mapNotNull null
                             val args = item.optJSONObject("args") ?: JSONObject()
@@ -158,9 +160,8 @@ class GeminiLiveVoiceSession(
                         val spokenRequest = pendingTranscript.trim()
                         pendingTranscript = ""
                         if (spokenRequest.isNotBlank()) {
-                            micPaused = true
-                            onTranscript(spokenRequest)
-                        } else {
+                            if (!awaitingToolResponse) onTranscript(spokenRequest)
+                        } else if (!awaitingToolResponse) {
                             resumeListening()
                             onStatus("লাইভ চালু — আপনি কথা বলতে পারেন")
                         }
@@ -307,6 +308,7 @@ class GeminiLiveVoiceSession(
 
     fun sendToolResponses(responses: JSONArray) {
         if (stopped.get() || socket == null || responses.length() == 0) return
+        awaitingToolResponse = false
         socket?.send(JSONObject().put("toolResponse",
             JSONObject().put("functionResponses", responses)).toString())
     }
