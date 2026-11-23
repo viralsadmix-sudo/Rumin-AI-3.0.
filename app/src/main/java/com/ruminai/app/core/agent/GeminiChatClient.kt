@@ -16,9 +16,9 @@ class GeminiChatClient(
     private val model: String = "gemini-3.8-flash"
 ) {
     private val client = OkHttpClient.Builder()
-        .callTimeout(25, TimeUnit.SECONDS)
+        .callTimeout(9, TimeUnit.SECONDS)
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
     suspend fun reply(message: String): Result<String> = withContext(Dispatchers.IO) {
@@ -37,20 +37,33 @@ class GeminiChatClient(
                 .put("contents", JSONArray().put(JSONObject()
                     .put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
                 .put("generationConfig", JSONObject().put("temperature", 0.6))
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-                .header("x-goog-api-key", key)
-                .post(body.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(request).execute().use { response ->
-                val raw = response.body?.string().orEmpty()
-                if (!response.isSuccessful) error("Gemini API error ${response.code}: ${raw.take(350)}")
-                val answer = JSONObject(raw).getJSONArray("candidates").getJSONObject(0)
-                    .getJSONObject("content").getJSONArray("parts").getJSONObject(0)
-                    .getString("text").trim()
-                require(answer.isNotBlank()) { "AI ফাঁকা উত্তর দিয়েছে। আবার চেষ্টা করুন।" }
-                answer
+            val candidateModels = listOf(model, "gemini-3.5-flash-lite").distinct()
+            var lastError = ""
+            for (selectedModel in candidateModels) {
+                val request = Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/$selectedModel:generateContent")
+                    .header("x-goog-api-key", key)
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val result = client.newCall(request).execute().use { response ->
+                    val raw = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        lastError = "Gemini API error ${response.code}: ${raw.take(250)}"
+                        if (response.code == 503 || response.code == 429 || response.code == 500) null
+                        else error(lastError)
+                    } else {
+                        val root = JSONObject(raw)
+                        val answer = root.optJSONArray("candidates")
+                            ?.optJSONObject(0)?.optJSONObject("content")
+                            ?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
+                            .orEmpty().trim()
+                        require(answer.isNotBlank()) { "Gemini ফাঁকা উত্তর দিয়েছে।" }
+                        answer
+                    }
+                }
+                if (result != null) return@runCatching result
             }
+            error("Gemini-এর মূল ও বিকল্প মডেল সাড়া দেয়নি। $lastError")
         }
     }
 }
