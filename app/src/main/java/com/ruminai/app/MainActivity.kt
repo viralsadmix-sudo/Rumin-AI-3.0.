@@ -168,7 +168,6 @@ class MainActivity : ComponentActivity() {
         chatReplyView = text("রুমিনের উত্তর এখানে দেখা যাবে।", 14f, white)
         chatReplyView.setPadding(10, 12, 10, 12)
         talkCard.addView(chatReplyView, matchWidth())
-        talkCard.addView(styledButton("AI Agent দিয়ে কাজের পরিকল্পনা করুন", true) { createAgentPlan() }, matchWidth())
         root.addView(talkCard, matchWidth().apply { bottomMargin = 14 })
 
         val memoryCard = card()
@@ -292,7 +291,7 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     taskInput.setText(transcript)
                     voiceStatus.text = "আপনি বলেছেন: $transcript — AI Agent-এ পাঠানো হচ্ছে"
-                    routeUserRequest(transcript)
+                    createAgentPlan()
                 }
             },
             onError = { error ->
@@ -377,31 +376,8 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    private fun isLikelyPhoneAction(request: String): Boolean {
-        val text = request.lowercase()
-        val actionTerms = listOf(
-            "খুলে দাও", "খোলো", "চালু কর", "বন্ধ কর", "কল কর", "ফোন কর",
-            "মেসেজ পাঠা", "এসএমএস পাঠা", "স্ক্রল কর", "ক্লিক কর", "ট্যাপ কর",
-            "লিখে দাও", "টাইপ কর", "ওপেন", "open ", "launch ", "click ",
-            "tap ", "scroll ", "call ", "send sms", "send message", "type "
-        )
-        return actionTerms.any { text.contains(it) }
-    }
-
-    private fun routeUserRequest(request: String) {
-        if (isLikelyPhoneAction(request)) {
-            createAgentPlan()
-        } else {
-            sendChatMessage()
-        }
-    }
-
     private fun createAgentPlan() {
         val request = taskInput.text.toString().trim()
-        if (request.isNotBlank() && !isLikelyPhoneAction(request)) {
-            sendChatMessage()
-            return
-        }
         if (request.isBlank()) {
             showMessage("আগে রুমিনকে একটি কাজ লিখে দিন।")
             return
@@ -428,12 +404,11 @@ class MainActivity : ComponentActivity() {
                 showMessage("২৫ সেকেন্ডেও Gemini থেকে উত্তর আসেনি। ইন্টারনেট, API Key এবং Google AI Studio-তে মডেল অ্যাক্সেস পরীক্ষা করুন।")
                 return@launch
             }
-            prepared.onFailure { val msg = "পরিকল্পনা তৈরি হয়নি: ${it.message}"; sendLiveAgentFeedback(msg); showMessage(msg) }
+            prepared.onFailure { val msg = "কাজটি যাচাই করতে সমস্যা হয়েছে: ${it.message}"; sendLiveAgentFeedback(msg) }
             prepared.onSuccess { run ->
                 if (run.plan.steps.isEmpty()) {
-                    val msg = "এই অনুরোধের জন্য অনুমোদিত Tool পাওয়া যায়নি। এখনো কোনো কাজ করা হয়নি।"
-                    sendLiveAgentFeedback(msg)
-                    showMessage(msg)
+                    // Normal conversation is handled by Gemini Live; resume listening without a second reply.
+                    liveVoiceSession?.resumeListening()
                     return@onSuccess
                 }
                 sendLiveAgentFeedback("আপনার কাজের পরিকল্পনা তৈরি করেছি। স্ক্রিনে অনুমতি চাইছি।")
@@ -443,7 +418,7 @@ class MainActivity : ComponentActivity() {
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle("রুমিনের কাজের পরিকল্পনা")
                     .setMessage("অনুরোধ: ${run.plan.userRequest}\n\n$planText\n\nপ্রতিটি ধাপ চালানোর অনুমতি দিচ্ছেন?")
-                    .setNegativeButton("এখন নয়", null)
+                    .setNegativeButton("এখন নয়") { _, _ -> liveVoiceSession?.resumeListening() }
                     .setPositiveButton("সব ধাপ অনুমোদন ও চালান") { _, _ ->
                         sendLiveAgentFeedback("আপনার অনুমোদন পেয়েছি। কাজ শুরু করছি।")
                         executeApprovedPlan(runtime, run)
@@ -456,7 +431,8 @@ class MainActivity : ComponentActivity() {
     private fun executeApprovedPlan(runtime: AgentRuntime, run: com.ruminai.app.core.agent.AgentRun) {
         val needsPhoneControl = run.steps.any { it.step.toolName.startsWith("phone.") }
         if (needsPhoneControl && !PhoneAccessibilityService.isEnabledInProcess()) {
-            showMessage("এই পরিকল্পনায় ফোন নিয়ন্ত্রণ দরকার। আগে Rumin AI Phone Control Accessibility চালু করুন, তারপর আবার চেষ্টা করুন।")
+            sendLiveAgentFeedback("এই কাজের জন্য ফোন নিয়ন্ত্রণের Accessibility অনুমতি চালু করতে হবে। Settings থেকে অনুমতি দিয়ে আবার বলুন।")
+            liveVoiceSession?.resumeListening()
             return
         }
         val progress = AlertDialog.Builder(this)
@@ -469,7 +445,7 @@ class MainActivity : ComponentActivity() {
                 runtime.execute(run, run.steps.map { it.step.id }.toSet())
             }
             progress.dismiss()
-            result.onFailure { val msg = "কাজ চালানো যায়নি: ${it.message}"; sendLiveAgentFeedback(msg); showMessage(msg) }
+            result.onFailure { val msg = "কাজ চালানো যায়নি: ${it.message}"; sendLiveAgentFeedback(msg) }
             result.onSuccess { completed ->
                 val detail = completed.steps.joinToString("\n\n") { step ->
                     "${step.step.toolName}: ${step.status}\n${step.output ?: step.error.orEmpty()}"
@@ -480,7 +456,7 @@ class MainActivity : ComponentActivity() {
                         .setMessage("$detail\n\nRumin Tool চালিয়েছে, কিন্তু কাজটি বাস্তবে সফল হয়েছে কি না আপনিই যাচাই করুন।")
                         .setNegativeButton("সফল হয়নি") { _, _ ->
                             val verified = runtime.markVerified(completed, false, "ব্যবহারকারী ফলাফল নিশ্চিত করেননি।")
-                            showMessage(verified.summary.orEmpty())
+                            sendLiveAgentFeedback(verified.summary.orEmpty())
                         }
                         .setPositiveButton("আমি যাচাই করেছি—সফল") { _, _ ->
                             val verified = runtime.markVerified(completed, true, "ব্যবহারকারী ফলাফল যাচাই করেছেন।")
@@ -488,8 +464,7 @@ class MainActivity : ComponentActivity() {
                         }
                         .show()
                 } else {
-                    speak(completed.summary.orEmpty().ifBlank { "কাজের ধাপ শেষ হয়েছে।" })
-                    showMessage("${completed.summary.orEmpty()}\n$detail")
+                    sendLiveAgentFeedback(completed.summary.orEmpty().ifBlank { "কাজের ধাপ শেষ হয়েছে।" })
                 }
             }
         }
