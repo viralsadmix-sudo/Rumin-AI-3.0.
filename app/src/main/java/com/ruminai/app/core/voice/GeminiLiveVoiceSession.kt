@@ -28,11 +28,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Uses a user-supplied Gemini Developer API key; do not ship this direct-client
  * authentication approach for production without a trusted backend/token broker.
  */
+data class LiveToolCall(val id: String, val name: String, val arguments: JSONObject)
+
 class GeminiLiveVoiceSession(
     private val apiKey: String,
     private val scope: CoroutineScope,
     private val onStatus: (String) -> Unit,
     private val onTranscript: (String) -> Unit,
+    private val onToolCall: (List<LiveToolCall>) -> Unit,
     private val onError: (String) -> Unit
 ) {
     companion object {
@@ -77,19 +80,29 @@ class GeminiLiveVoiceSession(
                     .put("languageCode", "bn-BD")
                 val instructionPart = JSONObject().put(
                     "text",
-                    "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI সহকারী। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ব্যবহারকারী ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। ব্যবহারকারী কোনো ফোনের কাজ চাইলে নিজে কাজ সম্পন্ন হয়েছে বলবে না; অ্যাপের Agent-কে কাজটি পরিকল্পনা ও অনুমতির জন্য পাঠানো হবে।"
+                    "তুমি Rumin, ব্যবহারকারীর ব্যক্তিগত বাংলা AI voice agent। স্বাভাবিক, সংক্ষিপ্ত ও বন্ধুত্বপূর্ণভাবে বাংলায় কথা বলবে; ইংরেজিতে বললে ইংরেজিতে উত্তর দেবে। সাধারণ আলাপ, প্রশ্ন ও তথ্যের অনুরোধে স্বাভাবিকভাবে উত্তর দেবে। ব্যবহারকারী ফোনে কোনো কাজ করতে বললে অবশ্যই উপযুক্ত ঘোষিত function call করবে; শুধু মুখে কাজ করার প্রতিশ্রুতি দেবে না। প্রতিটি function call ব্যবহারকারীর অনুমতির জন্য প্রস্তাব মাত্র—অ্যাপ অনুমতি না পাওয়া পর্যন্ত কোনো কাজ চালাবে না। কখনো নিজে থেকে অন্য অ্যাপের মেসেজ পাঠানো, কল করা, পেমেন্ট, মুছে ফেলা, OTP/PIN/পাসওয়ার্ড ব্যবহার বা নিরাপত্তা এড়িয়ে যাওয়ার কাজ করবে না। function result না পাওয়া পর্যন্ত কাজ সফল হয়েছে বলবে না।"
                 )
                 val systemInstruction = JSONObject()
                     .put("parts", JSONArray().put(instructionPart))
                 val generationConfig = JSONObject()
                     .put("responseModalities", JSONArray().put("AUDIO"))
                     .put("speechConfig", speechConfig)
+                val functionDeclarations = JSONArray()
+                    .put(functionDeclaration("launch_app", "Open an installed Android app by its exact package name.", JSONObject()
+                        .put("package_name", stringProperty("Installed Android package name, for example com.google.android.youtube.")), arrayOf("package_name")))
+                    .put(functionDeclaration("read_visible_screen", "Read the text currently visible on the active phone screen.", JSONObject(), emptyArray()))
+                    .put(functionDeclaration("click_visible_text", "Tap one unique visible button or label by its exact text.", JSONObject()
+                        .put("label", stringProperty("Exact visible label to tap.")), arrayOf("label")))
+                    .put(functionDeclaration("scroll_screen_forward", "Scroll the currently active phone screen forward once.", JSONObject(), emptyArray()))
+                    .put(functionDeclaration("type_focused_text", "Type the supplied text into the currently focused editable field.", JSONObject()
+                        .put("text", stringProperty("Exact text to enter into the focused field.")), arrayOf("text")))
                 val setup = JSONObject()
                     .put("model", "models/$MODEL")
                     .put("generationConfig", generationConfig)
-                    .put("inputAudioTranscription", JSONObject())
-                    .put("outputAudioTranscription", JSONObject())
+                    .put("inputAudioTranscription", JSONObject().put("languageCodes", JSONArray().put("bn-BD")))
+                    .put("outputAudioTranscription", JSONObject().put("languageCodes", JSONArray().put("bn-BD")))
                     .put("systemInstruction", systemInstruction)
+                    .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functionDeclarations)))
                 webSocket.send(JSONObject().put("setup", setup).toString())
             }
 
@@ -103,6 +116,19 @@ class GeminiLiveVoiceSession(
                     }
                     if (root.has("error")) {
                         onError(root.getJSONObject("error").toString())
+                    }
+                    val toolCall = root.optJSONObject("toolCall")
+                    val functionCalls = toolCall?.optJSONArray("functionCalls")
+                    if (functionCalls != null && functionCalls.length() > 0) {
+                        micPaused = true
+                        val calls = (0 until functionCalls.length()).mapNotNull { callIndex ->
+                            val item = functionCalls.optJSONObject(callIndex) ?: return@mapNotNull null
+                            val args = item.optJSONObject("args") ?: JSONObject()
+                            val id = item.optString("id")
+                            val name = item.optString("name")
+                            if (id.isBlank() || name.isBlank()) null else LiveToolCall(id, name, args)
+                        }
+                        if (calls.isNotEmpty()) onToolCall(calls)
                     }
                     val serverContent = root.optJSONObject("serverContent") ?: return
                     val inputText = serverContent.optJSONObject("inputTranscription")?.optString("text").orEmpty().trim()
@@ -238,6 +264,26 @@ class GeminiLiveVoiceSession(
             .build()
         track.play()
         player = track
+    }
+
+    private fun stringProperty(description: String): JSONObject =
+        JSONObject().put("type", "STRING").put("description", description)
+
+    private fun functionDeclaration(
+        name: String,
+        description: String,
+        properties: JSONObject,
+        required: Array<String>
+    ): JSONObject {
+        val parameters = JSONObject().put("type", "OBJECT").put("properties", properties)
+        if (required.isNotEmpty()) parameters.put("required", JSONArray(required))
+        return JSONObject().put("name", name).put("description", description).put("parameters", parameters)
+    }
+
+    fun sendToolResponses(responses: JSONArray) {
+        if (stopped.get() || socket == null || responses.length() == 0) return
+        socket?.send(JSONObject().put("toolResponse",
+            JSONObject().put("functionResponses", responses)).toString())
     }
 
     fun sendAgentReply(message: String) {
