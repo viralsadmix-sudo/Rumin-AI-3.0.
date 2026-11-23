@@ -18,6 +18,8 @@ import androidx.core.content.ContextCompat
 import com.ruminai.app.core.ui.AnimatedAgentCoreView
 import android.provider.Settings
 import android.view.Gravity
+import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.EditorInfo
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -49,6 +51,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var credentialStore: AgentCredentialStore
     private lateinit var agentRunStore: AgentRunStore
     private lateinit var taskInput: EditText
+    private lateinit var homeScroll: ScrollView
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var voiceStatus: TextView
     private lateinit var chatReplyView: TextView
@@ -153,6 +156,7 @@ class MainActivity : ComponentActivity() {
             setHintTextColor(muted)
             textSize = 16f
             setPadding(16, 14, 16, 14)
+            imeOptions = EditorInfo.IME_ACTION_SEND
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(0xFF0B1427.toInt())
                 cornerRadius = 20f
