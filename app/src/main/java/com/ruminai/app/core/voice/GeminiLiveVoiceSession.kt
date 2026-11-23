@@ -141,7 +141,16 @@ class GeminiLiveVoiceSession(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                if (!stopped.get()) onError("Live সংযোগ ব্যর্থ: ${t.message ?: response?.code}")
+                if (!stopped.get()) {
+                    val http = response?.let {
+                        val body = runCatching { it.body?.string().orEmpty() }.getOrDefault("")
+                        "HTTP ${it.code} ${it.message}. ${body.take(700)}"
+                    }
+                    val cause = generateSequence(t as Throwable?) { it.cause }
+                        .take(4)
+                        .joinToString(" → ") { err -> "${err.javaClass.simpleName}: ${err.message}" }
+                    onError("Live সংযোগ ব্যর্থ। ${http ?: cause}")
+                }
                 stop()
             }
 
