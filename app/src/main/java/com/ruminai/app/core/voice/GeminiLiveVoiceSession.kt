@@ -14,10 +14,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okhttp3.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -59,10 +59,10 @@ class GeminiLiveVoiceSession(
             return
         }
         onStatus("Gemini Live-এর সঙ্গে সংযোগ হচ্ছে…")
-        val liveUrl = "https://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-            .toHttpUrl()
-            .newBuilder()
+        val liveUrl = HttpUrl.Builder()
             .scheme("wss")
+            .host("generativelanguage.googleapis.com")
+            .addPathSegments("ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent")
             .addQueryParameter("key", apiKey)
             .build()
         val request = Request.Builder()
