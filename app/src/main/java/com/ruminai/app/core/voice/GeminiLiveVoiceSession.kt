@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl
@@ -52,6 +53,8 @@ class GeminiLiveVoiceSession(
     private var recorder: AudioRecord? = null
     private var player: AudioTrack? = null
     private var captureJob: Job? = null
+    private var playbackJob: Job? = null
+    private val audioQueue = Channel<ByteArray>(Channel.UNLIMITED)
     private var setupReady = false
     @Volatile private var micPaused = false
     private var pendingTranscript = ""
@@ -111,6 +114,7 @@ class GeminiLiveVoiceSession(
                     val root = JSONObject(text)
                     if (root.has("setupComplete")) {
                         setupReady = true
+                        startPlayback()
                         startAudio()
                         onStatus("লাইভ কথা চালু — বলুন, বস")
                     }
@@ -134,6 +138,7 @@ class GeminiLiveVoiceSession(
                     val inputText = serverContent.optJSONObject("inputTranscription")?.optString("text").orEmpty().trim()
                     if (inputText.isNotBlank()) pendingTranscript = inputText
                     if (serverContent.optBoolean("interrupted", false)) {
+                        while (audioQueue.tryReceive().isSuccess) { }
                         onStatus("আপনার কথা শুনছি…")
                     }
                     val turn = serverContent.optJSONObject("modelTurn")
@@ -145,8 +150,7 @@ class GeminiLiveVoiceSession(
                             val mime = inline.optString("mimeType")
                             if (mime.startsWith("audio/pcm")) {
                                 val bytes = Base64.decode(inline.optString("data"), Base64.DEFAULT)
-                                ensurePlayer()
-                                player?.write(bytes, 0, bytes.size)
+                                audioQueue.trySend(bytes)
                             }
                         }
                     }
@@ -243,6 +247,27 @@ class GeminiLiveVoiceSession(
         }
     }
 
+    private fun startPlayback() {
+        if (playbackJob != null) return
+        playbackJob = scope.launch(Dispatchers.IO) {
+            try {
+                ensurePlayer()
+                for (bytes in audioQueue) {
+                    val track = player ?: break
+                    var offset = 0
+                    while (offset < bytes.size && isActive && !stopped.get()) {
+                        val written = track.write(bytes, offset, bytes.size - offset)
+                        if (written < 0) throw IllegalStateException("অডিও প্লেব্যাক error: $written")
+                        if (written == 0) break
+                        offset += written
+                    }
+                }
+            } catch (t: Throwable) {
+                if (!stopped.get()) onError("উত্তরের অডিও চালানো যায়নি: ${t.message}")
+            }
+        }
+    }
+
     private fun ensurePlayer() {
         if (player != null) return
         val min = AudioTrack.getMinBufferSize(
@@ -303,6 +328,9 @@ class GeminiLiveVoiceSession(
         if (!stopped.compareAndSet(false, true)) return
         captureJob?.cancel()
         captureJob = null
+        playbackJob?.cancel()
+        playbackJob = null
+        audioQueue.close()
         runCatching { recorder?.stop() }
         recorder?.release()
         recorder = null
