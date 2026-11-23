@@ -78,142 +78,123 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun renderHome() {
+        val bg = 0xFF080D1B.toInt()
+        val panel = 0xFF111B31.toInt()
+        val cyan = 0xFF65DFFF.toInt()
+        val white = 0xFFF4F7FF.toInt()
+        val muted = 0xFF9EACC6.toInt()
+
+        fun card(): LinearLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20, 18, 20, 18)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(panel)
+                cornerRadius = 28f
+                setStroke(1, 0x334FCBFF)
+            }
+        }
+        fun text(value: String, size: Float, color: Int, bold: Boolean = false): TextView =
+            TextView(this).apply {
+                text = value
+                textSize = size
+                setTextColor(color)
+                gravity = Gravity.CENTER
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+        fun styledButton(value: String, primary: Boolean = false, action: () -> Unit): Button =
+            Button(this).apply {
+                text = value
+                isAllCaps = false
+                textSize = 15f
+                setTextColor(if (primary) 0xFF071323.toInt() else white)
+                background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                    if (primary) intArrayOf(0xFF62DFFF.toInt(), 0xFF8C8BFF.toInt())
+                    else intArrayOf(0xFF1A2944.toInt(), 0xFF18223A.toInt())
+                ).apply { cornerRadius = 30f }
+                setOnClickListener { action() }
+            }
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(28, 48, 28, 28)
+            setPadding(20, 26, 20, 18)
             gravity = Gravity.CENTER_HORIZONTAL
-            setBackgroundColor(0xFF0B1020.toInt())
+            setBackgroundColor(bg)
         }
 
-        val brand = TextView(this).apply {
-            text = "RUMIN AI 3.0"
-            textSize = 27f
-            setTextColor(0xFFFF4FCB.toInt())
+        root.addView(text("R U M I N   A I", 22f, cyan, true), matchWidth())
+        root.addView(text("আপনার ব্যক্তিগত AI সঙ্গী", 13f, muted), matchWidth())
+
+        val hero = card().apply {
             gravity = Gravity.CENTER
+            setPadding(12, 14, 12, 18)
         }
-        root.addView(brand, matchWidth())
-
+        hero.addView(text("আসসালামু আলাইকুম, বস!", 21f, white, true), matchWidth())
+        hero.addView(text("আমি রুমিন। বলুন, কী করতে পারি?", 15f, muted), matchWidth())
         val avatar = AnimatedAgentCoreView(this)
-        root.addView(avatar, LinearLayout.LayoutParams(260, 230).apply { topMargin = 12 })
-
-        val greeting = TextView(this).apply {
-            text = "আসসালামু আলাইকুম, বস!\nআমি রুমিন।"
-            textSize = 22f
-            setTextColor(0xFFFFFFFF.toInt())
+        hero.addView(avatar, LinearLayout.LayoutParams(260, 230).apply {
             gravity = Gravity.CENTER
-            setPadding(0, 24, 0, 12)
+            topMargin = 4
+            bottomMargin = 4
+        })
+        voiceStatus = text("প্রস্তুত — Live Voice চালু করতে নিচের বোতাম চাপুন", 14f, cyan)
+        hero.addView(voiceStatus, matchWidth())
+        liveVoiceButton = styledButton("◉  Live Voice শুরু করুন", true) { toggleLiveVoice() }.apply {
+            textSize = 17f
         }
-        root.addView(greeting, matchWidth())
+        hero.addView(liveVoiceButton, matchWidth())
+        root.addView(hero, matchWidth().apply { bottomMargin = 14 })
 
-        val status = TextView(this).apply {
-            text = "আপনার ব্যক্তিগত AI সহকারী। Chat, Voice এবং Agent আলাদা ভাবে ব্যবহার করুন।"
-            textSize = 15f
-            setTextColor(0xFFB9C4D8.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 24)
-        }
-        root.addView(status, matchWidth())
-
-        memoryCount = TextView(this).apply {
-            textSize = 14f
-            setTextColor(0xFF8DE1FF.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 20)
-        }
-        root.addView(memoryCount, matchWidth())
-        refreshMemoryCount()
-
-        val memoryButton = Button(this).apply {
-            text = "অনুমোদিত তথ্য মেমোরিতে রাখুন"
-            setOnClickListener { showSaveMemoryDialog() }
-        }
-        root.addView(memoryButton, matchWidth())
-
-        phoneControlStatus = TextView(this).apply {
-            textSize = 14f
-            setTextColor(0xFFB9C4D8.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 24, 0, 8)
-        }
-        root.addView(phoneControlStatus, matchWidth())
-        refreshPhoneControlStatus()
-
-        val phoneControlButton = Button(this).apply {
-            text = "ফোন নিয়ন্ত্রণের অনুমতি সেট করুন"
-            setOnClickListener { showAccessibilityDisclosure() }
-        }
-        root.addView(phoneControlButton, matchWidth())
-
-        val screenReadButton = Button(this).apply {
-            text = "বর্তমান স্ক্রিন পড়ে পরীক্ষা করুন"
-            setOnClickListener { confirmAndReadScreen() }
-        }
-        root.addView(screenReadButton, matchWidth())
-
-        val apiButton = Button(this).apply {
-            text = "Gemini API Key সেট করুন"
-            setOnClickListener { showGeminiKeyDialog() }
-        }
-        root.addView(apiButton, matchWidth())
-
-        val apiTestButton = Button(this).apply {
-            text = "Gemini API সংযোগ পরীক্ষা করুন"
-            setOnClickListener { testGeminiConnection() }
-        }
-        root.addView(apiTestButton, matchWidth())
-
+        val talkCard = card()
+        talkCard.addView(text("রুমিনকে লিখেও বলতে পারেন", 16f, white, true), matchWidth())
         taskInput = EditText(this).apply {
-            hint = "রুমিনকে বাংলায় কাজ বলুন..."
-            setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF8995AA.toInt())
-            setPadding(18, 14, 18, 14)
-        }
-        root.addView(taskInput, matchWidth())
-
-        val chatButton = Button(this).apply {
-            text = "চ্যাটে উত্তর পান"
-            setOnClickListener { sendChatMessage() }
-        }
-        root.addView(chatButton, matchWidth())
-
-        chatReplyView = TextView(this).apply {
-            text = "রুমিনের উত্তর এখানে দেখা যাবে।"
+            hint = "বাংলায় আপনার নির্দেশ লিখুন…"
+            setTextColor(white)
+            setHintTextColor(muted)
             textSize = 16f
-            setTextColor(0xFFFFFFFF.toInt())
-            setPadding(16, 16, 16, 16)
-            setBackgroundColor(0xFF151D32.toInt())
+            setPadding(16, 14, 16, 14)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFF0B1427.toInt())
+                cornerRadius = 20f
+                setStroke(1, 0x6659BDEB)
+            }
         }
-        root.addView(chatReplyView, matchWidth())
+        talkCard.addView(taskInput, matchWidth())
+        talkCard.addView(styledButton("চ্যাটে উত্তর পান") { sendChatMessage() }, matchWidth())
+        chatReplyView = text("রুমিনের উত্তর এখানে দেখা যাবে।", 14f, white)
+        chatReplyView.setPadding(10, 12, 10, 12)
+        talkCard.addView(chatReplyView, matchWidth())
+        talkCard.addView(styledButton("AI Agent দিয়ে কাজের পরিকল্পনা করুন", true) { createAgentPlan() }, matchWidth())
+        root.addView(talkCard, matchWidth().apply { bottomMargin = 14 })
 
-        voiceStatus = TextView(this).apply {
-            text = "লাইভ ভয়েস: মাইক্রোফোন প্রস্তুত"
-            textSize = 14f
-            setTextColor(0xFF8DE1FF.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 12, 0, 4)
-        }
-        root.addView(voiceStatus, matchWidth())
-        liveVoiceButton = Button(this).apply {
-            text = "🔴 Live Voice চালু করুন"
-            setOnClickListener { toggleLiveVoice() }
-        }
-        root.addView(liveVoiceButton, matchWidth())
+        val memoryCard = card()
+        memoryCard.addView(text("স্মৃতি ও ব্যক্তিগত তথ্য", 16f, white, true), matchWidth())
+        memoryCount = text("সংরক্ষিত মেমোরি: 0", 14f, cyan)
+        memoryCard.addView(memoryCount, matchWidth())
+        refreshMemoryCount()
+        memoryCard.addView(styledButton("অনুমোদিত তথ্য মেমোরিতে রাখুন") { showSaveMemoryDialog() }, matchWidth())
+        root.addView(memoryCard, matchWidth().apply { bottomMargin = 14 })
 
-        val planButton = Button(this).apply {
-            text = "Agent দিয়ে কাজের পরিকল্পনা করুন"
-            setOnClickListener { createAgentPlan() }
-        }
-        root.addView(planButton, matchWidth())
+        val settingsCard = card()
+        settingsCard.addView(text("সংযোগ ও ফোন নিয়ন্ত্রণ", 16f, white, true), matchWidth())
+        phoneControlStatus = text("", 13f, muted)
+        settingsCard.addView(phoneControlStatus, matchWidth())
+        refreshPhoneControlStatus()
+        settingsCard.addView(styledButton("ফোন নিয়ন্ত্রণের অনুমতি সেট করুন") { showAccessibilityDisclosure() }, matchWidth())
+        settingsCard.addView(styledButton("বর্তমান স্ক্রিন পড়ে পরীক্ষা করুন") { confirmAndReadScreen() }, matchWidth())
+        settingsCard.addView(styledButton("Gemini API Key সেট করুন") { showGeminiKeyDialog() }, matchWidth())
+        settingsCard.addView(styledButton("Gemini API সংযোগ পরীক্ষা করুন", true) { testGeminiConnection() }, matchWidth())
+        root.addView(settingsCard, matchWidth())
 
-        val info = TextView(this).apply {
-            text = "পরবর্তী ধাপ: Agent Planner → অনুমতি → Tool Execution → যাচাই।\nতারপর নতুন Live Voice অডিও ইঞ্জিন।"
-            textSize = 14f
-            setTextColor(0xFFB9C4D8.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 28, 0, 0)
+        root.addView(text("RUMIN AI 3.0  •  Bengali-first Personal Agent", 11f, muted).apply {
+            setPadding(0, 20, 0, 8)
+        }, matchWidth())
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root)
+            setBackgroundColor(bg)
         }
-        root.addView(info, matchWidth())
-        val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
         setContentView(scroll)
     }
 
