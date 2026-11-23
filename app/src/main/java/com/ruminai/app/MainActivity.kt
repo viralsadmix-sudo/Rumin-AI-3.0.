@@ -194,12 +194,13 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 20, 0, 8)
         }, matchWidth())
 
-        val scroll = ScrollView(this).apply {
+        homeScroll = ScrollView(this).apply {
             isFillViewport = true
             addView(root)
             setBackgroundColor(bg)
+            isSmoothScrollingEnabled = true
         }
-        setContentView(scroll)
+        setContentView(homeScroll)
     }
 
     private fun testGeminiConnection() {
@@ -229,6 +230,9 @@ class MainActivity : ComponentActivity() {
 
     private fun sendChatMessage() {
         val message = taskInput.text.toString().trim()
+        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(taskInput.windowToken, 0)
+        taskInput.clearFocus()
         if (message.isBlank()) {
             showMessage("আগে মেসেজ লিখুন।")
             return
@@ -236,12 +240,13 @@ class MainActivity : ComponentActivity() {
         val client = GeminiChatClient({ credentialStore.readGeminiApiKey() })
         chatReplyView.text = "রুমিন উত্তর তৈরি করছে…"
         lifecycleScope.launch {
-            val result = withTimeoutOrNull(27_000L) { client.reply(message) }
+            val result = withTimeoutOrNull(18_000L) { client.reply(message) }
             chatReplyView.text = when {
                 result == null -> "উত্তর আসতে দেরি হচ্ছে। ইন্টারনেট বা Gemini API সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।"
                 result.isSuccess -> result.getOrNull().orEmpty().also { answer -> textToSpeech?.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "rumin-chat-answer") }
                 else -> "উত্তর পাওয়া যায়নি: ${result.exceptionOrNull()?.message ?: "অজানা সমস্যা"}"
             }
+            homeScroll.post { homeScroll.smoothScrollTo(0, chatReplyView.bottom) }
         }
     }
 
