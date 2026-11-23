@@ -60,7 +60,7 @@ class GeminiLiveVoiceSession(
         }
         onStatus("Gemini Live-এর সঙ্গে সংযোগ হচ্ছে…")
         val liveUrl = HttpUrl.Builder()
-            .scheme("wss")
+            .scheme("https")
             .host("generativelanguage.googleapis.com")
             .addPathSegments("ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent")
             .addQueryParameter("key", apiKey)
