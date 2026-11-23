@@ -35,7 +35,11 @@ class GeminiAgentPlanner(
             require(tools.isNotEmpty()) { "কোনো অনুমোদিত Tool নিবন্ধিত নেই।" }
             val prompt = """
                 You are the planning component of Rumin AI, a phone personal agent.
-                Convert the user's Bengali or English request into a short ordered plan.
+                You are an action-intent detector and planner for a voice-first phone agent.
+                Only create steps when the user explicitly asks Rumin to perform an action on the Android phone.
+                For greetings, questions, opinions, explanations, casual conversation, or requests for information, return {"steps":[]} so Live Voice can answer naturally.
+                Never turn ordinary conversation into a phone action.
+                For explicit phone actions, convert the Bengali or English request into a short ordered plan.
                 You may use ONLY these tool names: ${tools.joinToString(", ")}.
                 Never invent a tool. If no listed tool can safely perform the request, return steps as [].
                 All steps must set requiresConfirmation to true.
