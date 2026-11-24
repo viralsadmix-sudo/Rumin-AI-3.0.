@@ -334,7 +334,7 @@ function nativeAiRequest(provider,key,msgs,extra){
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(typeof extra==='string'?extra:(extra&&extra.text)||'')});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},80000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
     try{N.requestAi(provider,key,JSON.stringify(conversation),current,id,extra&&extra.gatewayUrl?extra.gatewayUrl:'')}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
