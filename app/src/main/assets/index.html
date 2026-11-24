@@ -377,27 +377,63 @@ const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner�
 async function agent(goal){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
   agentRun=true;busy=true;
-  const log=[];let screen='',finished=false;
+  const log=[];let screen='',finished=false,lastError='';
   for(let n=1;n<=20&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
-    let o;
-    try{o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')}],AGENT_RULES))}
-    catch(e){add('সমস্যা: '+(e.message||'অজানা'),'b');break}
+    let o=null;
+    for(let attempt=0;attempt<2&&!o;attempt++){
+      try{
+        const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
+        o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES));
+      }catch(e){
+        lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
+        if(attempt===0){await sleep(1200);continue}
+        log.push('Planner error: '+lastError);
+      }
+    }
     if(!agentRun)break;
+    if(!o)break;
+    if(o.done===true){
+      finished=true;busy=false;agentRun=false;
+      const message=o.reply||'কাজটি সম্পন্ন হয়েছে।';
+      reply(message,o.emotion||'happy');
+      return {ok:true,message,steps:log.length};
+    }
     const x=o.action;
-    if(o.done||!x||!TOOLS.includes(x.tool)){finished=true;busy=false;agentRun=false;const message=o.reply||'কাজ শেষ বস।';reply(message,o.emotion||'happy');return {ok:true,message}}
-    if(x.tool==='power'){finished=true;busy=false;agentRun=false;const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';reply(message,'calm');return {ok:false,message}}
+    if(!x||!TOOLS.includes(x.tool)){
+      lastError='Planner বৈধ পরবর্তী action দেয়নি';
+      log.push(lastError+'; JSON plan আবার চাওয়া হয়েছে');
+      continue;
+    }
+    if(x.tool==='power'){
+      finished=true;busy=false;agentRun=false;
+      const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';
+      reply(message,'calm');return {ok:false,message};
+    }
     if(o.reply)add(o.reply,'s');
-    const r=await callTool(x.tool,x.a||'',x.b||'');
+    const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
-    await sleep(OPENERS.includes(x.tool)?3500:1400);
+    if(!r.ok)lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';
+    await sleep(OPENERS.includes(x.tool)?2500:900);
     if(!agentRun)break;
-    if(x.tool==='inspect_screen'){screen=Array.from(r.items||[]).slice(0,70).join(' | ');continue;}
-    const sc=await callTool('inspect_screen','','',7000);
+    if(x.tool==='inspect_screen'){
+      screen=Array.from(r.items||[]).slice(0,70).join(' | ');
+      if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
+      continue;
+    }
+    const sc=await callTool('inspect_screen','','',15000);
     screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
+    if(!sc.ok)lastError=sc.message||'স্ক্রিন যাচাই করা যায়নি';
   }
   busy=false;
-  if(!finished){const was=agentRun;agentRun=false;const message=was?'বস, কাজটা শেষ করতে পারিনি, তাই থামলাম।':'ঠিক আছে বস, কাজ থামালাম।';reply(message,was?'sad':'calm');return {ok:false,message}}
+  if(!finished){
+    const was=agentRun;agentRun=false;
+    const message=was
+      ? (lastError?'বস, কাজটি শেষ করতে পারিনি। শেষ সমস্যাটি হলো: '+lastError:'বস, ২০টি ধাপের মধ্যেও কাজটি যাচাই করে শেষ করা যায়নি।')
+      : 'ঠিক আছে বস, কাজ থামালাম।';
+    reply(message,was?'sad':'calm');
+    return {ok:false,message,steps:log.length,details:log.slice(-5)};
+  }
   return {ok:false,message:'Agent Planner কাজটি সম্পন্ন করতে পারেনি।'};
 }
 async function execConfirmed(p){
