@@ -1,0 +1,8 @@
+name = "rumin-ai-gateway"
+main = "src/index.js"
+compatibility_date = "2026-11-25"
+
+[vars]
+GEMINI_MODEL = "gemini-3.8-flash"
+GROQ_MODEL = "openai/gpt-oss-20b"
+OPENROUTER_MODEL = "openrouter/free"
