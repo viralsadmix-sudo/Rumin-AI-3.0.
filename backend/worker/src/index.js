@@ -32,7 +32,8 @@ async function callGemini(messages, env) {
   const res = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-    body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input }),\n    signal: AbortSignal.timeout(20000)
+    body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input }),
+    signal: AbortSignal.timeout(20000)
   });
   const raw = await res.text();
   if (!res.ok) return { ok: false, status: res.status, detail: raw.slice(0, 1200) };
@@ -46,7 +47,8 @@ async function callOpenAICompatible(provider, baseUrl, model, key, messages) {
   const res = await fetch(baseUrl, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + key },
-    body: JSON.stringify({ model, messages, temperature: 0.7 }),\n    signal: AbortSignal.timeout(20000)
+    body: JSON.stringify({ model, messages, temperature: 0.7 }),
+    signal: AbortSignal.timeout(20000)
   });
   const raw = await res.text();
   if (!res.ok) return { ok: false, status: res.status, detail: raw.slice(0, 1200) };
