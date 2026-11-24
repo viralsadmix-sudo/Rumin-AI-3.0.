@@ -198,6 +198,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun sendLiveToolResponse(callId: String, functionName: String, responseJson: String) {
+            try {
+                val response = JSONObject(responseJson)
+                val sent = liveVoiceSession?.sendToolResponse(callId, functionName, response) == true
+                if (!sent) reportLiveVoice("ফোনের কাজের ফল Gemini Live-এ ফেরত পাঠানো যায়নি।", "listening")
+            } catch (e: Exception) {
+                reportLiveVoice("ফোনের কাজের ফল পাঠাতে সমস্যা হয়েছে: ${e.message ?: "অজানা ত্রুটি"}", "listening")
+            }
+        }
+
         @JavascriptInterface fun speakText(text: String) {
             runOnUiThread {
                 val tts = textToSpeech
@@ -567,6 +577,13 @@ class MainActivity : ComponentActivity() {
                         reportLiveVoice("Gemini উত্তর দিয়েছে, কিন্তু অডিও আসেনি এবং ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। TTS সেটিংসে বাংলা কণ্ঠ ইনস্টল করুন।", "stopped")
                     }
                 }
+            } },
+            { callId, functionName, args -> runOnUiThread {
+                val argsJson = args.toString()
+                webView.evaluateJavascript(
+                    "window.onLiveToolCall && window.onLiveToolCall(${JSONObject.quote(callId)}, ${JSONObject.quote(functionName)}, ${JSONObject.quote(argsJson)})",
+                    null
+                )
             } }
         )
         liveVoiceSession = session
