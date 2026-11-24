@@ -315,7 +315,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
   const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key');
   // Gemini is the user-facing voice; Groq is the internal task planner.
   // Provider failures stay internal. Only a single unified result is returned.
-  const order=role==='planner'?[['groq',kq],['gemini',kg]]:[['gemini',kg],['groq',kq]];
+  const order=[['gemini',kg],['groq',kq]];
   for(const [provider,key] of order){
     if(!key)continue;
     try{return await nativeAiRequest(provider,key,msgs,extra)}
@@ -357,10 +357,14 @@ async function think(text,hidden){
     busy=false;
     if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);setTimeout(()=>agent(o.goal||text),1200);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
-    const rk=acts.find(x=>x.tool==='call'||x.tool==='sms');
-    if(rk){pendingConfirm=rk;reply((o.reply||'')+' বস, নিশ্চিত? “হ্যাঁ” বললে করব, “না” বললে বাতিল।',o.emotion);return}
+    if(acts.length){
+      // Backward-compatible model output is routed through the Agent loop; never execute model-suggested phone actions directly from chat.
+      busy=false;
+      reply(o.reply||'ঠিক আছে বস, কাজটি পরিকল্পনা করে করছি।',o.emotion||'thinking');
+      agent(text);
+      return;
+    }
     reply(o.reply||'ঠিক আছে বস।',o.emotion);
-    acts.forEach((x,i)=>setTimeout(()=>runTool(x.tool,x.a||'',x.b||''),600+i*900));
   }catch(e){
     busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();if(!live){voiceMode=false;idle()}else status('আবার চেষ্টা করুন');
   }
@@ -368,15 +372,15 @@ async function think(text,hidden){
 
 /* ---------- Agent: multi-step phone tasks ---------- */
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
-const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true} দাও।
+const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
-পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে একবার ভিন্ন নিরাপদ পদ্ধতিতে চেষ্টা করো; একই action বারবার করো না।
+পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে কারণ বুঝে একবার ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করতে পারো; একই action ও একই arguments দ্বিতীয়বার চালাবে না। Planner ব্যর্থ হলে বা বিকল্প না থাকলে থামবে, নতুন করে অ্যাপ খুলবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 async function agent(goal){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
   agentRun=true;busy=true;
-  const log=[];let screen='',finished=false,lastError='';
+  const log=[];const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
   for(let n=1;n<=20&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
@@ -396,7 +400,7 @@ async function agent(goal){
       finished=true;busy=false;agentRun=false;
       let message=o.reply||'কাজটি শেষ হয়েছে, তবে ফলাফল যাচাই করা দরকার।';
       const failedSteps=log.filter(x=>x.includes('→ ব্যর্থ'));
-      const verified=!!(screen&&screen.trim());
+      const verified=o.verified===true&&!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:');
       const ok=verified&&failedSteps.length===0;
       const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nAgent-এর ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nশেষ স্ক্রিনের প্রমাণ: '+(screen||'পাওয়া যায়নি')+'\\nPlanner-এর নোট: '+message;
       if(live){
@@ -420,6 +424,13 @@ async function agent(goal){
       log.push(lastError+'; JSON plan আবার চাওয়া হয়েছে');
       continue;
     }
+    const actionKey=[x.tool,String(x.a||''),String(x.b||'')].join('|');
+    if(failedActions.has(actionKey)||(OPENERS.includes(x.tool)&&executedActions.has(actionKey))){
+      lastError='একই ব্যর্থ action বা একই app-open পুনরায় চালানো নিরাপত্তার জন্য বন্ধ করা হয়েছে: '+x.tool;
+      log.push(lastError);
+      continue;
+    }
+    if(OPENERS.includes(x.tool))executedActions.add(actionKey);
     if(x.tool==='power'){
       finished=true;busy=false;agentRun=false;
       const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';
@@ -428,7 +439,7 @@ async function agent(goal){
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
-    if(!r.ok)lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';
+    if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     await sleep(OPENERS.includes(x.tool)?2500:900);
     if(!agentRun)break;
     if(x.tool==='inspect_screen'){
