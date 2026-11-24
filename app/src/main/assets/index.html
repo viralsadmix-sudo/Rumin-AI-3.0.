@@ -147,7 +147,7 @@ const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
