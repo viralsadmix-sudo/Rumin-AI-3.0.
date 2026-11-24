@@ -40,7 +40,7 @@ class GeminiLiveVoiceSession(
     private val onError: (String) -> Unit
 ) {
     companion object {
-        private const val MODEL = "gemini-3.8-live"
+        private const val MODEL = "gemini-3.1-flash-live-preview"
         private const val INPUT_RATE = 16_000
         private const val OUTPUT_RATE = 24_000
     }
@@ -91,22 +91,12 @@ class GeminiLiveVoiceSession(
                 val generationConfig = JSONObject()
                     .put("responseModalities", JSONArray().put("AUDIO"))
                     .put("speechConfig", speechConfig)
-                val functionDeclarations = JSONArray()
-                    .put(functionDeclaration("launch_app", "Open an installed Android app by its exact package name.", JSONObject()
-                        .put("package_name", stringProperty("Installed Android package name, for example com.google.android.youtube.")), arrayOf("package_name")))
-                    .put(functionDeclaration("read_visible_screen", "Read the text currently visible on the active phone screen.", JSONObject(), emptyArray()))
-                    .put(functionDeclaration("click_visible_text", "Tap one unique visible button or label by its exact text.", JSONObject()
-                        .put("label", stringProperty("Exact visible label to tap.")), arrayOf("label")))
-                    .put(functionDeclaration("scroll_screen_forward", "Scroll the currently active phone screen forward once.", JSONObject(), emptyArray()))
-                    .put(functionDeclaration("type_focused_text", "Type the supplied text into the currently focused editable field.", JSONObject()
-                        .put("text", stringProperty("Exact text to enter into the focused field.")), arrayOf("text")))
                 val setup = JSONObject()
                     .put("model", "models/$MODEL")
                     .put("generationConfig", generationConfig)
-                    .put("inputAudioTranscription", JSONObject().put("languageCodes", JSONArray().put("bn-BD")))
-                    .put("outputAudioTranscription", JSONObject().put("languageCodes", JSONArray().put("bn-BD")))
+                    .put("inputAudioTranscription", JSONObject())
+                    .put("outputAudioTranscription", JSONObject())
                     .put("systemInstruction", systemInstruction)
-                    .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functionDeclarations)))
                 webSocket.send(JSONObject().put("setup", setup).toString())
             }
 
@@ -121,20 +111,6 @@ class GeminiLiveVoiceSession(
                     }
                     if (root.has("error")) {
                         onError(root.getJSONObject("error").toString())
-                    }
-                    val toolCall = root.optJSONObject("toolCall")
-                    val functionCalls = toolCall?.optJSONArray("functionCalls")
-                    if (functionCalls != null && functionCalls.length() > 0) {
-                        micPaused = true
-                        awaitingToolResponse = true
-                        val calls = (0 until functionCalls.length()).mapNotNull { callIndex ->
-                            val item = functionCalls.optJSONObject(callIndex) ?: return@mapNotNull null
-                            val args = item.optJSONObject("args") ?: JSONObject()
-                            val id = item.optString("id")
-                            val name = item.optString("name")
-                            if (id.isBlank() || name.isBlank()) null else LiveToolCall(id, name, args)
-                        }
-                        if (calls.isNotEmpty()) onToolCall(calls)
                     }
                     val serverContent = root.optJSONObject("serverContent") ?: return
                     val inputText = serverContent.optJSONObject("inputTranscription")?.optString("text").orEmpty().trim()
