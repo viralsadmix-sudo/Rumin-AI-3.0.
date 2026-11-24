@@ -217,6 +217,22 @@ function callTool(tool,a='',b='',ms=9000){
     if(!sendNative(tool,a,b,id)){clearTimeout(t);delete waiters[id];res({ok:false,message:'কমান্ড পাঠানো যায়নি'})}
   });
 }
+window.onLiveToolCall=(callId,functionName,argsJson)=>{
+  let args={};try{args=JSON.parse(argsJson||'{}')}catch(e){}
+  if(functionName!=='start_agent_task'){
+    N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'এই Live tool সমর্থিত নয়।'}));return;
+  }
+  const goal=String(args.goal||'').trim();
+  if(!goal){
+    N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'কাজের নির্দেশ পাওয়া যায়নি।'}));return;
+  }
+  agent(goal).then(result=>{
+    const payload=result&&typeof result==='object'?result:{ok:false,message:'Agent Planner কোনো ফল ফেরত দেয়নি।'};
+    if(N&&typeof N.sendLiveToolResponse==='function')N.sendLiveToolResponse(callId,functionName,JSON.stringify(payload));
+  }).catch(e=>{
+    if(N&&typeof N.sendLiveToolResponse==='function')N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:e.message||'Agent Planner ব্যর্থ হয়েছে।'}));
+  });
+};
 window.onNativeCommandResult=(ok,msg,id)=>{
   if(id&&waiters[id]){waiters[id]({ok,message:msg});return}
   if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)
@@ -357,10 +373,10 @@ const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner�
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে একবার ভিন্ন নিরাপদ পদ্ধতিতে চেষ্টা করো; একই action বারবার করো না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
-কল, SMS বা বাহ্যিক বার্তা পাঠানো, পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action—কোনোটিই নিজে থেকে চালাবে না; প্রয়োজন হলে আগে ব্যবহারকারীর কাছে স্পষ্ট অনুমতি চাও এবং সেই অনুমতি না পাওয়া পর্যন্ত থামো। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
+কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 async function agent(goal){
-  if(agentRun)return;
-  agentRun=true;live=false;busy=true;stopListening();
+  if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
+  agentRun=true;busy=true;
   const log=[];let screen='',finished=false;
   for(let n=1;n<=20&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
@@ -369,8 +385,8 @@ async function agent(goal){
     catch(e){add('সমস্যা: '+(e.message||'অজানা'),'b');break}
     if(!agentRun)break;
     const x=o.action;
-    if(o.done||!x||!TOOLS.includes(x.tool)){finished=true;busy=false;agentRun=false;reply(o.reply||'কাজ শেষ বস।',o.emotion||'happy');return}
-    if(['call','sms','power'].includes(x.tool)){finished=true;busy=false;agentRun=false;reply('বস, এই কাজটা নিজে থেকে করছি না। আলাদাভাবে স্পষ্ট করে বলুন।','calm');return}
+    if(o.done||!x||!TOOLS.includes(x.tool)){finished=true;busy=false;agentRun=false;const message=o.reply||'কাজ শেষ বস।';reply(message,o.emotion||'happy');return {ok:true,message}}
+    if(x.tool==='power'){finished=true;busy=false;agentRun=false;const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';reply(message,'calm');return {ok:false,message}}
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'');
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
@@ -381,7 +397,8 @@ async function agent(goal){
     screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
   }
   busy=false;
-  if(!finished){const was=agentRun;agentRun=false;reply(was?'বস, কাজটা শেষ করতে পারিনি, তাই থামলাম।':'ঠিক আছে বস, কাজ থামালাম।',was?'sad':'calm')}
+  if(!finished){const was=agentRun;agentRun=false;const message=was?'বস, কাজটা শেষ করতে পারিনি, তাই থামলাম।':'ঠিক আছে বস, কাজ থামালাম।';reply(message,was?'sad':'calm');return {ok:false,message}}
+  return {ok:false,message:'Agent Planner কাজটি সম্পন্ন করতে পারেনি।'};
 }
 async function execConfirmed(p){
   if(p.tool==='sms'){
