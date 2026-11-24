@@ -71,18 +71,14 @@ class GeminiLiveVoice(
                         .put("model", "models/gemini-3.8-live")
                         .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(
                             JSONObject()
-                                .put("name", "phone_action")
-                                .put("description", "পরিকল্পনা অনুযায়ী ফোনে একটি অনুমোদিত কাজ করো। প্রতিটি ধাপে প্রয়োজন হলে স্ক্রিন পড়ে পরের পদক্ষেপ ঠিক করো। কল ও SMS কেবল ডায়ালার/কম্পোজ স্ক্রিন খুলবে; নিজে পাঠাবে না।")
+                                .put("name", "start_agent_task")
+                                .put("description", "বসের ফোন-সংক্রান্ত লক্ষ্য বুঝে Rumin AI Agent Planner চালাও। Planner স্ক্রিন পড়ে, ধাপে ধাপে native action চালিয়ে ফল যাচাই করবে।")
                                 .put("parameters", JSONObject()
                                     .put("type", "OBJECT")
                                     .put("properties", JSONObject()
-                                        .put("action", JSONObject().put("type", "STRING").put("enum", JSONArray().apply {
-                                            listOf("home","back","recents","notifications","quicksettings","power","volumeup","volumedown","volumemute","volumeunmute","alarm","timer","showalarms","showtimers","call","sms","dialer","accessibility","notificationaccess","apppermissions","ttssettings","settings","wifi","bluetooth","display","sound","camera","contacts","browser","youtube","facebook","whatsapp","instagram","gmail","playstore","maps","inspect_screen","click_text","type_text","scroll_down","scroll_up").forEach { put(it) }
-                                        }))
-                                        .put("first", JSONObject().put("type", "STRING").put("description", "প্রথম argument; নম্বর, স্ক্রিনের লেখা বা সময়"))
-                                        .put("second", JSONObject().put("type", "STRING").put("description", "দ্বিতীয় argument; বার্তা বা অতিরিক্ত তথ্য"))
+                                        .put("goal", JSONObject().put("type", "STRING").put("description", "বসের সম্পূর্ণ স্বাভাবিক ভাষার নির্দেশ"))
                                     )
-                                    .put("required", JSONArray().put("action"))
+                                    .put("required", JSONArray().put("goal"))
                                 )
                         )
                     )))
@@ -136,7 +132,7 @@ class GeminiLiveVoice(
                                 val callId = call.optString("id")
                                 val functionName = call.optString("name")
                                 val args = call.optJSONObject("args") ?: JSONObject()
-                                if (callId.isNotBlank() && functionName == "phone_action") {
+                                if (callId.isNotBlank() && functionName == "start_agent_task") {
                                     onStatus("রুমিন ফোনের কাজ পরিকল্পনা করছে…", "thinking")
                                     onToolCall(callId, functionName, args)
                                 } else if (callId.isNotBlank()) {
