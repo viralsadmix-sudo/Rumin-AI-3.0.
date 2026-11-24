@@ -314,7 +314,9 @@ function nativeAiRequest(provider,key,msgs,extra){
 async function askAI(msgs=hist,extra=''){
   const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key'),pref=LS.get('rumin_provider','auto');
   const order=[];
-  if(pref==='groq'){if(kq)order.push(['groq',kq]);if(kg)order.push(['gemini',kg])}
+  // Explicit provider selection must be strict; fallback is only for Auto mode.
+  if(pref==='gemini'){if(kg)order.push(['gemini',kg])}
+  else if(pref==='groq'){if(kq)order.push(['groq',kq])}
   else{if(kg)order.push(['gemini',kg]);if(kq)order.push(['groq',kq])}
   if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
   const failures=[];
