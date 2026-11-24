@@ -505,13 +505,14 @@ class MainActivity : ComponentActivity() {
                         "gmail" -> packageManager.getLaunchIntentForPackage("com.google.android.gm") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))
                         "playstore" -> packageManager.getLaunchIntentForPackage("com.android.vending") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))
                         "maps" -> packageManager.getLaunchIntentForPackage("com.google.android.apps.maps") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))
+                        "chatgpt" -> packageManager.getLaunchIntentForPackage("com.openai.chatgpt") ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com"))
                         else -> null
                     }
                     if (intent == null) {
                         deliverCommandResult(false, "এই কমান্ডটি সমর্থিত নয়", taskId)
                         return@runOnUiThread
                     }
-                    try { startActivity(intent) } catch (first: Exception) { when (action) { "youtube" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))); "whatsapp" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))); "instagram" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))); "gmail" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))); "playstore" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))); "maps" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))); else -> throw first } }
+                    try { startActivity(intent) } catch (first: Exception) { when (action) { "youtube" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com"))); "whatsapp" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/"))); "instagram" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com"))); "gmail" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://mail.google.com"))); "playstore" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store"))); "maps" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))); "chatgpt" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com"))); else -> throw first } }
                     val message = when (action) {
                         "alarm" -> "অ্যালার্ম অ্যাপে সময়টি সেট করার জন্য পাঠানো হয়েছে।"
                         "timer" -> "টাইমার অ্যাপে টাইমারটি সেট করার জন্য পাঠানো হয়েছে।"
