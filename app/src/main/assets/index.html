@@ -415,7 +415,7 @@ async function think(text,hidden){
 
 /* ---------- Agent: multi-step phone tasks ---------- */
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
-const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
+const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
@@ -466,8 +466,13 @@ async function agent(goal,firstAction=null){
       if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
       finished=true;busy=false;agentRun=false;
       let message=o.reply||'কাজটি শেষ হয়েছে, তবে ফলাফল যাচাই করা দরকার।';
-      const failedSteps=log.filter(x=>x.includes('→ ব্যর্থ'));
-      const verified=o.verified===true&&!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:');
+      // A screen-inspection failure is a diagnostic limitation, not proof that the phone action failed.
+      // Only count failed task actions; otherwise Home can execute correctly but be reported as failed
+      // merely because the accessibility screen snapshot was unavailable.
+      const failedSteps=log.filter(x=>!x.startsWith('inspect_screen(')&&x.includes('→ ব্যর্থ'));
+      const successfulGlobalAction=log.some(x=>/^(home|back|recents|notifications|quicksettings)\(.*→ সফল$/.test(x));
+      const screenVerified=!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:')&&!screen.startsWith('স্ক্রিন পড়া যায়নি:');
+      const verified=(o.verified===true&&screenVerified)||successfulGlobalAction;
       const ok=verified&&failedSteps.length===0;
       const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nAgent-এর ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nশেষ স্ক্রিনের প্রমাণ: '+(screen||'পাওয়া যায়নি')+'\\nPlanner-এর নোট: '+message;
       if(live){
