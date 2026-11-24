@@ -133,7 +133,7 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
 <div id="sheet"><div id="sheetBox"></div></div>
 <div id="set">
   <h2>সেটিংস</h2>
-  <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
+  <label>Managed Backend HTTPS URL</label><input id="gatewayUrl" type="url" placeholder="https://your-worker.workers.dev" autocomplete="url"><label>Backend Access Token</label><input id="gatewayToken" type="password" autocomplete="off"><div class="row"><button class="g" id="verifyGateway">Backend সংযোগ যাচাই</button></div><p>Text Chat ও AI Agent-এর জন্য Gateway ব্যবহার হবে। Gemini Live Voice-এর জন্য নিচের Gemini API Key আলাদাভাবে লাগবে।</p><label>Gemini API Key (Live Voice)</label><input id="kg" type="password" autocomplete="off">
   <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
   <div class="row"><button class="g" id="clearKeys">সংরক্ষিত Gemini API Key মুছুন</button></div>
   <p>AI Provider: Google Gemini 3.8 Flash (একমাত্র AI Brain)</p>
@@ -329,22 +329,28 @@ window.onNativeAiResponse=(id,ok,message)=>{
 };
 function nativeAiRequest(provider,key,msgs,extra){
   return new Promise((resolve,reject)=>{
-    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
+    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native AI সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
     const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id,extra&&extra.gatewayUrl?extra.gatewayUrl:'')}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
+  const gatewayUrl=LS.get('rumin_gateway_url').trim();
+  const gatewayToken=LS.get('rumin_gateway_token').trim();
+  if(gatewayUrl&&gatewayToken){
+    try{return await nativeAiRequest('gateway',gatewayToken,msgs,{text:extra,gatewayUrl})}
+    catch(e){throw new Error('Rumin AI Gateway ব্যর্থ হয়েছে: '+(e&&e.message?e.message:'অজানা সমস্যা')+'. Backend URL, Access Token ও Provider quota পরীক্ষা করুন।')}
+  }
   const key=LS.get('rumin_gemini_key');
-  if(!key)throw new Error('Gemini API Key সেট করা নেই। Settings খুলে Gemini Key দিন এবং যাচাই করুন।');
+  if(!key)throw new Error('Managed Backend URL ও Access Token সেট করুন। বিকল্প হিসেবে Gemini API Key দিন।');
   try{return await nativeAiRequest('gemini',key,msgs,extra)}
-  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা')+'. Gemini API Key, ইন্টারনেট, মডেল অ্যাক্সেস ও Usage quota পরীক্ষা করুন।')}
+  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা')+'. Managed Backend সেট করলে Gemini Quota শেষ হলে বিকল্প Provider ব্যবহার হবে।')}
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
@@ -543,7 +549,7 @@ function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=documen
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
 $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
-function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('set').classList.add('open')}
+function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('gatewayUrl').value=LS.get('rumin_gateway_url');$('gatewayToken').value=LS.get('rumin_gateway_token');$('set').classList.add('open')}
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
 function startVoice(){
   go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();voiceMode=false;
@@ -592,7 +598,8 @@ on('mic',()=>{
   startVoice()
 });
 on('close',()=>$('set').classList.remove('open'));
-on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');$('set').classList.remove('open');add('Gemini সেটিংস সেভ হয়েছে।','s');status('Gemini সেটিংস সেভ হয়েছে')});
+on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_gateway_url',$('gatewayUrl').value.trim().replace(/\\/$/,''));LS.set('rumin_gateway_token',$('gatewayToken').value.trim());LS.set('rumin_provider','gateway');LS.set('rumin_gemini_model','gemini-3.8-flash');$('set').classList.remove('open');add('AI Gateway সেটিংস সেভ হয়েছে।','s');status('AI Gateway সেটিংস সেভ হয়েছে')});
+on('verifyGateway',async()=>{const u=$('gatewayUrl').value.trim().replace(/\\/$/,'');if(!u.startsWith('https://')){status('Backend URL অবশ্যই HTTPS হতে হবে');return}status('Backend সংযোগ পরীক্ষা হচ্ছে…');try{const r=await fetch(u+'/health',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(!j.ok)throw new Error('Health check failed');LS.set('rumin_gateway_url',u);LS.set('rumin_gateway_token',$('gatewayToken').value.trim());status('Rumin AI Gateway সংযোগ সফল ✓')}catch(e){status('Backend সংযোগ ব্যর্থ: '+(e.message||'Network error'))}});
 async function verifyGeminiKey(){
   const key=$('kg').value.trim();
   if(!key){status('আগে Gemini API Key লিখুন');return}
