@@ -254,17 +254,11 @@ const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){live=false;agentRun=false;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){agentRun=false;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(mem[2]);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, মনে রাখলাম: '+mem[2],'happy');return true}
-  if(/ভলিউম|volume/.test(t)){
-    if(/বাড়া|বেশি|জোরে|up|increase/.test(t))return act('volumeup');
-    if(/কম|আস্তে|down|decrease/.test(t))return act('volumedown');
-    if(/মিউট|বন্ধ|mute/.test(t))return act('volumemute')}
-  if(/^(হোমে যাও|হোম স্ক্রিনে যাও|home)$/.test(t))return act('home');
-  if(/^(ব্যাক কর|ব্যাক করো|পিছনে যাও|back)$/.test(t))return act('back');
-  if(/(খুল|ওপেন|open|চালু কর|চালাও|লঞ্চ)/.test(t)&&!/(স্ক্রল|scroll|সার্চ|search|খুঁজ|টাইপ|লিখ|তারপর|এরপর|প্লে|play|গান|ভিডিও|লাইক|সাবস্ক্রাইব|চাপ)/.test(t)){for(const [k,re] of APPS)if(re.test(t))return act(k)}
+  // All phone requests intentionally go through AI intent understanding and Agent planning.
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
@@ -274,7 +268,7 @@ function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
   return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
 মূল আচরণ:
-- বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে বা কথ্য বাংলায় যা বলবেন, তার উদ্দেশ্য বুঝবে। নির্দিষ্ট command phrase, মুখস্থ syntax বা exact keyword দাবি করবে না।
+- বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
 - ব্যবহারকারী ফোনে কোনো কাজ করতে বললে agent:true দেবে এবং goal-এ ব্যবহারকারীর আসল উদ্দেশ্য রাখবে। কাজ এক ধাপের হলেও agent:true ব্যবহার করবে, যাতে Agent নিজে পরিকল্পনা ও ফলাফল যাচাই করে।
 - ব্যবহারকারী শুধু প্রশ্ন করলে বা গল্প করতে চাইলে agent:false রাখবে এবং স্বাভাবিক বাংলায় উত্তর দেবে।
 - শুধু JSON দেবে: {"reply":"সংক্ষিপ্ত বাংলা প্রতিক্রিয়া","emotion":"calm|happy|sad|angry|thinking","actions":[],"agent":true,"goal":"ব্যবহারকারীর কাজের উদ্দেশ্য"}। ফোনের কাজের ক্ষেত্রে actions খালি রাখবে; পরিকল্পনা Agent Loop করবে।
@@ -282,6 +276,8 @@ function system(extra=''){
 - অনুমোদিত Native tool ছাড়া কোনো কাজ হয়েছে বলে দাবি করবে না। স্ক্রিনের তথ্য না দেখে UI-তে থাকা বোতাম/লেখা কল্পনা করবে না।
 - কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
 - কাজটি উপলভ্য tool দিয়ে সম্ভব না হলে সৎভাবে সীমাবদ্ধতা জানাবে এবং বিকল্প বলবে।
+- বসের কথায় সম্ভাব্য অনুভূতি (খুশি, বিরক্তি, দুশ্চিন্তা, হতাশা, আগ্রহ, ক্লান্তি) ভাষা ও প্রসঙ্গ থেকে বুঝে সহানুভূতিশীল উত্তর দেবে; অনুভূতি নিশ্চিত ধরে নেবে না, প্রয়োজনে নরমভাবে যাচাই করবে। আগের আলাপের আবেগ ও অসমাপ্ত বিষয় মনে রেখে কথোপকথন চালাবে। শুধু প্রশ্নের উত্তর দিয়ে থেমে না থেকে প্রাসঙ্গিক হলে নিজে থেকে একটি স্বাভাবিক follow-up বা সাহায্যের প্রস্তাব দেবে; অকারণে বারবার বাধা দেবে না বা মনগড়া ব্যক্তিগত তথ্য বলবে না।
+- ফোনের যেকোনো কাজ—এক ধাপের হলেও—সরাসরি local shortcut দিয়ে নয়, Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
 - বসকে সম্মানজনক, সংক্ষিপ্ত, স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
 উপলভ্য Native capabilities (এগুলোই বাস্তব ক্ষমতার সীমা): ${TOOLS.join(', ')}।
 ব্যবহারকারীর সংরক্ষিত তথ্য: ${facts.length?facts.join('; '):'নেই'}
@@ -452,7 +448,6 @@ function handle(text){
     if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
   }
   if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
-  if(smartMode){agent(text);return}
   think(text);
 }
 
