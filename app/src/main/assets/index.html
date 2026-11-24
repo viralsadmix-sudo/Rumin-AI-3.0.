@@ -401,7 +401,8 @@ async function agent(goal){
         const finalObj=parse(finalText);
         message=finalObj.reply||finalText||message;
       }catch(_){}
-      reply(message,o.emotion||'happy');
+      // In Live Voice, Gemini Live speaks after receiving this tool result; avoid a duplicate chat reply.
+      if(!live)reply(message,o.emotion||'happy');
       return {ok:true,message,steps:log.length};
     }
     const x=o.action;
