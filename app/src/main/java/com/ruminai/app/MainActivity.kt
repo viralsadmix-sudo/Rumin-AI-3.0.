@@ -267,7 +267,7 @@ class MainActivity : ComponentActivity() {
                         connection = (URL("$base/v1/chat").openConnection() as HttpURLConnection).apply {
                             requestMethod = "POST"
                             connectTimeout = 15000
-                            readTimeout = 60000
+                            readTimeout = 75000
                             doOutput = true
                             setRequestProperty("Content-Type", "application/json; charset=utf-8")
                             setRequestProperty("Authorization", "Bearer $key")
