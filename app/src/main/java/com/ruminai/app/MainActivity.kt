@@ -35,7 +35,6 @@ class MainActivity : ComponentActivity() {
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
     private var pendingLiveKey: String? = null
-    @Volatile private var liveVoiceSession: GeminiLiveVoice? = null
 
     private val phonePermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.filterValues { it }.keys
@@ -192,8 +191,8 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun stopLiveVoice() {
             runOnUiThread {
-                liveVoiceSession?.stop()
-                liveVoiceSession = null
+                val intent = Intent(this@MainActivity, RuminLiveVoiceService::class.java).apply { action = RuminLiveVoiceService.ACTION_STOP }
+                startService(intent)
                 reportLiveVoice("লাইভ ভয়েস বন্ধ করা হয়েছে", "stopped")
             }
         }
@@ -201,7 +200,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun sendLiveToolResponse(callId: String, functionName: String, responseJson: String) {
             try {
                 val response = JSONObject(responseJson)
-                val sent = liveVoiceSession?.sendToolResponse(callId, functionName, response) == true
+                val sent = RuminLiveVoiceService.current?.sendToolResponse(callId, functionName, response) == true
                 if (!sent) reportLiveVoice("ফোনের কাজের ফল Gemini Live-এ ফেরত পাঠানো যায়নি।", "listening")
             } catch (e: Exception) {
                 reportLiveVoice("ফোনের কাজের ফল পাঠাতে সমস্যা হয়েছে: ${e.message ?: "অজানা ত্রুটি"}", "listening")
@@ -559,41 +558,51 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startLiveVoiceInternal(key: String) {
-        liveVoiceSession?.stop()
-        val session = GeminiLiveVoice(this,
-            { message, state -> reportLiveVoice(message, state) },
-            { userText, assistantText, audioReceived -> runOnUiThread {
-                webView.evaluateJavascript("window.onLiveVoiceTurn && window.onLiveVoiceTurn(" + JSONObject.quote(userText) + ", " + JSONObject.quote(assistantText) + ")", null)
-                // If Gemini returned text but no audio chunk, speak the answer locally instead of staying silent.
+        try {
+            val intent = Intent(this, RuminLiveVoiceService::class.java).apply {
+                action = RuminLiveVoiceService.ACTION_START
+                putExtra(RuminLiveVoiceService.EXTRA_API_KEY, key)
+            }
+            androidx.core.content.ContextCompat.startForegroundService(this, intent)
+            reportLiveVoice("ব্যাকগ্রাউন্ড Live Voice Service চালু হচ্ছে…", "connecting")
+        } catch (e: Exception) {
+            reportLiveVoice("Background Voice Service চালু করা যায়নি: ${e.message ?: "Android অনুমতি/সার্ভিস পরীক্ষা করুন"}", "stopped")
+        }
+    }
+
+    private val liveUiListener = object : RuminLiveVoiceService.Listener {
+        override fun onStatus(message: String, state: String) { reportLiveVoice(message, state) }
+        override fun onTurn(userText: String, assistantText: String, audioReceived: Boolean) {
+            runOnUiThread {
+                if (::webView.isInitialized) webView.evaluateJavascript("window.onLiveVoiceTurn && window.onLiveVoiceTurn(" + JSONObject.quote(userText) + ", " + JSONObject.quote(assistantText) + ")", null)
                 if (assistantText.isNotBlank() && !audioReceived) {
                     val tts = textToSpeech
                     if (tts != null && ttsReady) {
                         val languageResult = tts.setLanguage(Locale("bn", "BD"))
-                        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                            tts.setLanguage(Locale("bn", "IN"))
-                        }
+                        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) tts.setLanguage(Locale("bn", "IN"))
                         tts.speak(assistantText, TextToSpeech.QUEUE_FLUSH, null, "rumin_live_fallback")
-                    } else {
-                        reportLiveVoice("Gemini উত্তর দিয়েছে, কিন্তু অডিও আসেনি এবং ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। TTS সেটিংসে বাংলা কণ্ঠ ইনস্টল করুন।", "stopped")
-                    }
+                    } else reportLiveVoice("Gemini উত্তর দিয়েছে, কিন্তু অডিও আসেনি এবং ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। TTS সেটিংসে বাংলা কণ্ঠ ইনস্টল করুন।", "stopped")
                 }
-            } },
-            { callId, functionName, args -> runOnUiThread {
-                val argsJson = args.toString()
-                webView.evaluateJavascript(
-                    "window.onLiveToolCall && window.onLiveToolCall(${JSONObject.quote(callId)}, ${JSONObject.quote(functionName)}, ${JSONObject.quote(argsJson)})",
-                    null
-                )
-            } }
-        )
-        liveVoiceSession = session
-        reportLiveVoice("Gemini Live-এ সংযোগ করছি…", "connecting")
-        session.start(key)
+            }
+        }
+        override fun onToolCall(callId: String, functionName: String, args: JSONObject) {
+            runOnUiThread {
+                if (::webView.isInitialized) {
+                    val argsJson = args.toString()
+                    webView.evaluateJavascript("window.onLiveToolCall && window.onLiveToolCall(${JSONObject.quote(callId)}, ${JSONObject.quote(functionName)}, ${JSONObject.quote(argsJson)})", null)
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        RuminLiveVoiceService.listener = liveUiListener
+        RuminLiveVoiceService.current?.let { reportLiveVoice("Live Voice ব্যাকগ্রাউন্ডে চালু আছে।", "listening") }
     }
 
     override fun onDestroy() {
-        liveVoiceSession?.stop()
-        liveVoiceSession = null
+        if (RuminLiveVoiceService.listener === liveUiListener) RuminLiveVoiceService.listener = null
         textToSpeech?.stop()
         continuousListening = false
         continuousRecognizer?.destroy()
