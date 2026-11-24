@@ -398,7 +398,7 @@ async function think(text,hidden){
   try{
     const o=parse(await askAI(hist,modeExtra()));
     busy=false;
-    if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);setTimeout(()=>agent(o.goal||text),1200);return}
+    if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
     if(acts.length){
       // Backward-compatible model output is routed through the Agent loop; never execute model-suggested phone actions directly from chat.
@@ -447,7 +447,7 @@ async function agent(goal){
         o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
       }catch(e){
         lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
-        if(attempt===0){await sleep(1200);continue}
+        if(attempt===0){await sleep(250);continue}
         log.push('Planner error: '+lastError);
       }
     }
@@ -466,11 +466,8 @@ async function agent(goal){
         // Return structured execution evidence to Gemini Live; it alone speaks to the user.
         message=ok?'কাজটি সম্পন্ন হয়েছে এবং শেষ স্ক্রিনে যাচাই করা গেছে।':(failedSteps.length?'কাজে সমস্যা হয়েছে: '+failedSteps.slice(-2).join(' ; '):'কাজ শেষ হয়েছে বলে Planner জানিয়েছে, কিন্তু ফোনের স্ক্রিনে ফলাফল যাচাই করা যায়নি।');
       }else{
-        try{
-          const finalText=await askAI([{r:'u',t:resultContext+'\\nশুধু যাচাইকৃত তথ্য ধরে স্বাভাবিক বাংলায় একটিমাত্র উত্তর দাও। কাজ যাচাই না হলে সফল বলবে না।'}],'তুমি Rumin-এর একমাত্র ব্যবহারকারী-মুখী কথোপকথন সহকারী।','answer');
-          const finalObj=parse(finalText);
-          message=finalObj.reply||finalText||message;
-        }catch(_){}
+        // The planner already produced a user-facing Bengali result; do not spend
+        // another full network round-trip merely to rephrase it.
         if(!ok&&verified===false)message='বস, কাজটি সম্পন্ন হয়েছে বলে নিশ্চিত হতে পারছি না। '+message;
         reply(message,o.emotion||'happy');
       }
@@ -499,7 +496,8 @@ async function agent(goal){
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
     if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
-    await sleep(OPENERS.includes(x.tool)?2500:900);
+    // Give Android a short settle window; long fixed waits made every Agent step sluggish.
+    await sleep(OPENERS.includes(x.tool)?650:180);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(x.tool==='inspect_screen'){
       screen=Array.from(r.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(r.elements||[]).slice(0,100));
