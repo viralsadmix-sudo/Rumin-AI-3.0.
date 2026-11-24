@@ -317,8 +317,19 @@ async function askAI(msgs=hist,extra=''){
   if(pref==='groq'){if(kq)order.push(['groq',kq]);if(kg)order.push(['gemini',kg])}
   else{if(kg)order.push(['gemini',kg]);if(kq)order.push(['groq',kq])}
   if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
-  let err;for(const [provider,key] of order){try{return await nativeAiRequest(provider,key,msgs,extra)}catch(e){err=e}}
-  throw err||new Error('AI অনুরোধ ব্যর্থ হয়েছে');
+  const failures=[];
+  for(const [provider,key] of order){
+    try{return await nativeAiRequest(provider,key,msgs,extra)}
+    catch(e){
+      const raw=String(e&&e.message||e||'অজানা ত্রুটি');
+      const quota=/(quota|rate.?limit|resource.?exhausted|429|limit.?exceeded|billing)/i.test(raw);
+      const server=/(HTTP 5\d\d|503|502|504|overloaded|unavailable|server error)/i.test(raw);
+      const auth=/(HTTP 401|HTTP 403|api.?key|unauthorized|permission denied)/i.test(raw);
+      const kind=quota?'Quota/Rate limit':server?'Server error':auth?'API key/permission':'Connection/API error';
+      failures.push((provider==='gemini'?'Gemini':'Groq')+' ['+kind+']: '+raw);
+    }
+  }
+  throw new Error('সব AI Provider ব্যর্থ হয়েছে।\n'+failures.join('\n'));
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
