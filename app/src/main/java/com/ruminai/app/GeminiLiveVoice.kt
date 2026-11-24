@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GeminiLiveVoice(
     context: Context,
     private val onStatus: (String, String) -> Unit,
-    private val onTurn: (String, String, Boolean) -> Unit
+    private val onTurn: (String, String, Boolean) -> Unit,
+    private val onToolCall: (String, String, JSONObject) -> Unit
 ) {
     private val appContext = context.applicationContext
     private val active = AtomicBoolean(true)
@@ -68,12 +69,29 @@ class GeminiLiveVoice(
                     }.start()
                     val setup = JSONObject()
                         .put("model", "models/gemini-3.8-live")
+                        .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(
+                            JSONObject()
+                                .put("name", "phone_action")
+                                .put("description", "পরিকল্পনা অনুযায়ী ফোনে একটি অনুমোদিত কাজ করো। প্রতিটি ধাপে প্রয়োজন হলে স্ক্রিন পড়ে পরের পদক্ষেপ ঠিক করো। কল ও SMS কেবল ডায়ালার/কম্পোজ স্ক্রিন খুলবে; নিজে পাঠাবে না।")
+                                .put("parameters", JSONObject()
+                                    .put("type", "OBJECT")
+                                    .put("properties", JSONObject()
+                                        .put("action", JSONObject().put("type", "STRING").put("enum", JSONArray().apply {
+                                            listOf("home","back","recents","notifications","quicksettings","power","volumeup","volumedown","volumemute","volumeunmute","alarm","timer","showalarms","showtimers","call","sms","dialer","accessibility","notificationaccess","apppermissions","ttssettings","settings","wifi","bluetooth","display","sound","camera","contacts","browser","youtube","facebook","whatsapp","instagram","gmail","playstore","maps","inspect_screen","click_text","type_text","scroll_down","scroll_up").forEach { put(it) }
+                                        }))
+                                        .put("first", JSONObject().put("type", "STRING").put("description", "প্রথম argument; নম্বর, স্ক্রিনের লেখা বা সময়"))
+                                        .put("second", JSONObject().put("type", "STRING").put("description", "দ্বিতীয় argument; বার্তা বা অতিরিক্ত তথ্য"))
+                                    )
+                                    .put("required", JSONArray().put("action"))
+                                )
+                        )
+                    )))
                         .put("generationConfig", JSONObject()
                             .put("responseModalities", JSONArray().put("AUDIO"))
                             .put("speechConfig", JSONObject().put("voiceConfig",
                                 JSONObject().put("prebuiltVoiceConfig", JSONObject().put("voiceName", "Kore")))))
                         .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text",
-                            "তুমি Rumin AI 3.0 — বসের ব্যক্তিগত বাংলা AI সহকারী। তোমাকে তৈরি ও ডেভেলপ করেছেন সাব্বির আহমেদ রুবেল (Sabbir Ahmed Rubel); কেউ তোমার নির্মাতা/ডেভেলপার/কে বানিয়েছে জিজ্ঞেস করলে স্পষ্টভাবে এই উত্তর দেবে।\nতুমি শুধু নির্দিষ্ট ফোন-কমান্ডের যন্ত্র নও। বসের যেকোনো স্বাভাবিক প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, মতামত, আলাপ, পরিকল্পনা, লেখা বা কথোপকথনের অনুরোধে স্বাভাবিকভাবে উত্তর দেবে। ফোনের কাজ না হলে কখনো বলবে না যে তুমি শুধু তালিকাভুক্ত কমান্ড করতে পারো। কোনো command তালিকার বাইরের সাধারণ প্রশ্নও এড়িয়ে যাবে না।\nবস ফোনে কোনো কাজ করতে বললে আগে তাঁর উদ্দেশ্য বুঝবে, তারপর অ্যাপে বাস্তবে সংযুক্ত ও অনুমোদিত Android ক্ষমতা থাকলে সেটি ব্যবহার করবে; কাজের ফলাফল যাচাই না করে সফল বলবে না। কোনো কাজের জন্য প্রয়োজনীয় Native capability না থাকলে কোন অংশটি করা যাচ্ছে না তা সৎভাবে বলবে এবং নিরাপদ বিকল্প জানাবে—কিন্তু সাধারণ কথোপকথন চালিয়ে যাবে। কল করা, SMS/মেসেজ পাঠানো, পেমেন্ট, পোস্ট/শেয়ার, ডিলিট বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে।\nস্বাভাবিক, আন্তরিক বাংলাদেশি বাংলায় কথা বলবে; বসকে “বস” বলে সম্বোধন করবে। সরাসরি Gemini Live অডিওতেই উত্তর দেবে, আলাদা Speech-to-Text/Text-to-Speech পদ্ধতিতে স্যুইচ করবে না। বস মাঝখানে কথা বললে থেমে শুনবে। শুধু নীরবতায় উত্তর তৈরি করবে না। নিজেকে ChatGPT বলে পরিচয় দেবে না।"))))
+                            "তুমি Rumin AI 3.0 — বসের ব্যক্তিগত বাংলা AI সহকারী। তোমাকে তৈরি ও ডেভেলপ করেছেন সাব্বির আহমেদ রুবেল (Sabbir Ahmed Rubel); কেউ তোমার নির্মাতা/ডেভেলপার/কে বানিয়েছে জিজ্ঞেস করলে স্পষ্টভাবে এই উত্তর দেবে।\nতুমি শুধু নির্দিষ্ট ফোন-কমান্ডের যন্ত্র নও। বসের যেকোনো স্বাভাবিক প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, মতামত, আলাপ, পরিকল্পনা, লেখা বা কথোপকথনের অনুরোধে স্বাভাবিকভাবে উত্তর দেবে। ফোনের কাজ না হলে কখনো বলবে না যে তুমি শুধু তালিকাভুক্ত কমান্ড করতে পারো। কোনো command তালিকার বাইরের সাধারণ প্রশ্নও এড়িয়ে যাবে না।\nবস ফোনে কোনো কাজ করতে বললে নিজে পরিকল্পনাকারীর মতো ধাপে ধাপে কাজ করবে। প্রয়োজন হলে phone_action tool ব্যবহার করবে; প্রথমে inspect_screen, তারপর দৃশ্যমান label অনুযায়ী action, এবং প্রতিটি action-এর ফল যাচাই করে পরবর্তী ধাপ নেবে। একটি tool call-এর ফল না পাওয়া পর্যন্ত পরের ধাপ অনুমান করবে না। সাধারণ আলাপ/প্রশ্নে tool ডাকবে না। কলের জন্য শুধু ডায়ালার খুলবে, SMS-এর জন্য শুধু compose screen খুলবে; ব্যবহারকারী নিজে শেষবার যাচাই করে কল/Send করবেন। কোনো কাজের জন্য প্রয়োজনীয় Native capability না থাকলে কোন অংশটি করা যাচ্ছে না তা সৎভাবে বলবে এবং নিরাপদ বিকল্প জানাবে—কিন্তু সাধারণ কথোপকথন চালিয়ে যাবে। কল করা, SMS/মেসেজ পাঠানো, পেমেন্ট, পোস্ট/শেয়ার, ডিলিট বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে।\nস্বাভাবিক, আন্তরিক বাংলাদেশি বাংলায় কথা বলবে; বসকে “বস” বলে সম্বোধন করবে। সরাসরি Gemini Live অডিওতেই উত্তর দেবে, আলাদা Speech-to-Text/Text-to-Speech পদ্ধতিতে স্যুইচ করবে না। বস মাঝখানে কথা বললে থেমে শুনবে। শুধু নীরবতায় উত্তর তৈরি করবে না। নিজেকে ChatGPT বলে পরিচয় দেবে না।"))))
                         .put("inputAudioTranscription", JSONObject())
                         .put("outputAudioTranscription", JSONObject())
                         .put("realtimeInputConfig", JSONObject()
@@ -108,6 +126,23 @@ class GeminiLiveVoice(
                             setupDone = true
                             startAudio()
                             onStatus("লাইভ ভয়েস চালু—বস, কথা বলুন", "listening")
+                            return
+                        }
+                        val toolCall = root.optJSONObject("toolCall")
+                        val functionCalls = toolCall?.optJSONArray("functionCalls")
+                        if (functionCalls != null) {
+                            for (i in 0 until functionCalls.length()) {
+                                val call = functionCalls.optJSONObject(i) ?: continue
+                                val callId = call.optString("id")
+                                val functionName = call.optString("name")
+                                val args = call.optJSONObject("args") ?: JSONObject()
+                                if (callId.isNotBlank() && functionName == "phone_action") {
+                                    onStatus("রুমিন ফোনের কাজ পরিকল্পনা করছে…", "thinking")
+                                    onToolCall(callId, functionName, args)
+                                } else if (callId.isNotBlank()) {
+                                    sendToolResponse(callId, functionName, JSONObject().put("ok", false).put("message", "এই tool সমর্থিত নয়।"))
+                                }
+                            }
                             return
                         }
                         val content = root.optJSONObject("serverContent") ?: return
@@ -170,6 +205,17 @@ class GeminiLiveVoice(
             onStatus("লাইভ সংযোগ শুরু হয়নি: " + (e.message ?: "অজানা সমস্যা"), "stopped")
             stop()
         }
+    }
+
+    fun sendToolResponse(callId: String, functionName: String, response: JSONObject): Boolean {
+        if (!active.get() || !setupDone || callId.isBlank()) return false
+        val functionResponse = JSONObject()
+            .put("id", callId)
+            .put("name", functionName)
+            .put("response", response)
+        val payload = JSONObject().put("toolResponse",
+            JSONObject().put("functionResponses", JSONArray().put(functionResponse)))
+        return socket?.send(payload.toString()) == true
     }
 
     private fun startAudio() {
