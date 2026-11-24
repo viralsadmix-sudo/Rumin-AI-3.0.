@@ -317,15 +317,20 @@ function nativeAiRequest(provider,key,msgs,extra){
 }
 async function askAI(msgs=hist,extra='',role='answer'){
   const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key');
-  // Gemini is the user-facing voice; Groq is the internal task planner.
-  // Provider failures stay internal. Only a single unified result is returned.
-  const order=[['gemini',kg],['groq',kq]];
+  // Follow the provider selected in Settings; use the other configured provider only as fallback.
+  const preferred=LS.get('rumin_provider','auto');
+  const order=preferred==='groq'?[['groq',kq],['gemini',kg]]:[['gemini',kg],['groq',kq]];
+  let failures=[];
   for(const [provider,key] of order){
     if(!key)continue;
     try{return await nativeAiRequest(provider,key,msgs,extra)}
-    catch(_){/* silent internal fallback */}
+    catch(e){failures.push(provider+': '+(e&&e.message?e.message:'request failed'))}
   }
-  throw new Error('এই মুহূর্তে রুমিনের AI সংযোগ পাওয়া যাচ্ছে না। একটু পরে আবার চেষ্টা করুন।');
+  // Avoid exposing raw infrastructure jargon to the user; preserve a useful recovery instruction.
+  const detail=failures.length?failures.join(' | '):'কোনো API Key সেট করা নেই';
+  const err=new Error('এখন উত্তর তৈরি করা যাচ্ছে না। Settings-এ নির্বাচিত AI Provider-এর Key ও ইন্টারনেট সংযোগ যাচাই করুন; অন্য Provider-এর Key থাকলে সেটি fallback হিসেবে চেষ্টা করা হবে।');
+  err.cause=detail;
+  throw err;
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
@@ -378,7 +383,7 @@ async function think(text,hidden){
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
-পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে কারণ বুঝে একবার ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করতে পারো; একই action ও একই arguments দ্বিতীয়বার চালাবে না। Planner ব্যর্থ হলে বা বিকল্প না থাকলে থামবে, নতুন করে অ্যাপ খুলবে না।
+পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 function cancelAgentTask(reason='ব্যবহারকারীর নির্দেশে কাজ বাতিল'){
@@ -463,13 +468,13 @@ async function agent(goal){
     await sleep(OPENERS.includes(x.tool)?2500:900);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(x.tool==='inspect_screen'){
-      screen=Array.from(r.items||[]).slice(0,70).join(' | ');
+      screen=Array.from(r.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(r.elements||[]).slice(0,100));
       if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
       continue;
     }
     const sc=await callTool('inspect_screen','','',15000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
+    screen=sc.ok?Array.from(sc.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(sc.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
     if(!sc.ok)lastError=sc.message||'স্ক্রিন যাচাই করা যায়নি';
   }
   if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
