@@ -322,8 +322,9 @@ window.onNativeSpeakDone=window.onNativeTtsDone;
 window.onNativeTtsError=(message)=>{afterSpeak=null;status(message||'কথা বলতে সমস্যা হয়েছে');mood('sad',false);if(voiceMode&&!live&&!busy)setTimeout(startListening,1000)};
 window.onLiveVoiceStatus=(message,state)=>{
   status(message||'লাইভ ভয়েস');
-  const active=state==='listening'||state==='connected'||state==='ready';
-  $('mic').classList.toggle('on',active);mood(active?'listening':(state==='error'?'sad':'calm'),active);
+  const active=['connecting','listening','connected','ready','thinking','speaking'].includes(state);
+  $('mic').classList.toggle('on',active);
+  mood(state==='speaking'?'thinking':(active?'listening':(state==='error'?'sad':'calm')),active);
   if(state==='stopped'||state==='error'){live=false;voiceMode=false;$('mic').classList.remove('on')}
 };
 window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
@@ -407,9 +408,20 @@ function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=L
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
 function startVoice(){
   go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();
-  // The mic always uses Android SpeechRecognizer (bn-BD). Gemini Live is deliberately not started here.
-  live=false;voiceMode=true;smartMode=false;
-  status('বাংলা ভয়েস ইনপুট চালু হচ্ছে…');startListening();
+  smartMode=false;voiceMode=false;agentRun=false;busy=false;
+  const key=LS.get('rumin_gemini_key','').trim();
+  if(!key){
+    live=false;status('সরাসরি কথা বলার জন্য Gemini API Key প্রয়োজন');
+    add('বস, Live Voice চালু করতে Settings থেকে Gemini API Key সেভ করুন।','s');
+    openSettings();return;
+  }
+  if(!N||typeof N.startLiveVoice!=='function'){
+    live=false;status('এই APK-তে Gemini Live bridge পাওয়া যায়নি');
+    add('এই সংস্করণের Android native bridge আপডেট করা প্রয়োজন।','s');return;
+  }
+  live=true;status('Gemini Live-এ সংযোগ করছি…');mood('listening',true);$('mic').classList.add('on');
+  try{N.startLiveVoice(key)}
+  catch(e){live=false;$('mic').classList.remove('on');status('Live Voice চালু হয়নি: '+(e.message||'অজানা সমস্যা'));mood('sad',false)}
 }
 function openUrl(u){u=/^https?:\/\//i.test(u)?u:'https://'+u;try{if(N&&typeof N.openUrl==='function'){N.openUrl(u);return}}catch(e){}add('লিংক খুলতে অ্যাপের Kotlin অংশে openUrl যোগ করতে হবে। লিংক: '+u,'s');go('chat')}
 

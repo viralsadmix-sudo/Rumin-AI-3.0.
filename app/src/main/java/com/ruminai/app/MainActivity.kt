@@ -103,7 +103,26 @@ class MainActivity : ComponentActivity() {
         webView.settings.domStorageEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.addJavascriptInterface(NativeBridge(), "RuminNative")
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                if (url?.endsWith("/index.html") == true) {
+                    view?.evaluateJavascript(
+                        """(function(){
+                            if(document.getElementById('rumin35StudioEntry')) return;
+                            var b=document.createElement('button');
+                            b.id='rumin35StudioEntry';
+                            b.textContent='🎬 Studio 3.5';
+                            b.setAttribute('aria-label','Open Rumin AI 3.5 Video Studio');
+                            b.style.cssText='position:fixed;right:12px;bottom:92px;z-index:99999;padding:11px 14px;border-radius:18px;color:#fff;font:600 12px system-ui;background:linear-gradient(90deg,#8b35d9,#315fe8);border:1px solid #ff2bd6;box-shadow:0 0 18px #8b35d988';
+                            b.onclick=function(){if(window.RuminNative&&RuminNative.openVideoStudio)RuminNative.openVideoStudio()};
+                            document.body.appendChild(b);
+                        })();""".trimIndent(),
+                        null
+                    )
+                }
+            }
+        }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
@@ -228,6 +247,12 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun openUrl(url: String) {
             runOnUiThread {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+            }
+        }
+
+        @JavascriptInterface fun openVideoStudio() {
+            runOnUiThread {
+                startActivity(Intent(this@MainActivity, VideoStudioActivity::class.java))
             }
         }
 
