@@ -311,27 +311,17 @@ function nativeAiRequest(provider,key,msgs,extra){
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
-async function askAI(msgs=hist,extra=''){
-  const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key'),pref=LS.get('rumin_provider','auto');
-  const order=[];
-  // Explicit provider selection must be strict; fallback is only for Auto mode.
-  if(pref==='gemini'){if(kg)order.push(['gemini',kg])}
-  else if(pref==='groq'){if(kq)order.push(['groq',kq])}
-  else{if(kg)order.push(['gemini',kg]);if(kq)order.push(['groq',kq])}
-  if(!order.length)throw Error('সেটিংসে Gemini বা Groq API Key দিন।');
-  const failures=[];
+async function askAI(msgs=hist,extra='',role='answer'){
+  const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key');
+  // Gemini is the user-facing voice; Groq is the internal task planner.
+  // Provider failures stay internal. Only a single unified result is returned.
+  const order=role==='planner'?[['groq',kq],['gemini',kg]]:[['gemini',kg],['groq',kq]];
   for(const [provider,key] of order){
+    if(!key)continue;
     try{return await nativeAiRequest(provider,key,msgs,extra)}
-    catch(e){
-      const raw=String(e&&e.message||e||'অজানা ত্রুটি');
-      const quota=/(quota|rate.?limit|resource.?exhausted|429|limit.?exceeded|billing)/i.test(raw);
-      const server=/(HTTP 5\d\d|503|502|504|overloaded|unavailable|server error)/i.test(raw);
-      const auth=/(HTTP 401|HTTP 403|api.?key|unauthorized|permission denied)/i.test(raw);
-      const kind=quota?'Quota/Rate limit':server?'Server error':auth?'API key/permission':'Connection/API error';
-      failures.push((provider==='gemini'?'Gemini':'Groq')+' ['+kind+']: '+raw);
-    }
+    catch(_){/* silent internal fallback */}
   }
-  throw new Error('সব AI Provider ব্যর্থ হয়েছে।\n'+failures.join('\n'));
+  throw new Error('এই মুহূর্তে রুমিনের AI সংযোগ পাওয়া যাচ্ছে না। একটু পরে আবার চেষ্টা করুন।');
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
@@ -393,7 +383,7 @@ async function agent(goal){
     for(let attempt=0;attempt<2&&!o;attempt++){
       try{
         const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
-        o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES));
+        o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
       }catch(e){
         lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
         if(attempt===0){await sleep(1200);continue}
@@ -404,7 +394,13 @@ async function agent(goal){
     if(!o)break;
     if(o.done===true){
       finished=true;busy=false;agentRun=false;
-      const message=o.reply||'কাজটি সম্পন্ন হয়েছে।';
+      let message=o.reply||'কাজটি সম্পন্ন হয়েছে।';
+      const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nযাচাইকৃত ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nPlanner-এর সমাপ্তি নোট: '+message+'\\nশুধু যাচাইকৃত তথ্য ধরে স্বাভাবিক বাংলায় একটিমাত্র উত্তর দাও। অভ্যন্তরীণ AI/provider/fallback বা প্রযুক্তিগত আদান-প্রদান উল্লেখ করবে না। কাজ ব্যর্থ হলে সফল বলবে না।';
+      try{
+        const finalText=await askAI([{r:'u',t:resultContext}],'তুমি Rumin-এর একমাত্র ব্যবহারকারী-মুখী কথোপকথন সহকারী।','answer');
+        const finalObj=parse(finalText);
+        message=finalObj.reply||finalText||message;
+      }catch(_){}
       reply(message,o.emotion||'happy');
       return {ok:true,message,steps:log.length};
     }
