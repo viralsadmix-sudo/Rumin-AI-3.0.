@@ -185,7 +185,7 @@ function startListening(){
 }
 function stopListening(){clearTimeout(listenTimer);try{if(webRec)webRec.abort();if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}idle()}
 function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
-function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
+function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t,'voice');else if(live)setTimeout(startListening,500);else idle()}
 /* Native layer may call any of these names with the recognized text */
 ['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
 ['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
@@ -256,17 +256,19 @@ function act(tool){runTool(tool);mood('happy',false);status('কাজটি ক
 /* ---------- AI ---------- */
 function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
-  return `তুমি "রুমিন AI" — বাংলাভাষী ব্যক্তিগত ভয়েস অ্যাসিস্ট্যান্ট, যে ব্যবহারকারীর Android ফোন সরাসরি নিয়ন্ত্রণ করতে পারে। তোমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল; নির্মাতা বা ডেভেলপার সম্পর্কে জানতে চাইলে এটাই বলবে।
-নিয়ম:
-1. ব্যবহারকারীর কথার সাথে তার আবেগও বোঝো (খুশি, মন খারাপ, রাগ, চাপ, ক্লান্তি)। সেই অনুযায়ী আন্তরিক, ছোট ও স্বাভাবিক বাংলায় উত্তর দাও। ব্যবহারকারীকে "বস" বলতে পারো।
-2. ফোনের কাজ চাইলে কখনো "আমি পারি না" বা "আমি শুধু AI" বলবে না। actions-এ টুল দাও, অ্যাপ নিজেই কাজটি চালাবে।
-3. শুধু একটি JSON অবজেক্ট ফেরত দাও, অন্য কোনো লেখা নয়: {"reply":"বাংলা উত্তর","emotion":"calm|happy|sad|angry|thinking","actions":[{"tool":"নাম","a":"","b":""}],"agent":false,"goal":""}
-4. কাজ না থাকলে actions খালি অ্যারে।
-6. ফোনে একাধিক ধাপের কাজ হলে (যেমন "ইউটিউব খুলে গান সার্চ করো", "খুলে স্ক্রল করো") "agent":true এবং "goal":"কাজের পূর্ণ বিবরণ" দাও, actions খালি রাখো। এক ধাপের কাজে agent দিও না। যেকোনো অ্যাপ খোলা বা তার ভেতরের কাজ, এবং "হোম স্ক্রিনে কী আছে" ধরনের প্রশ্নও agent:true দিয়ে করবে।
-টুল: ${TOOLS.join(', ')}
-আর্গুমেন্ট: alarm: a=ঘণ্টা (0-23), b=মিনিট; timer: a=সেকেন্ড (যেমন ৫ মিনিট = ৩০০);  call: a=ফোন নম্বর; sms: a=ফোন নম্বর, b=বার্তা; click_text: a=যে লেখায় চাপবে; type_text: a=যা টাইপ করবে। inspect_screen দিলে স্ক্রিনের লেখা পড়া হবে।
-5. কল বা SMS-এর জন্য নম্বর ও বার্তা পরিষ্কার হলে actions-এ call/sms দাও (অ্যাপ নিজেই ব্যবহারকারীর কাছ থেকে নিশ্চিত করে নেবে)। নাম দিলেও চলবে, অ্যাপ কন্টাক্ট থেকে নম্বর খুঁজে নেবে।
-${facts.length?'ব্যবহারকারীর বলা মনে রাখার তথ্য: '+facts.join('; '):''}
+  return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
+মূল আচরণ:
+- বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে বা কথ্য বাংলায় যা বলবেন, তার উদ্দেশ্য বুঝবে। নির্দিষ্ট command phrase, মুখস্থ syntax বা exact keyword দাবি করবে না।
+- ব্যবহারকারী ফোনে কোনো কাজ করতে বললে agent:true দেবে এবং goal-এ ব্যবহারকারীর আসল উদ্দেশ্য রাখবে। কাজ এক ধাপের হলেও agent:true ব্যবহার করবে, যাতে Agent নিজে পরিকল্পনা ও ফলাফল যাচাই করে।
+- ব্যবহারকারী শুধু প্রশ্ন করলে বা গল্প করতে চাইলে agent:false রাখবে এবং স্বাভাবিক বাংলায় উত্তর দেবে।
+- শুধু JSON দেবে: {"reply":"সংক্ষিপ্ত বাংলা প্রতিক্রিয়া","emotion":"calm|happy|sad|angry|thinking","actions":[],"agent":true,"goal":"ব্যবহারকারীর কাজের উদ্দেশ্য"}। ফোনের কাজের ক্ষেত্রে actions খালি রাখবে; পরিকল্পনা Agent Loop করবে।
+- Agent-কে কোনো নির্দিষ্ট phrase বা অ্যাপের তালিকা মুখস্থ করিয়ে দেবে না। ব্যবহারকারীর উদ্দেশ্য থেকে নিজে পরবর্তী পদক্ষেপ তৈরি করবে।
+- অনুমোদিত Native tool ছাড়া কোনো কাজ হয়েছে বলে দাবি করবে না। স্ক্রিনের তথ্য না দেখে UI-তে থাকা বোতাম/লেখা কল্পনা করবে না।
+- কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
+- কাজটি উপলভ্য tool দিয়ে সম্ভব না হলে সৎভাবে সীমাবদ্ধতা জানাবে এবং বিকল্প বলবে।
+- বসকে সম্মানজনক, সংক্ষিপ্ত, স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
+উপলভ্য Native capabilities (এগুলোই বাস্তব ক্ষমতার সীমা): ${TOOLS.join(', ')}।
+ব্যবহারকারীর সংরক্ষিত তথ্য: ${facts.length?facts.join('; '):'নেই'}
 ${extra}`;
 }
 async function gemini(key,model,msgs,extra){
@@ -351,12 +353,16 @@ async function think(text,hidden){
 
 /* ---------- Agent: multi-step phone tasks ---------- */
 const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
-const AGENT_RULES=`এখন তুমি এজেন্ট মোডে আছ। প্রতিবার ঠিক একটি ধাপ বেছে নাও। শুধু JSON দাও: {"reply":"এক লাইনে কী করছ","done":false,"action":{"tool":"নাম","a":"","b":""}}। কাজ শেষ হলে done:true দাও, action বাদ দাও এবং reply-তে ফলাফল বলো। স্ক্রিনের লেখা দেখে সিদ্ধান্ত নাও; স্ক্রিনে নেই এমন বোতাম কল্পনা করবে না। click_text-এ স্ক্রিনে থাকা হুবহু লেখা দাও। ইউটিউব বা অ্যাপে কিছু খুঁজতে: আগে সার্চ আইকন বা বক্সে click_text, তারপর type_text, তারপর সার্চ বোতামে click_text। স্ক্রল করতে scroll_down বা scroll_up। একই ধাপ বারবার ব্যর্থ হলে done:true দিয়ে কারণ জানাও। যেকোনো অ্যাপের কাজ করতে পারো, শুধু তালিকার অ্যাপ নয়। তালিকায় নেই এমন অ্যাপ খুলতে আগে home দাও, তারপর inspect_screen দিয়ে অ্যাপের নাম খোঁজো; পেলে click_text-এ সেই নাম দাও। না পেলে scroll_down বা scroll_up করে পাতা বদলাও, তবুও না পেলে হোম স্ক্রিনের সার্চ বা অ্যাপ ড্রয়ার খুলে নাম টাইপ করো (type_text)। হোম স্ক্রিনে কী আছে জানতে চাইলে home দাও, তারপর স্ক্রিনের লেখা দেখে কোন অ্যাপ, ফোল্ডার, উইজেট আছে তা done:true দিয়ে reply-তে বলো। অ্যাপের ভেতরে ঢুকে মেনু, বোতাম, ট্যাব চেপে কাজ করো; প্রতিবার স্ক্রিনের লেখা দেখে পরের ধাপ ঠিক করো। call, sms, power নিজে থেকে কখনো দেবে না।`;
+const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true} দাও।
+উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
+পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে একবার ভিন্ন নিরাপদ পদ্ধতিতে চেষ্টা করো; একই action বারবার করো না।
+যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
+কল, SMS বা বাহ্যিক বার্তা পাঠানো, পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action—কোনোটিই নিজে থেকে চালাবে না; প্রয়োজন হলে আগে ব্যবহারকারীর কাছে স্পষ্ট অনুমতি চাও এবং সেই অনুমতি না পাওয়া পর্যন্ত থামো। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 async function agent(goal){
   if(agentRun)return;
   agentRun=true;live=false;busy=true;stopListening();
   const log=[];let screen='',finished=false;
-  for(let n=1;n<=14&&agentRun;n++){
+  for(let n=1;n<=20&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o;
     try{o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')}],AGENT_RULES))}
@@ -370,6 +376,7 @@ async function agent(goal){
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
     await sleep(OPENERS.includes(x.tool)?3500:1400);
     if(!agentRun)break;
+    if(x.tool==='inspect_screen'){screen=Array.from(r.items||[]).slice(0,70).join(' | ');continue;}
     const sc=await callTool('inspect_screen','','',7000);
     screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
   }
@@ -383,7 +390,7 @@ async function execConfirmed(p){
     else reply('বস, এসএমএস শুরু করা যায়নি: '+(r.message||'অজানা সমস্যা'),'sad');
   }else{runTool('call',p.a||'');reply('কল করছি বস।','happy')}
 }
-function handle(text){
+function handle(text,source='text'){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
   if(pendingConfirm){
@@ -391,8 +398,9 @@ function handle(text){
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
     if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
   }
-  if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
-  if(smartMode){agent(text);return}
+  if(source==='voice'&&/^(থামো|থাম|চুপ|কথা বন্ধ করো?|stop|cancel)$/i.test(bn2en(text).trim())){local(text);return}
+  if(source!=='voice'&&local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
+  if(source==='voice'||smartMode){agent(text);return}
   think(text);
 }
 
