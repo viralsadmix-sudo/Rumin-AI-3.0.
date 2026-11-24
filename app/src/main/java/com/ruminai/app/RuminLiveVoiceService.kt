@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import androidx.core.app.NotificationCompat
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -41,7 +42,7 @@ class RuminLiveVoiceService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 stopLiveSession()
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopForeground(true)
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -104,16 +105,12 @@ class RuminLiveVoiceService : Service() {
                     (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
             )
         }
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION") Notification.Builder(this)
-        }
-        return builder
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(applicationInfo.icon)
             .setContentTitle("Rumin AI 3.0 — Live Voice চালু")
             .setContentText("অ্যাপের বাইরে গেলেও Rumin কথা শুনবে ও উত্তর দেবে")
-            .setCategory(Notification.CATEGORY_SERVICE)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
