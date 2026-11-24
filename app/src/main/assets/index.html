@@ -185,7 +185,7 @@ function startListening(){
 }
 function stopListening(){clearTimeout(listenTimer);try{if(webRec)webRec.abort();if(N&&typeof N.stopSpeechRecognition==='function')N.stopSpeechRecognition()}catch(e){}idle()}
 function idle(){$('mic').classList.remove('on');if(!busy)mood('calm',false)}
-function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t,'voice');else if(live)setTimeout(startListening,500);else idle()}
+function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle(t);else if(live)setTimeout(startListening,500);else idle()}
 /* Native layer may call any of these names with the recognized text */
 ['onNativeSpeechResult','onSpeechResult','onVoiceResult','onNativeSpeech','onSpeechRecognized'].forEach(n=>{window[n]=t=>onHeard(typeof t==='string'?t:(t&&t.text)||'')});
 ['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
@@ -390,7 +390,7 @@ async function execConfirmed(p){
     else reply('বস, এসএমএস শুরু করা যায়নি: '+(r.message||'অজানা সমস্যা'),'sad');
   }else{runTool('call',p.a||'');reply('কল করছি বস।','happy')}
 }
-function handle(text,source='text'){
+function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
   if(pendingConfirm){
@@ -398,9 +398,8 @@ function handle(text,source='text'){
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
     if(/(^না|বাতিল|no|cancel|থাক)/.test(n)){reply('ঠিক আছে বস, বাতিল করলাম।','calm');return}
   }
-  if(source==='voice'&&/^(থামো|থাম|চুপ|কথা বন্ধ করো?|stop|cancel)$/i.test(bn2en(text).trim())){local(text);return}
-  if(source!=='voice'&&local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
-  if(source==='voice'||smartMode){agent(text);return}
+  if(local(text)){if(live)setTimeout(()=>{if(!busy)startListening()},1800);else idle();return}
+  if(smartMode){agent(text);return}
   think(text);
 }
 
