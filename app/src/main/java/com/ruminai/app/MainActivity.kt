@@ -248,7 +248,8 @@ class MainActivity : ComponentActivity() {
             aiExecutor.execute {
                 var connection: HttpURLConnection? = null
                 try {
-                    val isGroq = provider == "groq"
+                    // Gemini is the only enabled text AI provider; Groq fallback is intentionally disabled.
+                    val isGroq = false
                     val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
                     val body = if (isGroq) {
                         val messages = JSONArray()
