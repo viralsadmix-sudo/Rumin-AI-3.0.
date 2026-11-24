@@ -134,13 +134,9 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
 <div id="set">
   <h2>সেটিংস</h2>
   <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
-  <label>Groq API Key</label><input id="kq" type="password" autocomplete="off">
-  <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button><button class="g" id="verifyGroq">Groq Key যাচাই</button></div>
-  <div class="row"><button class="g" id="clearKeys">সংরক্ষিত API Key মুছুন</button></div>
-  <label>কোন AI আগে ব্যবহার হবে</label>
-  <select id="kp"><option value="auto">অটো</option><option value="gemini">Gemini</option><option value="groq">Groq</option></select>
-  <label>Gemini মডেল</label><input id="mg">
-  <label>Groq মডেল</label><input id="mq">
+  <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
+  <div class="row"><button class="g" id="clearKeys">সংরক্ষিত Gemini API Key মুছুন</button></div>
+  <p>AI Provider: Google Gemini 3.8 Flash (একমাত্র AI Brain)</p>
   <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
   <div class="row"><button class="g" id="perm">অনুমতি চালু করুন</button><button class="g" id="close">বন্ধ করুন</button></div>
@@ -326,11 +322,6 @@ async function gemini(key,model,msgs,extra){
   const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Gemini '+r.status));
   return j.candidates[0].content.parts.map(p=>p.text||'').join('')
 }
-async function groq(key,model,msgs,extra){
-  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify({model,temperature:.7,response_format:{type:'json_object'},messages:[{role:'system',content:system(extra)},...msgs.map(m=>({role:m.r==='u'?'user':'assistant',content:m.t}))]})});
-  const j=await r.json();if(!r.ok)throw Error((j.error&&j.error.message)||('Groq '+r.status));
-  return j.choices[0].message.content
-}
 const aiWaiters={};
 window.onNativeAiResponse=(id,ok,message)=>{
   const done=aiWaiters[id];if(!done)return;delete aiWaiters[id];
@@ -350,21 +341,10 @@ function nativeAiRequest(provider,key,msgs,extra){
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
-  const kg=LS.get('rumin_gemini_key'),kq=LS.get('rumin_groq_key');
-  // Follow the provider selected in Settings; use the other configured provider only as fallback.
-  const preferred=LS.get('rumin_provider','auto');
-  const order=preferred==='groq'?[['groq',kq],['gemini',kg]]:[['gemini',kg],['groq',kq]];
-  let failures=[];
-  for(const [provider,key] of order){
-    if(!key)continue;
-    try{return await nativeAiRequest(provider,key,msgs,extra)}
-    catch(e){failures.push(provider+': '+(e&&e.message?e.message:'request failed'))}
-  }
-  // Avoid exposing raw infrastructure jargon to the user; preserve a useful recovery instruction.
-  const detail=failures.length?failures.join(' | '):'কোনো API Key সেট করা নেই';
-  const err=new Error('এখন উত্তর তৈরি করা যাচ্ছে না। Settings-এ নির্বাচিত AI Provider-এর Key ও ইন্টারনেট সংযোগ যাচাই করুন; অন্য Provider-এর Key থাকলে সেটি fallback হিসেবে চেষ্টা করা হবে।');
-  err.cause=detail;
-  throw err;
+  const key=LS.get('rumin_gemini_key');
+  if(!key)throw new Error('Gemini API Key সেট করা নেই। Settings খুলে Gemini Key দিন এবং যাচাই করুন।');
+  try{return await nativeAiRequest('gemini',key,msgs,extra)}
+  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা')+'. Gemini API Key, ইন্টারনেট, মডেল অ্যাক্সেস ও Usage quota পরীক্ষা করুন।')}
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
@@ -563,7 +543,7 @@ function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=documen
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
 $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
-function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('kq').value=LS.get('rumin_groq_key');$('kp').value=LS.get('rumin_provider','auto');$('mg').value=LS.get('rumin_gemini_model','gemini-3.8-flash');$('mq').value=LS.get('rumin_groq_model','llama-3.3-70b-versatile');$('set').classList.add('open')}
+function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('set').classList.add('open')}
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
 function startVoice(){
   go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();voiceMode=false;
@@ -612,23 +592,20 @@ on('mic',()=>{
   startVoice()
 });
 on('close',()=>$('set').classList.remove('open'));
-on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_groq_key',$('kq').value.trim());LS.set('rumin_provider',$('kp').value);LS.set('rumin_gemini_model',$('mg').value.trim()||'gemini-3.8-flash');LS.set('rumin_groq_model',$('mq').value.trim()||'llama-3.3-70b-versatile');$('set').classList.remove('open');add('সেটিংস সেভ হয়েছে।','s');status('সেটিংস সেভ হয়েছে')});
-async function verifyApiKey(provider){
-  const key=provider==='gemini'?$('kg').value.trim():$('kq').value.trim();
-  if(!key){status('আগে '+(provider==='gemini'?'Gemini':'Groq')+' API Key লিখুন');return}
-  status((provider==='gemini'?'Gemini':'Groq')+' Key যাচাই হচ্ছে…');
+on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');$('set').classList.remove('open');add('Gemini সেটিংস সেভ হয়েছে।','s');status('Gemini সেটিংস সেভ হয়েছে')});
+async function verifyGeminiKey(){
+  const key=$('kg').value.trim();
+  if(!key){status('আগে Gemini API Key লিখুন');return}
+  status('Gemini API Key যাচাই হচ্ছে…');
   try{
-    const url=provider==='gemini'?'https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(key):'https://api.groq.com/openai/v1/models';
-    const options=provider==='groq'?{headers:{Authorization:'Bearer '+key}}:{};
-    const response=await fetch(url,options);
+    const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models',{headers:{'x-goog-api-key':key}});
     if(!response.ok){let detail='HTTP '+response.status;try{const j=await response.json();detail=j.error?.message||detail}catch(e){}throw new Error(detail)}
-    LS.set(provider==='gemini'?'rumin_gemini_key':'rumin_groq_key',key);
-    status((provider==='gemini'?'Gemini':'Groq')+' API Key যাচাই সফল ✓ এবং সেভ হয়েছে');
-  }catch(e){status('Key যাচাই হয়নি: '+(e.message||'নেটওয়ার্ক সমস্যা'))}
+    LS.set('rumin_gemini_key',key);LS.set('rumin_provider','gemini');
+    status('Gemini API Key যাচাই সফল ✓ এবং সেভ হয়েছে');
+  }catch(e){status('Gemini Key যাচাই হয়নি: '+(e.message||'নেটওয়ার্ক সমস্যা'))}
 }
-on('verifyGemini',()=>verifyApiKey('gemini'));
-on('verifyGroq',()=>verifyApiKey('groq'));
-on('clearKeys',()=>{LS.set('rumin_gemini_key','');LS.set('rumin_groq_key','');$('kg').value='';$('kq').value='';status('সংরক্ষিত API Key মুছে ফেলা হয়েছে')});
+on('verifyGemini',verifyGeminiKey);
+on('clearKeys',()=>{LS.set('rumin_gemini_key','');$('kg').value='';status('সংরক্ষিত Gemini API Key মুছে ফেলা হয়েছে')});
 on('clr',()=>{hist=[];LS.set('rumin_text_history','[]');LS.set('rumin_voice_history','[]');$('log').innerHTML='';$('set').classList.remove('open')});
 on('perm',()=>{$('set').classList.remove('open');if(!N||typeof N.performCommand!=='function'){status('Native permission bridge পাওয়া যায়নি।');return}try{N.performCommand('requestpermissions','','','');setTimeout(()=>{try{if(N&&typeof N.performCommand==='function')N.performCommand('accessibility','','','')}catch(e){status('Accessibility Settings খোলা যায়নি। ফোনের Settings থেকে RUMIN AI চালু করুন।')}},7000)}catch(e){status('অনুমতির অনুরোধ পাঠানো যায়নি: '+(e.message||'অজানা সমস্যা'))}});
 function net(){const o=navigator.onLine;$('netT').textContent=o?'Online':'Offline';$('dot').style.background=o?'#12b886':'#868e96'}
@@ -648,7 +625,7 @@ function stars(){
 try{stars()}catch(e){}
 hist=JSON.parse(LS.get('rumin_text_history','[]'));
 add('আসসালামু আলাইকুম বস! আমি রুমিন AI। মাইক চেপে বলুন, যেমন: “ইউটিউব খোলো”, “ভলিউম বাড়াও”, “আমার মন খারাপ”।','b');
-if(!LS.get('rumin_gemini_key')&&!LS.get('rumin_groq_key'))add('শুরু করতে ⚙ সেটিংসে API Key দিন।','s');
+if(!LS.get('rumin_gemini_key'))add('শুরু করতে ⚙ সেটিংসে Gemini API Key দিন।','s');
 </script>
 </body>
 </html>
