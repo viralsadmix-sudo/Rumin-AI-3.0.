@@ -47,15 +47,36 @@ class RuminAccessibilityService : AccessibilityService() {
                 }
                 "click_text" -> {
                     val root = rootInActiveWindow
-                    val nodes = root?.findAccessibilityNodeInfosByText(value)
-                    var target = nodes?.firstOrNull { it.isClickable }
-                    if (target == null) {
-                        var node = nodes?.firstOrNull()
-                        while (node != null && !node.isClickable) node = node.parent
-                        target = node
+                    val wanted = value.trim().lowercase()
+                    fun label(node: AccessibilityNodeInfo): String =
+                        (node.text ?: node.contentDescription)?.toString()?.trim().orEmpty()
+                    fun findMatch(node: AccessibilityNodeInfo?, depth: Int = 0): AccessibilityNodeInfo? {
+                        if (node == null || depth > 20) return null
+                        val text = label(node).lowercase()
+                        if (text == wanted || (wanted.isNotBlank() && text.contains(wanted))) return node
+                        for (i in 0 until node.childCount) {
+                            val found = findMatch(node.getChild(i), depth + 1)
+                            if (found != null) return found
+                        }
+                        return null
                     }
-                    val ok = target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-                    JSONObject().put("ok", ok).put("message", if (ok) "‘$value’ লেখা উপাদানে চাপ দেওয়া হয়েছে।" else "‘$value’ লেখা উপাদান পাওয়া যায়নি বা চাপ দেওয়া যায়নি।")
+                    val matched = findMatch(root)
+                    var target = matched
+                    var climbed = 0
+                    while (target != null && !target.isClickable && climbed < 12) {
+                        target = target.parent
+                        climbed++
+                    }
+                    var ok = target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+                    if (!ok && matched != null) {
+                        ok = matched.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                    JSONObject().put("ok", ok).put(
+                        "message",
+                        if (ok) "‘$value’ লেখা বা বর্ণনাযুক্ত উপাদানে চাপ দেওয়া হয়েছে।"
+                        else if (matched == null) "‘$value’ লেখা বা contentDescription-যুক্ত উপাদান স্ক্রিনে পাওয়া যায়নি।"
+                        else "‘$value’ উপাদান পাওয়া গেছে, কিন্তু চাপ দেওয়া যায়নি।"
+                    )
                 }
                 "type_text" -> {
                     val root = rootInActiveWindow
