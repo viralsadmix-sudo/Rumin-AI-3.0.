@@ -309,7 +309,7 @@ function system(extra=''){
 - বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
 - ব্যবহারকারী ফোনে কোনো কাজ করতে বললে agent:true দেবে এবং goal-এ ব্যবহারকারীর আসল উদ্দেশ্য রাখবে। কাজ এক ধাপের হলেও agent:true ব্যবহার করবে, যাতে Agent নিজে পরিকল্পনা ও ফলাফল যাচাই করে।
 - ব্যবহারকারী শুধু প্রশ্ন করলে বা গল্প করতে চাইলে agent:false রাখবে এবং স্বাভাবিক বাংলায় উত্তর দেবে।
-- শুধু JSON দেবে: {"reply":"সংক্ষিপ্ত বাংলা প্রতিক্রিয়া","emotion":"calm|happy|sad|angry|thinking","actions":[],"agent":true,"goal":"ব্যবহারকারীর কাজের উদ্দেশ্য"}। ফোনের কাজের ক্ষেত্রে actions খালি রাখবে; পরিকল্পনা Agent Loop করবে।
+- শুধু JSON দেবে: {"reply":"সংক্ষিপ্ত বাংলা প্রতিক্রিয়া","emotion":"calm|happy|sad|angry|thinking","actions":[],"agent":true,"goal":"ব্যবহারকারীর কাজের উদ্দেশ্য","first_action":{"tool":"inspect_screen","a":"","b":""}}। ফোনের কাজের ক্ষেত্রে first_action অবশ্যই inspect_screen হবে; এতে প্রথম AI উত্তরেই ফোনের কাজ শনাক্ত করে Agent-কে স্ক্রিন পড়তে বলা হবে। এরপর Agent Planner স্ক্রিনের বাস্তব তথ্য দেখে পরবর্তী সব পদক্ষেপ ঠিক করবে। সাধারণ প্রশ্নে agent:false এবং first_action বাদ দেবে।
 - Agent-কে কোনো নির্দিষ্ট phrase বা অ্যাপের তালিকা মুখস্থ করিয়ে দেবে না। ব্যবহারকারীর উদ্দেশ্য থেকে নিজে পরবর্তী পদক্ষেপ তৈরি করবে।
 - অনুমোদিত Native tool ছাড়া কোনো কাজ হয়েছে বলে দাবি করবে না। স্ক্রিনের তথ্য না দেখে UI-তে থাকা বোতাম/লেখা কল্পনা করবে না।
 - কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
@@ -398,7 +398,7 @@ async function think(text,hidden){
   try{
     const o=parse(await askAI(hist,modeExtra()));
     busy=false;
-    if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text);return}
+    if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text,o.first_action);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
     if(acts.length){
       // Backward-compatible model output is routed through the Agent loop; never execute model-suggested phone actions directly from chat.
@@ -432,12 +432,21 @@ function cancelAgentTask(reason='ব্যবহারকারীর নির�
   mood('calm',false);
   return true;
 }
-async function agent(goal){
+async function agent(goal,firstAction=null){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
   const runId=++agentGeneration;
   const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
   const log=[];const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
+  // The intent-classification response already selected a safe first step.
+  // Read the screen immediately instead of making a second AI round-trip just to request it.
+  if(firstAction&&firstAction.tool==='inspect_screen'){
+    status('ফোনের স্ক্রিন দেখছি…');
+    const initial=await callTool('inspect_screen','','',15000);
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
+    screen=initial.ok?Array.from(initial.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(initial.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
+    log.push('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
+  }
   for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
