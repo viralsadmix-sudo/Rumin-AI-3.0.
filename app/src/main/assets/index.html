@@ -149,7 +149,7 @@ const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinki
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
 const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
+let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
 /* ---------- UI helpers ---------- */
 function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;if(cls==='b'){const bb=$('bubble');if(bb)bb.textContent=text.length>90?text.slice(0,88)+'…':text}return d}
@@ -254,7 +254,7 @@ const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){agentRun=false;stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){cancelAgentTask('কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(mem[2]);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, মনে রাখলাম: '+mem[2],'happy');return true}
@@ -377,11 +377,25 @@ const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner�
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো। (৪) স্ক্রিনে দেখা সঠিক label ব্যবহার করে click_text, ফোকাস করা ইনপুটে type_text, প্রয়োজনে scroll_down/scroll_up ব্যবহার করো। (৫) প্রতিটি action-এর callback ও পরের স্ক্রিন দেখে যাচাই করো। (৬) ব্যর্থ হলে কারণ বুঝে একবার ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করতে পারো; একই action ও একই arguments দ্বিতীয়বার চালাবে না। Planner ব্যর্থ হলে বা বিকল্প না থাকলে থামবে, নতুন করে অ্যাপ খুলবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
+function cancelAgentTask(reason='ব্যবহারকারীর নির্দেশে কাজ বাতিল'){
+  agentGeneration++;
+  agentRun=false;
+  busy=false;
+  for(const id of Object.keys(waiters)){
+    const done=waiters[id];
+    if(done)done({ok:false,cancelled:true,message:reason});
+  }
+  status('কাজ বাতিল হয়েছে');
+  mood('calm',false);
+  return true;
+}
 async function agent(goal){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
+  const runId=++agentGeneration;
+  const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
   const log=[];const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
-  for(let n=1;n<=20&&agentRun;n++){
+  for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
     for(let attempt=0;attempt<2&&!o;attempt++){
@@ -394,9 +408,10 @@ async function agent(goal){
         log.push('Planner error: '+lastError);
       }
     }
-    if(!agentRun)break;
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(!o)break;
     if(o.done===true){
+      if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
       finished=true;busy=false;agentRun=false;
       let message=o.reply||'কাজটি শেষ হয়েছে, তবে ফলাফল যাচাই করা দরকার।';
       const failedSteps=log.filter(x=>x.includes('→ ব্যর্থ'));
@@ -438,19 +453,22 @@ async function agent(goal){
     }
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
     if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     await sleep(OPENERS.includes(x.tool)?2500:900);
-    if(!agentRun)break;
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(x.tool==='inspect_screen'){
       screen=Array.from(r.items||[]).slice(0,70).join(' | ');
       if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
       continue;
     }
     const sc=await callTool('inspect_screen','','',15000);
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     screen=sc.ok?Array.from(sc.items||[]).slice(0,70).join(' | '):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
     if(!sc.ok)lastError=sc.message||'স্ক্রিন যাচাই করা যায়নি';
   }
+  if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
   busy=false;
   if(!finished){
     const was=agentRun;agentRun=false;
@@ -472,6 +490,8 @@ async function execConfirmed(p){
 function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
+  const cancelText=/^(আগের কাজ(টা|টি)?\s*)?(বাতিল|ক্যানসেল|cancel)(\s*করো|\s*করুন|\s*করে দাও)?$|^(কাজ(টা|টি)?\s*)?(থামাও|বন্ধ করো|বাতিল করো|ক্যানসেল করো)$|^(cancel|stop) (the )?(previous|current|last) task$/i.test(bn2en(text).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim());
+  if(cancelText){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, আগের কাজটি বাতিল করেছি। এখন নতুন নির্দেশ দিতে পারেন।','calm');return}
   if(pendingConfirm){
     const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
