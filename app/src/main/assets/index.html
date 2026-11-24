@@ -380,7 +380,7 @@ const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner�
 async function agent(goal){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
   agentRun=true;busy=true;
-  const log=[];const executedActions=new Set();let screen='',finished=false,lastError='';
+  const log=[];const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
   for(let n=1;n<=20&&agentRun;n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
@@ -425,12 +425,12 @@ async function agent(goal){
       continue;
     }
     const actionKey=[x.tool,String(x.a||''),String(x.b||'')].join('|');
-    if(executedActions.has(actionKey)){
-      lastError='একই action পুনরায় চালানো নিরাপত্তার জন্য বন্ধ করা হয়েছে: '+x.tool;
+    if(failedActions.has(actionKey)||(OPENERS.includes(x.tool)&&executedActions.has(actionKey))){
+      lastError='একই ব্যর্থ action বা একই app-open পুনরায় চালানো নিরাপত্তার জন্য বন্ধ করা হয়েছে: '+x.tool;
       log.push(lastError);
       continue;
     }
-    executedActions.add(actionKey);
+    if(OPENERS.includes(x.tool))executedActions.add(actionKey);
     if(x.tool==='power'){
       finished=true;busy=false;agentRun=false;
       const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';
@@ -439,7 +439,7 @@ async function agent(goal){
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     log.push(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
-    if(!r.ok)lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';
+    if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     await sleep(OPENERS.includes(x.tool)?2500:900);
     if(!agentRun)break;
     if(x.tool==='inspect_screen'){
