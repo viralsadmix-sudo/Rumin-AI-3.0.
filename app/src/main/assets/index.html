@@ -394,16 +394,25 @@ async function agent(goal){
     if(!o)break;
     if(o.done===true){
       finished=true;busy=false;agentRun=false;
-      let message=o.reply||'কাজটি সম্পন্ন হয়েছে।';
-      const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nযাচাইকৃত ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nPlanner-এর সমাপ্তি নোট: '+message+'\\nশুধু যাচাইকৃত তথ্য ধরে স্বাভাবিক বাংলায় একটিমাত্র উত্তর দাও। অভ্যন্তরীণ AI/provider/fallback বা প্রযুক্তিগত আদান-প্রদান উল্লেখ করবে না। কাজ ব্যর্থ হলে সফল বলবে না।';
-      try{
-        const finalText=await askAI([{r:'u',t:resultContext}],'তুমি Rumin-এর একমাত্র ব্যবহারকারী-মুখী কথোপকথন সহকারী।','answer');
-        const finalObj=parse(finalText);
-        message=finalObj.reply||finalText||message;
-      }catch(_){}
-      // In Live Voice, Gemini Live speaks after receiving this tool result; avoid a duplicate chat reply.
-      if(!live)reply(message,o.emotion||'happy');
-      return {ok:true,message,steps:log.length};
+      let message=o.reply||'কাজটি শেষ হয়েছে, তবে ফলাফল যাচাই করা দরকার।';
+      const failedSteps=log.filter(x=>x.includes('→ ব্যর্থ'));
+      const verified=!!(screen&&screen.trim());
+      const ok=verified&&failedSteps.length===0;
+      const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nAgent-এর ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nশেষ স্ক্রিনের প্রমাণ: '+(screen||'পাওয়া যায়নি')+'\\nPlanner-এর নোট: '+message;
+      if(live){
+        // Live mode: do not ask a second Gemini HTTP session to compose a reply.
+        // Return structured execution evidence to Gemini Live; it alone speaks to the user.
+        message=ok?'কাজটি সম্পন্ন হয়েছে এবং শেষ স্ক্রিনে যাচাই করা গেছে।':(failedSteps.length?'কাজে সমস্যা হয়েছে: '+failedSteps.slice(-2).join(' ; '):'কাজ শেষ হয়েছে বলে Planner জানিয়েছে, কিন্তু ফোনের স্ক্রিনে ফলাফল যাচাই করা যায়নি।');
+      }else{
+        try{
+          const finalText=await askAI([{r:'u',t:resultContext+'\\nশুধু যাচাইকৃত তথ্য ধরে স্বাভাবিক বাংলায় একটিমাত্র উত্তর দাও। কাজ যাচাই না হলে সফল বলবে না।'}],'তুমি Rumin-এর একমাত্র ব্যবহারকারী-মুখী কথোপকথন সহকারী।','answer');
+          const finalObj=parse(finalText);
+          message=finalObj.reply||finalText||message;
+        }catch(_){}
+        if(!ok&&verified===false)message='বস, কাজটি সম্পন্ন হয়েছে বলে নিশ্চিত হতে পারছি না। '+message;
+        reply(message,o.emotion||'happy');
+      }
+      return {ok,message,verified,goal,steps:log.length,action_log:log.slice(-12),screen_evidence:(screen||'').slice(0,2500),failure:failedSteps.slice(-4)};
     }
     const x=o.action;
     if(!x||!TOOLS.includes(x.tool)){
