@@ -479,7 +479,7 @@ async function agent(goal,firstAction=null){
       // A screen-inspection failure is a diagnostic limitation, not proof that the phone action failed.
       // Only count failed task actions; otherwise Home can execute correctly but be reported as failed
       // merely because the accessibility screen snapshot was unavailable.
-      const failedSteps=log.filter(x=>!x.startsWith('inspect_screen(')&&x.includes('→ ব্যর্থ'));
+      const failedSteps=log.filter(x=>!x.startsWith('inspect_screen')&&x.includes('→ ব্যর্থ'));
       const successfulGlobalAction=log.some(x=>/^(home|back|recents|notifications|quicksettings)\(.*→ সফল$/.test(x));
       const screenVerified=!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:')&&!screen.startsWith('স্ক্রিন পড়া যায়নি:');
       const verified=(o.verified===true&&screenVerified)||successfulGlobalAction;
