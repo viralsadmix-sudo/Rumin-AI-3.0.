@@ -1,0 +1,47 @@
+name: Deploy Rumin AI Gateway
+
+on:
+  push:
+    branches:
+      - feat/free-first-ai-gateway
+    paths:
+      - "backend/worker/**"
+      - ".github/workflows/deploy-rumin-gateway.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rumin-ai-gateway-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Cloudflare Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Validate Worker configuration
+        run: wrangler deploy --dry-run
+
+      - name: Deploy Rumin AI Gateway
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: backend/worker
+          command: deploy

@@ -133,10 +133,10 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
 <div id="sheet"><div id="sheetBox"></div></div>
 <div id="set">
   <h2>সেটিংস</h2>
-  <label>Gemini API Key</label><input id="kg" type="password" autocomplete="off">
+  <label>Managed Backend HTTPS URL</label><input id="gatewayUrl" type="url" placeholder="https://your-worker.workers.dev" autocomplete="url"><label>Backend Access Token</label><input id="gatewayToken" type="password" autocomplete="off"><div class="row"><button class="g" id="verifyGateway">Backend সংযোগ যাচাই</button></div><p>Text Chat ও AI Agent-এর জন্য Gateway ব্যবহার হবে। Gemini Live Voice-এর জন্য নিচের Gemini API Key আলাদাভাবে লাগবে।</p><label>Gemini API Key (Live Voice)</label><input id="kg" type="password" autocomplete="off">
   <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
   <div class="row"><button class="g" id="clearKeys">সংরক্ষিত Gemini API Key মুছুন</button></div>
-  <p>AI Provider: Google Gemini 3.8 Flash (একমাত্র AI Brain)</p>
+  <p>AI Routing: Gemini → Groq → OpenRouter (Free-first Gateway)</p>
   <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
   <div class="row"><button class="g" id="perm">অনুমতি চালু করুন</button><button class="g" id="close">বন্ধ করুন</button></div>
@@ -329,22 +329,43 @@ window.onNativeAiResponse=(id,ok,message)=>{
 };
 function nativeAiRequest(provider,key,msgs,extra){
   return new Promise((resolve,reject)=>{
-    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
+    if(!N||typeof N.requestAi!=='function'){reject(new Error('Native AI সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
-    conversation.unshift({role:'user',content:system(extra)});
+    conversation.unshift({role:'system',content:system(typeof extra==='string'?extra:(extra&&extra.text)||'')});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},80000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id,extra&&extra.gatewayUrl?extra.gatewayUrl:'')}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
-  const key=LS.get('rumin_gemini_key');
-  if(!key)throw new Error('Gemini API Key সেট করা নেই। Settings খুলে Gemini Key দিন এবং যাচাই করুন।');
-  try{return await nativeAiRequest('gemini',key,msgs,extra)}
-  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা')+'. Gemini API Key, ইন্টারনেট, মডেল অ্যাক্সেস ও Usage quota পরীক্ষা করুন।')}
+  const gatewayUrl=LS.get('rumin_gateway_url').trim();
+  const gatewayToken=LS.get('rumin_gateway_token').trim();
+  const key=LS.get('rumin_gemini_key').trim();
+
+  // Direct Gemini is the primary path. A saved but unavailable Gateway must
+  // never block the app from using the Gemini key already stored on the phone.
+  if(key){
+    try{return await nativeAiRequest('gemini',key,msgs,extra)}
+    catch(geminiError){
+      if(gatewayUrl&&gatewayToken){
+        try{return await nativeAiRequest('gateway',gatewayToken,msgs,{text:extra,gatewayUrl})}
+        catch(gatewayError){
+          throw new Error('Gemini সংযোগ ব্যর্থ: '+(geminiError&&geminiError.message?geminiError.message:'অজানা সমস্যা')+'। Gateway-ও সংযোগ করতে পারেনি: '+(gatewayError&&gatewayError.message?gatewayError.message:'অজানা সমস্যা'));
+        }
+      }
+      throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(geminiError&&geminiError.message?geminiError.message:'অজানা API সমস্যা')+'. Gemini API Key, ইন্টারনেট ও Google AI Studio-তে API access পরীক্ষা করুন।');
+    }
+  }
+
+  // Gateway remains available as a secondary path when no direct Gemini key exists.
+  if(gatewayUrl&&gatewayToken){
+    try{return await nativeAiRequest('gateway',gatewayToken,msgs,{text:extra,gatewayUrl})}
+    catch(e){throw new Error('Rumin AI Gateway ব্যর্থ হয়েছে: '+(e&&e.message?e.message:'অজানা সমস্যা')+'. Backend URL, Access Token ও Provider quota পরীক্ষা করুন।')}
+  }
+  throw new Error('প্রথমে Settings-এ Gemini API Key দিন। Gateway ব্যবহার করতে চাইলে Backend URL ও Access Token দিন।');
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
@@ -427,17 +448,26 @@ async function agent(goal,firstAction=null){
     screen=initial.ok?Array.from(initial.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(initial.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     log.push('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
+  // Execute the intent classifier's first action instead of silently discarding it.
+  // This is the hand-off from "AI understood the request" to the real Android executor.
+  let pendingAction=firstAction&&typeof firstAction==='object'&&firstAction.tool&&firstAction.tool!=='inspect_screen'
+    ? {tool:firstAction.tool,a:firstAction.a||'',b:firstAction.b||''} : null;
   for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
-    for(let attempt=0;attempt<2&&!o;attempt++){
-      try{
-        const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
-        o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
-      }catch(e){
-        lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
-        if(attempt===0){await sleep(250);continue}
-        log.push('Planner error: '+lastError);
+    if(pendingAction){
+      o={action:pendingAction,reply:'প্রাথমিকভাবে নির্বাচিত ফোনের কাজটি চালাচ্ছি।'};
+      pendingAction=null;
+    }else{
+      for(let attempt=0;attempt<2&&!o;attempt++){
+        try{
+          const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
+          o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
+        }catch(e){
+          lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
+          if(attempt===0){await sleep(250);continue}
+          log.push('Planner error: '+lastError);
+        }
       }
     }
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
@@ -449,7 +479,7 @@ async function agent(goal,firstAction=null){
       // A screen-inspection failure is a diagnostic limitation, not proof that the phone action failed.
       // Only count failed task actions; otherwise Home can execute correctly but be reported as failed
       // merely because the accessibility screen snapshot was unavailable.
-      const failedSteps=log.filter(x=>!x.startsWith('inspect_screen(')&&x.includes('→ ব্যর্থ'));
+      const failedSteps=log.filter(x=>!x.startsWith('inspect_screen')&&x.includes('→ ব্যর্থ'));
       const successfulGlobalAction=log.some(x=>/^(home|back|recents|notifications|quicksettings)\(.*→ সফল$/.test(x));
       const screenVerified=!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:')&&!screen.startsWith('স্ক্রিন পড়া যায়নি:');
       const verified=(o.verified===true&&screenVerified)||successfulGlobalAction;
@@ -543,7 +573,7 @@ function sheet(title,build){const b=$('sheetBox');b.innerHTML='';const h=documen
 function closeSheet(){$('sheet').classList.remove('open')}
 function opt(b,label,fn){const o=document.createElement('button');o.className='opt';o.textContent=label;o.onclick=()=>{closeSheet();fn()};b.appendChild(o)}
 $('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))closeSheet()});
-function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('set').classList.add('open')}
+function openSettings(){$('kg').value=LS.get('rumin_gemini_key');$('gatewayUrl').value=LS.get('rumin_gateway_url');$('gatewayToken').value=LS.get('rumin_gateway_token');$('set').classList.add('open')}
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
 function startVoice(){
   go('home');hist=JSON.parse(LS.get('rumin_voice_history','[]'));stopSpeaking();stopListening();voiceMode=false;
@@ -592,7 +622,8 @@ on('mic',()=>{
   startVoice()
 });
 on('close',()=>$('set').classList.remove('open'));
-on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');$('set').classList.remove('open');add('Gemini সেটিংস সেভ হয়েছে।','s');status('Gemini সেটিংস সেভ হয়েছে')});
+on('save',()=>{LS.set('rumin_gemini_key',$('kg').value.trim());LS.set('rumin_gateway_url',$('gatewayUrl').value.trim().replace(/\\/$/,''));LS.set('rumin_gateway_token',$('gatewayToken').value.trim());LS.set('rumin_provider','gateway');LS.set('rumin_gemini_model','gemini-3.8-flash');$('set').classList.remove('open');add('AI Gateway সেটিংস সেভ হয়েছে।','s');status('AI Gateway সেটিংস সেভ হয়েছে')});
+on('verifyGateway',async()=>{const u=$('gatewayUrl').value.trim().replace(/\\/$/,'');if(!u.startsWith('https://')){status('Backend URL অবশ্যই HTTPS হতে হবে');return}status('Backend সংযোগ পরীক্ষা হচ্ছে…');try{const r=await fetch(u+'/health',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(!j.ok)throw new Error('Health check failed');LS.set('rumin_gateway_url',u);LS.set('rumin_gateway_token',$('gatewayToken').value.trim());status('Rumin AI Gateway সংযোগ সফল ✓')}catch(e){status('Backend সংযোগ ব্যর্থ: '+(e.message||'Network error'))}});
 async function verifyGeminiKey(){
   const key=$('kg').value.trim();
   if(!key){status('আগে Gemini API Key লিখুন');return}

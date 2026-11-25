@@ -240,16 +240,54 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
+        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String, gatewayUrl: String = "") {
             if (key.isBlank()) {
-                deliverAiResult(requestId, false, "API Key ফাঁকা")
+                deliverAiResult(requestId, false, if (provider == "gateway") "Backend Access Token ফাঁকা" else "API Key ফাঁকা")
                 return
             }
             aiExecutor.execute {
                 var connection: HttpURLConnection? = null
                 try {
-                    // Gemini is the only enabled text AI provider; Groq fallback is intentionally disabled.
-                    val isGroq = false
+                    if (provider == "gateway") {
+                        val base = gatewayUrl.trim().removeSuffix("/")
+                        if (!base.startsWith("https://")) throw IllegalArgumentException("Backend URL অবশ্যই HTTPS হতে হবে")
+                        val history = JSONArray(historyJson)
+                        val messages = JSONArray()
+                        for (i in 0 until history.length()) {
+                            val item = history.optJSONObject(i) ?: continue
+                            val role = when (item.optString("role")) {
+                                "assistant" -> "assistant"
+                                "system" -> "system"
+                                else -> "user"
+                            }
+                            messages.put(JSONObject().put("role", role).put("content", item.optString("content")))
+                        }
+                        messages.put(JSONObject().put("role", "user").put("content", currentText))
+                        val payload = JSONObject().put("messages", messages)
+                        connection = (URL("$base/v1/chat").openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 15000
+                            readTimeout = 75000
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                            setRequestProperty("Authorization", "Bearer $key")
+                        }
+                        connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                        val status = connection.responseCode
+                        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                        val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                        val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+                        if (status !in 200..299 || !response.optBoolean("ok", false)) {
+                            val detail = response.optString("error").ifBlank { response.optString("detail") }.ifBlank { "HTTP $status" }
+                            throw IllegalStateException("AI Gateway HTTP $status — $detail")
+                        }
+                        val reply = response.optString("text")
+                        if (reply.isBlank()) throw IllegalStateException("AI Gateway থেকে ফাঁকা উত্তর এসেছে")
+                        deliverAiResult(requestId, true, reply)
+                        return@execute
+                    }
+                    // Legacy direct Gemini/Groq path remains available for compatibility.
+                    val isGroq = provider == "groq"
                     val url = if (isGroq) "https://api.groq.com/openai/v1/chat/completions" else "https://generativelanguage.googleapis.com/v1beta/interactions"
                     val body = if (isGroq) {
                         val messages = JSONArray()
