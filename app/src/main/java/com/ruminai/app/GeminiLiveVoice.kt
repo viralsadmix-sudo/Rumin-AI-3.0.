@@ -68,7 +68,7 @@ class GeminiLiveVoice(
                         }
                     }.start()
                     val setup = JSONObject()
-                        .put("model", "models/gemini-3.8-live")
+                        .put("model", "models/gemini-2.5-flash-native-audio-preview-12-2025")
                         .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(
                             JSONObject()
                                 .put("name", "start_agent_task")
