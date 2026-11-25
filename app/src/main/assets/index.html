@@ -268,7 +268,7 @@ function local(raw){
     ['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],['camera',/(ক্যামেরা|camera)/i],
     ['browser',/(ব্রাউজার|browser|ইন্টারনেট খোলো)/i],['settings',/(সেটিংস|settings)/i]
   ];
-  const launchIntent=/(খোলো|খুলে দাও|চালু করো|open|launch|চালাও)/i.test(t);
+  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু|open|launch|start|চালাও)/i.test(t);
   if(launchIntent){
     const match=quickApps.find(([tool,re])=>re.test(t));
     if(match){
