@@ -35,7 +35,7 @@ internal class AgentToolRegistry {
         "accessibility", "notificationaccess", "apppermissions", "ttssettings",
         "settings", "wifi", "bluetooth", "display", "sound", "camera", "contacts",
         "browser", "youtube", "facebook", "whatsapp", "instagram", "gmail",
-        "playstore", "maps"
+        "playstore", "maps", "chatgpt"
     )
     private val accessibilityTools = setOf(
         "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up",
