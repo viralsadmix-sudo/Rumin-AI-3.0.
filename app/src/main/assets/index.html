@@ -448,17 +448,26 @@ async function agent(goal,firstAction=null){
     screen=initial.ok?Array.from(initial.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(initial.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     log.push('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
+  // Execute the intent classifier's first action instead of silently discarding it.
+  // This is the hand-off from "AI understood the request" to the real Android executor.
+  let pendingAction=firstAction&&typeof firstAction==='object'&&firstAction.tool&&firstAction.tool!=='inspect_screen'
+    ? {tool:firstAction.tool,a:firstAction.a||'',b:firstAction.b||''} : null;
   for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
-    for(let attempt=0;attempt<2&&!o;attempt++){
-      try{
-        const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
-        o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
-      }catch(e){
-        lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
-        if(attempt===0){await sleep(250);continue}
-        log.push('Planner error: '+lastError);
+    if(pendingAction){
+      o={action:pendingAction,reply:'প্রাথমিকভাবে নির্বাচিত ফোনের কাজটি চালাচ্ছি।'};
+      pendingAction=null;
+    }else{
+      for(let attempt=0;attempt<2&&!o;attempt++){
+        try{
+          const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
+          o=parse(await askAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
+        }catch(e){
+          lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
+          if(attempt===0){await sleep(250);continue}
+          log.push('Planner error: '+lastError);
+        }
       }
     }
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
