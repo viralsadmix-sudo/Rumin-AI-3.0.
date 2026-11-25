@@ -343,14 +343,29 @@ function nativeAiRequest(provider,key,msgs,extra){
 async function askAI(msgs=hist,extra='',role='answer'){
   const gatewayUrl=LS.get('rumin_gateway_url').trim();
   const gatewayToken=LS.get('rumin_gateway_token').trim();
+  const key=LS.get('rumin_gemini_key').trim();
+
+  // Direct Gemini is the primary path. A saved but unavailable Gateway must
+  // never block the app from using the Gemini key already stored on the phone.
+  if(key){
+    try{return await nativeAiRequest('gemini',key,msgs,extra)}
+    catch(geminiError){
+      if(gatewayUrl&&gatewayToken){
+        try{return await nativeAiRequest('gateway',gatewayToken,msgs,{text:extra,gatewayUrl})}
+        catch(gatewayError){
+          throw new Error('Gemini সংযোগ ব্যর্থ: '+(geminiError&&geminiError.message?geminiError.message:'অজানা সমস্যা')+'। Gateway-ও সংযোগ করতে পারেনি: '+(gatewayError&&gatewayError.message?gatewayError.message:'অজানা সমস্যা'));
+        }
+      }
+      throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(geminiError&&geminiError.message?geminiError.message:'অজানা API সমস্যা')+'. Gemini API Key, ইন্টারনেট ও Google AI Studio-তে API access পরীক্ষা করুন।');
+    }
+  }
+
+  // Gateway remains available as a secondary path when no direct Gemini key exists.
   if(gatewayUrl&&gatewayToken){
     try{return await nativeAiRequest('gateway',gatewayToken,msgs,{text:extra,gatewayUrl})}
     catch(e){throw new Error('Rumin AI Gateway ব্যর্থ হয়েছে: '+(e&&e.message?e.message:'অজানা সমস্যা')+'. Backend URL, Access Token ও Provider quota পরীক্ষা করুন।')}
   }
-  const key=LS.get('rumin_gemini_key');
-  if(!key)throw new Error('Managed Backend URL ও Access Token সেট করুন। বিকল্প হিসেবে Gemini API Key দিন।');
-  try{return await nativeAiRequest('gemini',key,msgs,extra)}
-  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা')+'. Managed Backend সেট করলে Gemini Quota শেষ হলে বিকল্প Provider ব্যবহার হবে।')}
+  throw new Error('প্রথমে Settings-এ Gemini API Key দিন। Gateway ব্যবহার করতে চাইলে Backend URL ও Access Token দিন।');
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
