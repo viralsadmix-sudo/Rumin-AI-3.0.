@@ -280,7 +280,7 @@ class MainActivity : ComponentActivity() {
                         }
                         messages.put(JSONObject().put("role", "user").put("content", currentText))
                         val model = when (p) {
-                            "grok" -> "grok-4-1-fast"
+                            "grok" -> "grok-4.7"
                             "groq" -> "openai/gpt-oss-120b"
                             "openai" -> "gpt-6.2-sol"
                             "muse" -> "muse-spark-1.3"
