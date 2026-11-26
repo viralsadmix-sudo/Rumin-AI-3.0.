@@ -138,8 +138,12 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
   <label>ChatGPT API Key (Task Agent)</label><input id="ko" type="password" autocomplete="off" placeholder="OpenAI API Key">
   <label>Groq API Key (Free Task Agent)</label><input id="kq" type="password" autocomplete="off" placeholder="Groq API Key">
   <label>Meta Muse Spark API Key (Task Agent)</label><input id="km" type="password" autocomplete="off" placeholder="Meta Model API Key">
+  <label>ElevenLabs TTS Proxy URL (HTTPS Backend)</label><input id="elevenProxy" type="url" autocomplete="off" placeholder="https://your-backend.example.com">
+  <label>ElevenLabs Voice ID (প্রিমেড/অনুমোদিত Voice)</label><input id="elevenVoice" type="text" autocomplete="off" placeholder="Voice ID">
+  <label>ElevenLabs Model</label><select id="elevenModel"><option value="eleven_flash_v2_5">eleven_flash_v2_5 — দ্রুত</option><option value="eleven_v4">eleven_v4 — উচ্চমান</option><option value="eleven_multilingual_v2">eleven_multilingual_v2</option></select>
   <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
   <p>Multi-AI Router: Gemini → Groq → Grok → ChatGPT → Muse Spark (যে Key সংরক্ষিত আছে, সেটিই ব্যবহার হবে)। Gemini Live Voice আলাদা থাকবে।</p>
+  <p>ElevenLabs শুধু সাধারণ Voice Chat-এর উত্তর বলবে। Gemini Live Voice অপরিবর্তিত থাকবে। নিরাপত্তার জন্য ElevenLabs API Key অ্যাপে দেবেন না; HTTPS Backend-এ রাখুন। Backend-এর POST /v1/tts রুট JSON {"text":"...","voice_id":"...","model_id":"..."} নেবে এবং audio/mpeg ফেরত দেবে। Proxy না থাকলে ফোনের নিজস্ব TTS ব্যবহার হবে।</p>
   <p>নোট: API Key এই ডিভাইসের অ্যাপ স্টোরেজে রাখা হবে। নিরাপদ সার্ভার-ভিত্তিক Key Vault এখনো সংযুক্ত নয়। API ব্যবহারে খরচ হতে পারে।</p>
   <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
@@ -165,7 +169,7 @@ let voiceMode=false;
 function speak(text){
   if(!text || !voiceMode || live)return;
   try{
-    if(N&&typeof N.speakText==='function'){N.speakText(text);return}
+    if(N&&typeof N.speakText==='function'){N.speakText(text,LS.get('rumin_eleven_proxy'),LS.get('rumin_eleven_voice'),LS.get('rumin_eleven_model','eleven_flash_v2_5'));return}
     if('speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='bn-BD';speechSynthesis.speak(u)}
   }catch(e){}
 }
@@ -650,6 +654,9 @@ function openSettings(){
   $('ko').value=LS.get('rumin_openai_key');
   $('km').value=LS.get('rumin_muse_key');
   $('kq').value=LS.get('rumin_groqcloud_key');
+  $('elevenProxy').value=LS.get('rumin_eleven_proxy');
+  $('elevenVoice').value=LS.get('rumin_eleven_voice');
+  $('elevenModel').value=LS.get('rumin_eleven_model','eleven_flash_v2_5');
   $('set').classList.add('open')
 }
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
@@ -706,8 +713,11 @@ on('save',()=>{
   LS.set('rumin_openai_key',$('ko').value.trim());
   LS.set('rumin_muse_key',$('km').value.trim());
   LS.set('rumin_groqcloud_key',$('kq').value.trim());
+  LS.set('rumin_eleven_proxy',$('elevenProxy').value.trim());
+  LS.set('rumin_eleven_voice',$('elevenVoice').value.trim());
+  LS.set('rumin_eleven_model',$('elevenModel').value);
   LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');
-  $('set').classList.remove('open');add('চারটি AI-এর Key সেটিংস সেভ হয়েছে। যেগুলোর Key আছে সেগুলোই ব্যবহার হবে।','s');status('Multi-AI Key সেটিংস সেভ হয়েছে')
+  $('set').classList.remove('open');add('AI ও ElevenLabs TTS সেটিংস সেভ হয়েছে। Backend Proxy না থাকলে ফোনের নিজস্ব TTS চলবে।','s');status('সেটিংস সেভ হয়েছে')
 });
 async function verifyGeminiKey(){
   const key=$('kg').value.trim();
