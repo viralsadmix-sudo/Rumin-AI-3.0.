@@ -111,7 +111,15 @@ class RuminAccessibilityService : AccessibilityService() {
                 "click_text" -> {
                     val root = rootInActiveWindow
                     val wanted = value.trim().lowercase()
-                    val matched = walk(root) { node ->
+                    // Prefer an exact visible label or resource-id match before
+                    // substring matching. This avoids tapping a broad/incorrect
+                    // YouTube result when the planner asks for a specific control.
+                    val exact = walk(root) { node ->
+                        val label = nodeLabel(node).lowercase()
+                        val id = node.viewIdResourceName.orEmpty().lowercase()
+                        wanted.isNotBlank() && (label == wanted || id == wanted)
+                    }
+                    val matched = exact ?: walk(root) { node ->
                         val label = nodeLabel(node).lowercase()
                         val id = node.viewIdResourceName.orEmpty().lowercase()
                         wanted.isNotBlank() && (label.contains(wanted) || id.contains(wanted))
