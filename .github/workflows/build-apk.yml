@@ -2,10 +2,7 @@ name: Build Rumin AI 3.0 APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main", "feature/openphoneuse-agent-port"]
-  pull_request:
-    branches: ["main"]
+  # Builds are manual until integration and regression checks are complete.
 
 permissions:
   contents: write
