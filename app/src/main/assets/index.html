@@ -153,7 +153,7 @@ const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinki
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
 const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
+let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,thinkGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
 /* ---------- UI helpers ---------- */
 function add(text,cls){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('log').appendChild(d);$('log').scrollTop=1e9;if(cls==='b'){const bb=$('bubble');if(bb)bb.textContent=text.length>90?text.slice(0,88)+'…':text}return d}
@@ -397,7 +397,7 @@ window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
   status(audioReceived?'লাইভ ভয়েসে কথা হচ্ছে…':'উত্তর প্রস্তুত');
 };
 async function think(text,hidden){
-  if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
+  if(busy)return;const thinkId=++thinkGeneration;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
     const intentRules = `তুমি Rumin AI-এর intent router। নিচের কথোপকথন ও সর্বশেষ ব্যবহারকারীর বার্তা দেখে সিদ্ধান্ত নাও এটি সাধারণ আলাপ/প্রশ্ন, নাকি ফোনে বাস্তব কাজের নির্দেশ। ফোনে কোনো কাজ করতে বললে অবশ্যই শুধু এই JSON দেবে: {"agent":true,"goal":"ব্যবহারকারীর সম্পূর্ণ লক্ষ্যটি বাংলায়","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, আমি কাজটি শুরু করছি।","emotion":"thinking"}। ফোনের কাজের জন্য agent:true বাধ্যতামূলক; শুধু reply বা actions দেবে না। ফোনের কাজের উদাহরণ: Home screen-এ যাওয়া, অ্যাপ খোলা, স্ক্রিনে কিছু খোঁজা/চাপা/লেখা, স্ক্রল, সেটিংস বা ফোনের কোনো কাজ। শুধু প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, অনুবাদ, লেখা, মতামত বা আলাপ হলে কোনো action করবে না; শুধু এই JSON দেবে: {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"}। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে, ফোনে কাজ শুরু করবে না। কোনো অতিরিক্ত লেখা বা Markdown নয়—শুধু বৈধ JSON।`;
@@ -414,6 +414,7 @@ async function think(text,hidden){
     }
     reply(o.reply||'ঠিক আছে বস।',o.emotion);
   }catch(e){
+    if(thinkId!==thinkGeneration)return;
     busy=false;const m='সমস্যা হয়েছে: '+(e.message||'অজানা');add(m,'b');status('আবার চেষ্টা করুন');mood('sad',false);hist.pop();if(!live){voiceMode=false;idle()}else status('আবার চেষ্টা করুন');
   }
 }
@@ -426,6 +427,7 @@ const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner�
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 function cancelAgentTask(reason='ব্যবহারকারীর নির্দেশে কাজ বাতিল'){
+  thinkGeneration++;
   agentGeneration++;
   agentRun=false;
   busy=false;
