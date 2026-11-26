@@ -3,7 +3,7 @@ name: Build Rumin AI 3.0 APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: ["main", "feature/openphoneuse-agent-port"]
   pull_request:
     branches: ["main"]
 
@@ -32,7 +32,7 @@ jobs:
           gradle-version: "8.9"
           arguments: assembleRelease
       - name: Publish APK as GitHub Release
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v3.0.${{ github.run_number }}
