@@ -310,7 +310,10 @@ class MainActivity : ComponentActivity() {
                         body = JSONObject().put("model", "gemini-3.5-flash-lite").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
-                        messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
+                        val memoryContext = recentMemoryContext()
+                        val plannerPrompt = "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না." +
+                            if (memoryContext.isBlank()) "" else "\\nপ্রাসঙ্গিক সংরক্ষিত স্মৃতি: " + memoryContext
+                        messages.put(JSONObject().put("role", "system").put("content", plannerPrompt))
                         // Keep planner context compact so free-tier TPM limits are not exhausted by old chat history.
                         val historyLimit = if (p == "groq") 3 else 4
                         val startIndex = maxOf(0, history.length() - historyLimit)
