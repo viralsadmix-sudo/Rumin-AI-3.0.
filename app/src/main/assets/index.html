@@ -376,7 +376,8 @@ async function think(text,hidden){
   if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
-    const o=parse(await askAI(hist,modeExtra()));
+    const intentRules = `তুমি Rumin AI-এর intent router। নিচের কথোপকথন ও সর্বশেষ ব্যবহারকারীর বার্তা দেখে সিদ্ধান্ত নাও এটি সাধারণ আলাপ/প্রশ্ন, নাকি ফোনে বাস্তব কাজের নির্দেশ। ফোনে কোনো কাজ করতে বললে অবশ্যই শুধু এই JSON দেবে: {"agent":true,"goal":"ব্যবহারকারীর সম্পূর্ণ লক্ষ্যটি বাংলায়","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, আমি কাজটি শুরু করছি।","emotion":"thinking"}। ফোনের কাজের জন্য agent:true বাধ্যতামূলক; শুধু reply বা actions দেবে না। ফোনের কাজের উদাহরণ: Home screen-এ যাওয়া, অ্যাপ খোলা, স্ক্রিনে কিছু খোঁজা/চাপা/লেখা, স্ক্রল, সেটিংস বা ফোনের কোনো কাজ। শুধু প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, অনুবাদ, লেখা, মতামত বা আলাপ হলে কোনো action করবে না; শুধু এই JSON দেবে: {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"}। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে, ফোনে কাজ শুরু করবে না। কোনো অতিরিক্ত লেখা বা Markdown নয়—শুধু বৈধ JSON।`;
+    const o=parse(await askAI(hist,intentRules+'\n'+modeExtra()));
     busy=false;
     if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text,o.first_action);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
