@@ -100,7 +100,12 @@ class RuminAccessibilityService : AccessibilityService() {
                         }
                         visit(root, 0)
                         JSONObject().put("ok", true).put("items", rows).put("elements", elements)
-                            .put("message", if (elements.length() == 0) "স্ক্রিনে শনাক্তযোগ্য উপাদান পাওয়া যায়নি।" else "স্ক্রিনের উপাদান পড়েছি।")
+                            .put("packageName", root.packageName?.toString().orEmpty())
+                            .put("windowClass", root.className?.toString().orEmpty())
+                            .put("capturedAt", System.currentTimeMillis())
+                            .put("elementCount", elements.length())
+                            .put("textCount", rows.length())
+                            .put("message", if (elements.length() == 0) "স্ক্রিনে শনাক্তযোগ্য উপাদান পাওয়া যায়নি।" else "স্ক্রিনের লেখা, বাটন, ইনপুট ও স্ক্রলযোগ্য উপাদান পড়েছি।")
                     }
                 }
                 "click_text" -> {
