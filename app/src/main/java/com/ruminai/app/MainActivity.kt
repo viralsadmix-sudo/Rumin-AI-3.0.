@@ -252,6 +252,7 @@ class MainActivity : ComponentActivity() {
                     val isGemini = p == "gemini"
                     val baseUrl = when (p) {
                         "grok" -> "https://api.x.ai/v1/chat/completions"
+                        "groq" -> "https://api.groq.com/openai/v1/chat/completions"
                         "openai" -> "https://api.openai.com/v1/chat/completions"
                         "muse" -> "https://api.meta.ai/v1/chat/completions"
                         "gemini" -> "https://generativelanguage.googleapis.com/v1beta/interactions"
@@ -280,6 +281,7 @@ class MainActivity : ComponentActivity() {
                         messages.put(JSONObject().put("role", "user").put("content", currentText))
                         val model = when (p) {
                             "grok" -> "grok-4-1-fast"
+                            "groq" -> "openai/gpt-oss-120b"
                             "openai" -> "gpt-6.2-sol"
                             "muse" -> "muse-spark-1.3"
                             else -> ""
