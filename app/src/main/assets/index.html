@@ -358,7 +358,7 @@ function nativeAiRequest(provider,key,msgs,extra){
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
     try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
@@ -393,7 +393,7 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
       // then move on instead of looping through repeated Agent attempts.
       if(provider==='gemini' && isTemporaryOverload(firstError)){
         status('Gemini সার্ভার ব্যস্ত—একবার বিরতি দিয়ে পুনরায় চেষ্টা করছি…');
-        await wait(1800);
+        await wait(900);
         try{return await nativeAiRequest(provider,key,msgs,extra)}
         catch(retryError){error=retryError}
       }
@@ -509,7 +509,7 @@ async function agent(goal,firstAction=null){
     }).slice(0,12000):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     recordStep('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
-  for(let n=1;n<=20&&isCurrent();n++){
+  for(let n=1;n<=12&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
     for(let attempt=0;attempt<2&&!o;attempt++){
@@ -557,9 +557,12 @@ async function agent(goal,firstAction=null){
     }
     const actionKey=[x.tool,String(x.a||''),String(x.b||'')].join('|');
     if(failedActions.has(actionKey)||(OPENERS.includes(x.tool)&&executedActions.has(actionKey))){
-      lastError='একই ব্যর্থ action বা একই app-open পুনরায় চালানো নিরাপত্তার জন্য বন্ধ করা হয়েছে: '+x.tool;
+      lastError='একই action পুনরাবৃত্তি করলে কাজ এগোবে না—নিরাপদে থামানো হয়েছে: '+x.tool;
       recordStep(lastError);
-      continue;
+      finished=true;busy=false;agentRun=false;
+      const message='বস, একই কাজ বারবার হচ্ছিল বলে থামিয়েছি। শেষ স্ক্রিন ও অ্যাকশনের ফল দেখে নতুন পদ্ধতি দরকার।';
+      if(!live)reply(message,'sad');
+      return {ok:false,message,goal,steps:log.length,action_log:log.slice(-12),screen_evidence:(screen||'').slice(0,2500),failure:[lastError]};
     }
     if(OPENERS.includes(x.tool))executedActions.add(actionKey);
     if(x.tool==='power'){
@@ -573,7 +576,7 @@ async function agent(goal,firstAction=null){
     recordStep(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
     if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     // Give Android a short settle window; long fixed waits made every Agent step sluggish.
-    await sleep(OPENERS.includes(x.tool)?650:180);
+    await sleep(OPENERS.includes(x.tool)?350:90);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(x.tool==='inspect_screen'){
       screen=JSON.stringify({
