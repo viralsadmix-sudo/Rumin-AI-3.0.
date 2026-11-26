@@ -351,17 +351,20 @@ async function askAI(msgs=hist,extra='',role='answer'){
   catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা'))}
 }
 async function askAgentAI(msgs=hist,extra='',role='planner'){
+  // Reuse the user's existing Gemini key first: no separate Grok/OpenAI/Muse key is required for the core task planner.
+  // This is the Gemini API planner lane; Gemini Live remains the voice/conversation lane.
   const providers=[
-    ['grok',LS.get('rumin_grok_key')],
+    ['gemini',LS.get('rumin_gemini_key')],
     ['groq',LS.get('rumin_groqcloud_key')],
+    ['grok',LS.get('rumin_grok_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
   ].filter(x=>x[1]);
-  if(!providers.length)throw new Error('Task Agent চালু করতে Grok, ChatGPT অথবা Muse Spark-এর অন্তত একটি API Key Settings-এ দিন।');
+  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ Gemini API Key দিন।');
   let last='';
   for(const [provider,key] of providers){
     try{
-      status('Multi-AI Router: '+({grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' Agent কাজ করছে…');
+      status('Task Agent: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' পরিকল্পনা করছে…');
       return await nativeAiRequest(provider,key,msgs,extra);
     }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));add(last+' — পরের Agent চেষ্টা করছি।','s')}
   }
