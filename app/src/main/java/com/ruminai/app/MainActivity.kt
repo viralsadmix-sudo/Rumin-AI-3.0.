@@ -118,6 +118,18 @@ class MainActivity : ComponentActivity() {
         webView.loadUrl("file:///android_asset/index.html")
     }
 
+    private fun recentMemoryContext(): String {
+        return try {
+            val rows = JSONArray(personalSystems.memories())
+            val start = maxOf(0, rows.length() - 8)
+            (start until rows.length()).mapNotNull { index ->
+                rows.optJSONObject(index)?.let { row ->
+                    row.optString("text").takeIf { it.isNotBlank() }
+                }
+            }.joinToString(" | ").take(1800)
+        } catch (_: Exception) { "" }
+    }
+
     private fun startContinuousListening() {
         if (!continuousListening) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -286,7 +298,9 @@ class MainActivity : ComponentActivity() {
                     val body: JSONObject
                     if (isGemini) {
                         val lines = mutableListOf<String>()
-                        lines.add("নির্দেশনা: তুমি রুমিন এআই, বসের ব্যক্তিগত বাংলা সহকারী। স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দাও। ফোনের কাজ নিজে সম্পন্ন হয়েছে বলবে না; ফোনের কাজ Native Agent Engine করে এবং ফলাফল যাচাই করে।")
+                        lines.add("নির্দেশনা: তুমি রুমিন এআই, বসের ব্যক্তিগত বাংলা সহকারী। স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দাও। ফোনের কাজ নিজে সম্পন্ন হয়েছে বলবে না; ফোনের কাজ Native Agent Engine করে এবং ফলাফল যাচাই করে.")
+                        val memoryContext = recentMemoryContext()
+                        if (memoryContext.isNotBlank()) lines.add("ব্যবহারকারীর সংরক্ষিত স্মৃতি (প্রাসঙ্গিক হলে ব্যবহার করো): " + memoryContext)
                         for (i in 0 until history.length()) {
                             val item = history.optJSONObject(i) ?: continue
                             val label = if (item.optString("role") == "assistant") "রুমিন: " else "ব্যবহারকারী: "
