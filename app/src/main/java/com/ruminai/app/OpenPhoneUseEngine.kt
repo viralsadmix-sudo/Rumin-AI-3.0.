@@ -115,3 +115,15 @@ internal class OpenPhoneUseEngine(
         return PhoneUseTaskSnapshot(id, state, count, message).also { tasks[id] = it }
     }
 }
+
+/** Adapter to Rumin's existing service; no duplicate Android service is created. */
+internal class RuminPhoneUseDevice : PhoneUseDevice {
+    override fun execute(action: PhoneUseAction): PhoneUseResult {
+        val raw = RuminAccessibilityService.nativeAction(action.tool, action.value)
+        return PhoneUseResult(
+            ok = raw.optBoolean("ok", false),
+            message = raw.optString("message"),
+            raw = raw
+        )
+    }
+}
