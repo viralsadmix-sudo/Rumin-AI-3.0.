@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
-                        body = JSONObject().put("model", "gemini-3.8-flash").put("input", lines.joinToString("\n"))
+                        body = JSONObject().put("model", "gemini-3.5-flash-lite").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
                         messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
