@@ -415,9 +415,11 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (accessibility) {
+                    val startedAt = System.nanoTime()
                     val result = RuminAccessibilityService.nativeAction(actualAction, first)
                     val raw = result.toString()
                     val verified = AgentVerifier.verifyNativeJson(raw)
+                    personalSystems.metric("native:$actualAction", (System.nanoTime() - startedAt) / 1_000_000L, verified)
                     agentCore.complete(taskId, verified, result.optString("message"))
                     webView.evaluateJavascript(
                         "window.onNativeActionResult && window.onNativeActionResult(${JSONObject.quote(raw)}, ${JSONObject.quote(taskId)})",
