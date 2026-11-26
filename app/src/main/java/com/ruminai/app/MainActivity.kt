@@ -27,6 +27,7 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val agentCore = AgentCore()
+    private val personalSystems by lazy { RuminPersonalSystems(applicationContext) }
     private lateinit var webView: WebView
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
@@ -239,6 +240,29 @@ class MainActivity : ComponentActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
             }
         }
+
+        /** Store an explicit user-approved memory locally on this phone. */
+        @JavascriptInterface fun rememberPersonalFact(text: String, tag: String = "general"): Boolean {
+            return personalSystems.remember(text, tag)
+        }
+
+        @JavascriptInterface fun getPersonalMemories(): String = personalSystems.memories()
+
+        @JavascriptInterface fun clearPersonalMemories() {
+            personalSystems.clearMemories()
+        }
+
+        /** Local phone reminder. Cloud mirroring is enabled only after a backend URL is configured. */
+        @JavascriptInterface fun schedulePhoneReminder(title: String, message: String, atMillis: Long): String {
+            return try { personalSystems.scheduleReminder(title, message, atMillis) }
+            catch (e: Exception) { "রিমাইন্ডার সেট করা যায়নি: ${e.message ?: "অজানা সমস্যা"}" }
+        }
+
+        @JavascriptInterface fun recordPerformanceMetric(name: String, durationMs: Long, success: Boolean) {
+            personalSystems.metric(name, durationMs, success)
+        }
+
+        @JavascriptInterface fun getPerformanceMetrics(): String = personalSystems.metrics()
 
         @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
             if (key.isBlank()) {
