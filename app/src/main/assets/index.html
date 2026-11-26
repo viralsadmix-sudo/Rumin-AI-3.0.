@@ -653,7 +653,7 @@ on('bText',()=>{smartMode=false;promptMode=false;live=false;voiceMode=false;hist
 on('bSmart',()=>{smartMode=true;promptMode=false;go('chat');add('স্মার্ট মোড চালু। যেকোনো কাজ বলুন, ধাপে ধাপে করব। বন্ধ করতে “টেক্সট চ্যাট” চাপুন।','s')});
 on('bQuick',()=>sheet('দ্রুত কাজ',b=>QUICK.forEach(q=>opt(b,q,()=>{go('chat');handle(q)}))));
 on('bAct',()=>go('act'));on('bSet',openSettings);on('gear',openSettings);
-on('menu',()=>sheet('রুমিন AI 3.0',b=>{const p=document.createElement('p');p.textContent='ডেভেলপার: সাব্বির আহমেদ রুবেল';b.appendChild(p);opt(b,'কথোপকথন মুছুন',()=>{hist=[];$('log').innerHTML=''});opt(b,'অনুমতি চালু করুন',()=>$('perm').click())}));
+on('menu',()=>sheet('রুমিন AI 3.0',b=>{const p=document.createElement('p');p.textContent='ডেভেলপার: সাব্বির আহমেদ রুবেল';b.appendChild(p);opt(b,'কথোপকথন মুছুন',()=>{hist=[];$('log').innerHTML=''});opt(b,'অনুমতি চালু করুন',()=>$('perm').click());opt(b,'Agent কাজের লগ দেখুন',()=>{let rows=[];try{rows=JSON.parse(LS.get('rumin_agent_audit','[]'))}catch(e){}const recent=rows.slice(-20);const summary=recent.map((x,i)=>(i+1)+'. '+new Date(x.at).toLocaleString('bn-BD')+' — '+x.goal+' — '+x.entry).join('\\n');add(recent.length?summary:'এখনো কোনো Agent কাজের লগ নেই।','s');go('chat')})}));
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.v==='set')openSettings();else go(b.dataset.v)}));
 
 const LK={movie:'Movie Link',apk:'APK Link',web:'Web Link',remini:'Remini'};
