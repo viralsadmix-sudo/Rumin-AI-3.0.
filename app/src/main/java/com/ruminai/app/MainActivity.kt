@@ -273,12 +273,16 @@ class MainActivity : ComponentActivity() {
                     } else {
                         val messages = JSONArray()
                         messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
-                        for (i in 0 until history.length()) {
+                        // Keep planner context compact so free-tier TPM limits are not exhausted by old chat history.
+                        val historyLimit = if (p == "groq") 3 else 4
+                        val startIndex = maxOf(0, history.length() - historyLimit)
+                        for (i in startIndex until history.length()) {
                             val item = history.optJSONObject(i) ?: continue
                             val role = if (item.optString("role") == "assistant") "assistant" else "user"
-                            messages.put(JSONObject().put("role", role).put("content", item.optString("content")))
+                            val content = item.optString("content").takeLast(900)
+                            messages.put(JSONObject().put("role", role).put("content", content))
                         }
-                        messages.put(JSONObject().put("role", "user").put("content", currentText))
+                        messages.put(JSONObject().put("role", "user").put("content", currentText.take(1800)))
                         val model = when (p) {
                             "grok" -> "grok-4.7"
                             "groq" -> "openai/gpt-oss-120b"
@@ -287,6 +291,11 @@ class MainActivity : ComponentActivity() {
                             else -> ""
                         }
                         body = JSONObject().put("model", model).put("messages", messages)
+                        if (p == "groq") {
+                            body.put("max_completion_tokens", 512)
+                            body.put("reasoning_effort", "low")
+                            body.put("include_reasoning", false)
+                        }
                     }
                     connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
@@ -306,6 +315,7 @@ class MainActivity : ComponentActivity() {
                         val errorObj = response.optJSONObject("error")
                         val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
                             ?: response.optString("message").takeIf { it.isNotBlank() }
+                            ?: responseText.take(500).takeIf { it.isNotBlank() }
                             ?: "HTTP $status"
                         throw IllegalStateException("HTTP $status — $message")
                     }
