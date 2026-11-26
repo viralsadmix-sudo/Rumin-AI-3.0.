@@ -136,9 +136,10 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
   <label>Gemini API Key (Live Voice + দ্রুত উত্তর)</label><input id="kg" type="password" autocomplete="off" placeholder="Gemini API Key">
   <label>Grok API Key (Task Agent)</label><input id="kx" type="password" autocomplete="off" placeholder="xAI Grok API Key">
   <label>ChatGPT API Key (Task Agent)</label><input id="ko" type="password" autocomplete="off" placeholder="OpenAI API Key">
+  <label>Groq API Key (Free Task Agent)</label><input id="kq" type="password" autocomplete="off" placeholder="Groq API Key">
   <label>Meta Muse Spark API Key (Task Agent)</label><input id="km" type="password" autocomplete="off" placeholder="Meta Model API Key">
   <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
-  <p>Multi-AI Router: Grok → ChatGPT → Muse Spark (যে Key সংরক্ষিত আছে, সেটিই ব্যবহার হবে)। Gemini 3.8 Live আলাদা থাকবে।</p>
+  <p>Multi-AI Router: Grok → Groq → ChatGPT → Muse Spark (যে Key সংরক্ষিত আছে, সেটিই ব্যবহার হবে)। Gemini 3.8 Live আলাদা থাকবে।</p>
   <p>নোট: API Key এই ডিভাইসের অ্যাপ স্টোরেজে রাখা হবে। নিরাপদ সার্ভার-ভিত্তিক Key Vault এখনো সংযুক্ত নয়। API ব্যবহারে খরচ হতে পারে।</p>
   <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
@@ -352,6 +353,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
 async function askAgentAI(msgs=hist,extra='',role='planner'){
   const providers=[
     ['grok',LS.get('rumin_grok_key')],
+    ['groq',LS.get('rumin_groqcloud_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
   ].filter(x=>x[1]);
@@ -359,7 +361,7 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
   let last='';
   for(const [provider,key] of providers){
     try{
-      status('Multi-AI Router: '+({grok:'Grok',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' Agent কাজ করছে…');
+      status('Multi-AI Router: '+({grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' Agent কাজ করছে…');
       return await nativeAiRequest(provider,key,msgs,extra);
     }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));add(last+' — পরের Agent চেষ্টা করছি।','s')}
   }
@@ -568,6 +570,7 @@ function openSettings(){
   $('kx').value=LS.get('rumin_grok_key');
   $('ko').value=LS.get('rumin_openai_key');
   $('km').value=LS.get('rumin_muse_key');
+  $('kq').value=LS.get('rumin_groqcloud_key');
   $('set').classList.add('open')
 }
 function modeExtra(){return promptMode?'এখন প্রম্পট-লেখক মোড: ব্যবহারকারী যা চায় তার জন্য একটি পেশাদার, স্পষ্ট AI প্রম্পট (ইংরেজিতে) লিখে reply-তে দাও, সাথে এক লাইনে বাংলা ব্যাখ্যা। actions খালি রাখো।':''}
@@ -623,6 +626,7 @@ on('save',()=>{
   LS.set('rumin_grok_key',$('kx').value.trim());
   LS.set('rumin_openai_key',$('ko').value.trim());
   LS.set('rumin_muse_key',$('km').value.trim());
+  LS.set('rumin_groqcloud_key',$('kq').value.trim());
   LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');
   $('set').classList.remove('open');add('চারটি AI-এর Key সেটিংস সেভ হয়েছে। যেগুলোর Key আছে সেগুলোই ব্যবহার হবে।','s');status('Multi-AI Key সেটিংস সেভ হয়েছে')
 });
@@ -638,7 +642,7 @@ async function verifyGeminiKey(){
   }catch(e){status('Gemini Key যাচাই হয়নি: '+(e.message||'নেটওয়ার্ক সমস্যা'))}
 }
 on('verifyGemini',verifyGeminiKey);
-on('clearKeys',()=>{['rumin_gemini_key','rumin_grok_key','rumin_openai_key','rumin_muse_key'].forEach(k=>LS.set(k,''));['kg','kx','ko','km'].forEach(k=>$(k).value='');status('সব সংরক্ষিত AI API Key মুছে ফেলা হয়েছে')});
+on('clearKeys',()=>{['rumin_gemini_key','rumin_grok_key','rumin_openai_key','rumin_muse_key','rumin_groqcloud_key'].forEach(k=>LS.set(k,''));['kg','kx','ko','km','kq'].forEach(k=>$(k).value='');status('সব সংরক্ষিত AI API Key মুছে ফেলা হয়েছে')});
 on('clr',()=>{hist=[];LS.set('rumin_text_history','[]');LS.set('rumin_voice_history','[]');$('log').innerHTML='';$('set').classList.remove('open')});
 on('perm',()=>{$('set').classList.remove('open');if(!N||typeof N.performCommand!=='function'){status('Native permission bridge পাওয়া যায়নি।');return}try{N.performCommand('requestpermissions','','','');setTimeout(()=>{try{if(N&&typeof N.performCommand==='function')N.performCommand('accessibility','','','')}catch(e){status('Accessibility Settings খোলা যায়নি। ফোনের Settings থেকে RUMIN AI চালু করুন।')}},7000)}catch(e){status('অনুমতির অনুরোধ পাঠানো যায়নি: '+(e.message||'অজানা সমস্যা'))}});
 function net(){const o=navigator.onLine;$('netT').textContent=o?'Online':'Offline';$('dot').style.background=o?'#12b886':'#868e96'}
