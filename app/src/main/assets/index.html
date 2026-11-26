@@ -468,7 +468,7 @@ async function agent(goal,firstAction=null){
   agentRun=true;busy=true;
   const log=[];
   const savedAgentLogs=()=>{try{return JSON.parse(LS.get('rumin_agent_audit','[]'))}catch(e){return []}};
-  const recordStep=(entry)=>{recordStep(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,900)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
+  const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,900)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
   const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
   // The intent-classification response already selected a safe first step.
   // Read the screen immediately instead of making a second AI round-trip just to request it.
