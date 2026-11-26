@@ -248,9 +248,19 @@ window.onNativeActionResult=(raw,id)=>{
   if(id&&waiters[id]){waiters[id](r);return}
   const p=pending;pending='';
   if(p==='inspect_screen'&&r.ok){
-    const items=Array.from(r.items||[]).slice(0,80);
-    if(!items.length){const m='এই স্ক্রিনে পড়ার মতো লেখা পাওয়া যায়নি।';add(m,'b');speak(m);return}
-    think('এটি ফোনের বর্তমান স্ক্রিনের লেখা। শুধু এর ভিত্তিতে ব্যাখ্যা করো স্ক্রিনে কী আছে এবং পরের নিরাপদ পদক্ষেপ কী হতে পারে। actions খালি রাখো। স্ক্রিন: '+items.join(' | '),true);
+    const items=Array.from(r.items||[]).slice(0,100);
+    const elements=Array.from(r.elements||[]).slice(0,100).map(e=>({
+      text:e.text||'',description:e.description||'',viewId:e.viewId||'',
+      className:e.className||'',clickable:!!e.clickable,editable:!!e.editable,
+      scrollable:!!e.scrollable,focused:!!e.focused,bounds:[e.left,e.top,e.right,e.bottom]
+    }));
+    if(!items.length&&!elements.length){const m='এই স্ক্রিনে Accessibility থেকে পড়ার মতো লেখা বা উপাদান পাওয়া যায়নি। ছবি/ভিডিওর ভেতরের দৃশ্য এই পদ্ধতিতে সবসময় পড়া সম্ভব নয়।';add(m,'b');speak(m);return}
+    const snapshot={
+      appPackage:r.packageName||'unknown',windowClass:r.windowClass||'',
+      capturedAt:r.capturedAt||Date.now(),text:items,elements
+    };
+    const screenText=JSON.stringify(snapshot).slice(0,12000);
+    think('এটি ফোনের বর্তমান স্ক্রিনের structured snapshot। package ও window থেকে কোন অ্যাপ তা বোঝো। text, button/clickable, input/editable, scrollable এবং bounds দেখে দৃশ্যমান UI ব্যাখ্যা করো। শুধু snapshot-এ থাকা তথ্য ব্যবহার করো; ছবি/ভিডিও/অডিওর দৃশ্যমান বিষয়বস্তু পড়া হয়েছে বলে দাবি করবে না। ব্যবহারকারী ব্যাখ্যা চাইলে ব্যাখ্যা দাও; কোনো action চালাবে না, actions খালি রাখো। স্ক্রিন snapshot: '+screenText,true);
     return}
   const m=r.message||'কাজ শেষ।';add(m,r.ok?'s':'b');if(!r.ok)speak(m);
 };
