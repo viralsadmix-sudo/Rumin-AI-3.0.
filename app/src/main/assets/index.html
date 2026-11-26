@@ -139,7 +139,7 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
   <label>Groq API Key (Free Task Agent)</label><input id="kq" type="password" autocomplete="off" placeholder="Groq API Key">
   <label>Meta Muse Spark API Key (Task Agent)</label><input id="km" type="password" autocomplete="off" placeholder="Meta Model API Key">
   <div class="row"><button class="g" id="verifyGemini">Gemini Key যাচাই</button></div>
-  <p>Multi-AI Router: Grok → Groq → ChatGPT → Muse Spark (যে Key সংরক্ষিত আছে, সেটিই ব্যবহার হবে)। Gemini 3.8 Live আলাদা থাকবে।</p>
+  <p>Multi-AI Router: Gemini → Groq → Grok → ChatGPT → Muse Spark (যে Key সংরক্ষিত আছে, সেটিই ব্যবহার হবে)। Gemini Live Voice আলাদা থাকবে।</p>
   <p>নোট: API Key এই ডিভাইসের অ্যাপ স্টোরেজে রাখা হবে। নিরাপদ সার্ভার-ভিত্তিক Key Vault এখনো সংযুক্ত নয়। API ব্যবহারে খরচ হতে পারে।</p>
   <div class="row"><button class="g" id="clr">কথোপকথন মুছুন</button><button id="save">সেভ করুন</button></div>
   <p>ফোন কন্ট্রোলের জন্য: Accessibility সেবা চালু রাখুন। Android 13+ এ সাইডলোড করা অ্যাপে App info → ⋮ → “Allow restricted settings” দিতে হতে পারে।</p>
@@ -364,15 +364,15 @@ function nativeAiRequest(provider,key,msgs,extra){
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
-async function askAI(msgs=hist,extra='',role='answer'){
-  const key=LS.get('rumin_gemini_key');
-  if(!key)throw new Error('Gemini API Key সেট করা নেই। Settings খুলে Gemini Key দিন।');
-  try{return await nativeAiRequest('gemini',key,msgs,extra)}
-  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা'))}
+function isTemporaryOverload(error){
+  const message=String(error&&error.message||error||'').toLowerCase();
+  return message.includes('http 503') || message.includes('503') ||
+    message.includes('high demand') || message.includes('resource_exhausted') ||
+    message.includes('temporarily unavailable') || message.includes('service unavailable');
 }
+const wait=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 async function askAgentAI(msgs=hist,extra='',role='planner'){
-  // Reuse the user's existing Gemini key first: no separate Grok/OpenAI/Muse key is required for the core task planner.
-  // This is the Gemini API planner lane; Gemini Live remains the voice/conversation lane.
+  // Gemini API calls are separate from Gemini Live Voice. Keep Live Voice untouched.
   const providers=[
     ['gemini',LS.get('rumin_gemini_key')],
     ['groq',LS.get('rumin_groqcloud_key')],
@@ -380,15 +380,37 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
   ].filter(x=>x[1]);
-  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ Gemini API Key দিন।');
-  let last='';
+  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ অন্তত একটি AI API Key দিন।');
+  const names={gemini:'Gemini',groq:'Groq',grok:'Grok',openai:'ChatGPT',muse:'Muse Spark'};
+  const failures=[];
   for(const [provider,key] of providers){
+    status('Task Agent: '+names[provider]+' চেষ্টা করছে…');
     try{
-      status('Task Agent: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' পরিকল্পনা করছে…');
       return await nativeAiRequest(provider,key,msgs,extra);
-    }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));add(last+' — পরের Agent চেষ্টা করছি।','s')}
+    }catch(firstError){
+      let error=firstError;
+      // A 503 is a temporary provider outage. Retry this provider only once,
+      // then move on instead of looping through repeated Agent attempts.
+      if(provider==='gemini' && isTemporaryOverload(firstError)){
+        status('Gemini সার্ভার ব্যস্ত—একবার বিরতি দিয়ে পুনরায় চেষ্টা করছি…');
+        await wait(1800);
+        try{return await nativeAiRequest(provider,key,msgs,extra)}
+        catch(retryError){error=retryError}
+      }
+      const detail=String(error&&error.message||'সংযোগ ব্যর্থ').slice(0,240);
+      failures.push(names[provider]+': '+detail);
+      add(names[provider]+' সংযোগে সমস্যা: '+detail,'s');
+    }
   }
-  throw new Error('সব Task Agent ব্যর্থ হয়েছে। '+last);
+  const hasAlternates=providers.length>1;
+  throw new Error(hasAlternates
+    ? 'সব সংরক্ষিত AI Provider ব্যর্থ হয়েছে। '+failures.join(' | ')
+    : (isTemporaryOverload(failures.join(' ')) || failures[0].includes('503')
+      ? 'Gemini সার্ভার এখন ব্যস্ত (HTTP 503)। একবার পুনরায় চেষ্টা করা হয়েছে। Settings-এ Groq/Grok/OpenAI-এর API Key যোগ করলে বিকল্প AI ব্যবহার করা যাবে।'
+      : 'AI সংযোগ ব্যর্থ হয়েছে। '+failures.join(' | ')));
+}
+async function askAI(msgs=hist,extra='',role='answer'){
+  return askAgentAI(msgs,extra,role);
 }
 function parse(s){
   s=String(s).replace(/```json|```/g,'').trim();
