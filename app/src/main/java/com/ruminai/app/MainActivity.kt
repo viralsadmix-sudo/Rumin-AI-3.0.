@@ -11,7 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.tts.TextToSpeech
 import android.media.MediaPlayer
 import java.io.File
-import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -34,7 +34,7 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
     private val ttsExecutor = Executors.newSingleThreadExecutor()
-    private val ttsHttp = OkHttpClient.Builder().callTimeout(java.time.Duration.ofSeconds(35)).build()
+    private val ttsHttp = OkHttpClient.Builder().callTimeout(35, TimeUnit.SECONDS).build()
     @Volatile private var elevenPlayer: MediaPlayer? = null
     private val agentCore = AgentCore()
     private val personalSystems by lazy { RuminPersonalSystems(applicationContext) }
