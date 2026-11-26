@@ -195,7 +195,7 @@ function onHeard(t){$('mic').classList.remove('on');t=(t||'').trim();if(t)handle
 ['onNativeSpeechError','onSpeechError'].forEach(n=>{window[n]=m=>{status(m||'ভয়েস শোনা যায়নি।');idle();if(live)listenTimer=setTimeout(startListening,1500)}});
 
 /* ---------- Phone tools ---------- */
-const waiters={};const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const waiters={};const cancelledNativeIds=new Set();const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function sendNative(tool,a,b,id){
   if(!N){add('ফোন কন্ট্রোল শুধু অ্যাপের ভেতরে কাজ করে।','s');return false}
   try{
@@ -238,10 +238,12 @@ window.onLiveToolCall=(callId,functionName,argsJson)=>{
   });
 };
 window.onNativeCommandResult=(ok,msg,id)=>{
+  if(id&&cancelledNativeIds.has(id)){cancelledNativeIds.delete(id);return}
   if(id&&waiters[id]){waiters[id]({ok,message:msg});return}
   if(msg)add(msg,ok?'s':'b');if(!ok&&msg)speak(msg)
 };
 window.onNativeActionResult=(raw,id)=>{
+  if(id&&cancelledNativeIds.has(id)){cancelledNativeIds.delete(id);return}
   let r;try{r=JSON.parse(raw)}catch(e){r={ok:false,message:'ফলাফল পড়া যায়নি।'}}
   if(id&&waiters[id]){waiters[id](r);return}
   const p=pending;pending='';
@@ -432,6 +434,8 @@ function cancelAgentTask(reason='ব্যবহারকারীর নির�
   agentRun=false;
   busy=false;
   for(const id of Object.keys(waiters)){
+    cancelledNativeIds.add(id);
+    if(cancelledNativeIds.size>100)cancelledNativeIds.delete(cancelledNativeIds.values().next().value);
     const done=waiters[id];
     if(done)done({ok:false,cancelled:true,message:reason});
   }
