@@ -473,7 +473,15 @@ async function agent(goal,firstAction=null){
     status('ফোনের স্ক্রিন দেখছি…');
     const initial=await callTool('inspect_screen','','',15000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    screen=initial.ok?Array.from(initial.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(initial.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
+    screen=initial.ok?JSON.stringify({
+      appPackage:initial.packageName||'unknown',windowClass:initial.windowClass||'',
+      text:Array.from(initial.items||[]).slice(0,90),
+      elements:Array.from(initial.elements||[]).slice(0,100).map(e=>({
+        text:e.text||'',description:e.description||'',viewId:e.viewId||'',
+        className:e.className||'',clickable:!!e.clickable,editable:!!e.editable,
+        scrollable:!!e.scrollable,focused:!!e.focused,bounds:[e.left,e.top,e.right,e.bottom]
+      }))
+    }).slice(0,12000):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     log.push('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
   for(let n=1;n<=20&&isCurrent();n++){
@@ -543,13 +551,29 @@ async function agent(goal,firstAction=null){
     await sleep(OPENERS.includes(x.tool)?650:180);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
     if(x.tool==='inspect_screen'){
-      screen=Array.from(r.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(r.elements||[]).slice(0,100));
+      screen=JSON.stringify({
+      appPackage:r.packageName||'unknown',windowClass:r.windowClass||'',
+      text:Array.from(r.items||[]).slice(0,90),
+      elements:Array.from(r.elements||[]).slice(0,100).map(e=>({
+        text:e.text||'',description:e.description||'',viewId:e.viewId||'',
+        className:e.className||'',clickable:!!e.clickable,editable:!!e.editable,
+        scrollable:!!e.scrollable,focused:!!e.focused,bounds:[e.left,e.top,e.right,e.bottom]
+      }))
+    }).slice(0,12000);
       if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
       continue;
     }
     const sc=await callTool('inspect_screen','','',15000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    screen=sc.ok?Array.from(sc.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(sc.elements||[]).slice(0,100)):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
+    screen=sc.ok?JSON.stringify({
+      appPackage:sc.packageName||'unknown',windowClass:sc.windowClass||'',
+      text:Array.from(sc.items||[]).slice(0,90),
+      elements:Array.from(sc.elements||[]).slice(0,100).map(e=>({
+        text:e.text||'',description:e.description||'',viewId:e.viewId||'',
+        className:e.className||'',clickable:!!e.clickable,editable:!!e.editable,
+        scrollable:!!e.scrollable,focused:!!e.focused,bounds:[e.left,e.top,e.right,e.bottom]
+      }))
+    }).slice(0,12000):'(স্ক্রিন পড়া যায়নি: '+(sc.message||'')+')';
     if(!sc.ok)lastError=sc.message||'স্ক্রিন যাচাই করা যায়নি';
   }
   if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
