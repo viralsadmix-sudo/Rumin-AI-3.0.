@@ -9,6 +9,13 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.RecognitionListener
 import android.speech.tts.TextToSpeech
+import android.media.MediaPlayer
+import java.io.File
+import java.util.concurrent.Executors
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import java.util.Locale
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
@@ -26,6 +33,9 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
+    private val ttsExecutor = Executors.newSingleThreadExecutor()
+    private val ttsHttp = OkHttpClient.Builder().callTimeout(java.time.Duration.ofSeconds(35)).build()
+    @Volatile private var elevenPlayer: MediaPlayer? = null
     private val agentCore = AgentCore()
     private val personalSystems by lazy { RuminPersonalSystems(applicationContext) }
     private lateinit var webView: WebView
@@ -220,21 +230,70 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun speakText(text: String) {
-            runOnUiThread {
-                val tts = textToSpeech
-                if (tts == null || !ttsReady) {
-                    webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। Settings থেকে Bengali voice data ইনস্টল করুন।')", null)
-                    return@runOnUiThread
+        @JavascriptInterface fun speakText(text: String, proxyUrl: String, voiceId: String, modelId: String) {
+            val endpoint = proxyUrl.trim().trimEnd('/')
+            if (endpoint.startsWith("https://") && voiceId.isNotBlank()) {
+                ttsExecutor.execute {
+                    try {
+                        val payload = JSONObject().put("text", text).put("voice_id", voiceId)
+                            .put("model_id", modelId.ifBlank { "eleven_flash_v2_5" }).toString()
+                        val request = Request.Builder().url("$endpoint/v1/tts")
+                            .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
+                        ttsHttp.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) throw IllegalStateException("ElevenLabs Backend HTTP ${response.code}")
+                            val bytes = response.body?.bytes() ?: throw IllegalStateException("Backend audio খালি")
+                            if (bytes.isEmpty()) throw IllegalStateException("Backend audio খালি")
+                            val audioFile = File(cacheDir, "rumin-elevenlabs-${System.currentTimeMillis()}.mp3")
+                            audioFile.writeBytes(bytes)
+                            runOnUiThread {
+                                try {
+                                    elevenPlayer?.release()
+                                    val player = MediaPlayer()
+                                    elevenPlayer = player
+                                    player.setDataSource(audioFile.absolutePath)
+                                    player.setOnPreparedListener { it.start() }
+                                    player.setOnCompletionListener {
+                                        it.release()
+                                        if (elevenPlayer === it) elevenPlayer = null
+                                        audioFile.delete()
+                                        webView.evaluateJavascript("window.onNativeTtsDone && window.onNativeTtsDone()", null)
+                                    }
+                                    player.setOnErrorListener { mp, _, _ ->
+                                        mp.release()
+                                        if (elevenPlayer === mp) elevenPlayer = null
+                                        audioFile.delete()
+                                        speakWithDeviceTts(text)
+                                        true
+                                    }
+                                    player.prepareAsync()
+                                } catch (_: Exception) {
+                                    audioFile.delete()
+                                    speakWithDeviceTts(text)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
+                        runOnUiThread { speakWithDeviceTts(text) }
+                    }
                 }
-                val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "rumin_answer")
-                if (result == TextToSpeech.ERROR) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ভয়েস চালু করা যায়নি। ফোনের Text-to-Speech সেটিংস পরীক্ষা করুন।')", null)
+            } else {
+                runOnUiThread { speakWithDeviceTts(text) }
             }
+        }
+
+        private fun speakWithDeviceTts(text: String) {
+            val tts = textToSpeech
+            if (tts == null || !ttsReady) {
+                webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ফোনের বাংলা Text-to-Speech প্রস্তুত নয়। Settings থেকে Bengali voice data ইনস্টল করুন।')", null)
+                return
+            }
+            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "rumin_answer")
+            if (result == TextToSpeech.ERROR) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ভয়েস চালু করা যায়নি। ফোনের Text-to-Speech সেটিংস পরীক্ষা করুন।')", null)
         }
 
         @JavascriptInterface fun speak(text: String) { speakText(text) }
 
-        @JavascriptInterface fun stopSpeaking() { runOnUiThread { textToSpeech?.stop() } }
+        @JavascriptInterface fun stopSpeaking() { runOnUiThread { textToSpeech?.stop(); elevenPlayer?.let { it.stop(); it.release() }; elevenPlayer = null } }
 
         @JavascriptInterface fun stopSpeechRecognition() { runOnUiThread { continuousListening = false; continuousRecognizer?.cancel(); continuousRecognizer?.destroy(); continuousRecognizer = null; textToSpeech?.stop() } }
 
@@ -670,6 +729,9 @@ class MainActivity : ComponentActivity() {
         continuousRecognizer?.destroy()
         continuousRecognizer = null
         textToSpeech?.shutdown()
+        elevenPlayer?.release()
+        elevenPlayer = null
+        ttsExecutor.shutdownNow()
         aiExecutor.shutdown()
         super.onDestroy()
     }
