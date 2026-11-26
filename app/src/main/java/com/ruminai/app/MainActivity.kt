@@ -292,7 +292,7 @@ class MainActivity : ComponentActivity() {
             if (result == TextToSpeech.ERROR) webView.evaluateJavascript("window.onNativeTtsError && window.onNativeTtsError('ভয়েস চালু করা যায়নি। ফোনের Text-to-Speech সেটিংস পরীক্ষা করুন।')", null)
         }
 
-        @JavascriptInterface fun speak(text: String) { speakText(text) }
+        @JavascriptInterface fun speak(text: String) { runOnUiThread { speakWithDeviceTts(text) } }
 
         @JavascriptInterface fun stopSpeaking() { runOnUiThread { textToSpeech?.stop(); elevenPlayer?.let { it.stop(); it.release() }; elevenPlayer = null } }
 
