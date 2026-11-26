@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun speakText(text: String, proxyUrl: String, voiceId: String, modelId: String) {
+        @JavascriptInterface fun speakText(text: String, proxyUrl: String, voiceId: String, modelId: String, accessToken: String) {
             val endpoint = proxyUrl.trim().trimEnd('/')
             if (endpoint.startsWith("https://") && voiceId.isNotBlank()) {
                 ttsExecutor.execute {
@@ -238,6 +238,7 @@ class MainActivity : ComponentActivity() {
                         val payload = JSONObject().put("text", text).put("voice_id", voiceId)
                             .put("model_id", modelId.ifBlank { "eleven_flash_v2_5" }).toString()
                         val request = Request.Builder().url("$endpoint/v1/tts")
+                            .header("Authorization", "Bearer $accessToken")
                             .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
                         ttsHttp.newCall(request).execute().use { response ->
                             if (!response.isSuccessful) throw IllegalStateException("ElevenLabs Backend HTTP ${response.code}")
