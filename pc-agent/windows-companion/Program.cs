@@ -124,7 +124,7 @@ IResult ListRoot(string rootId)
     catch (IOException) { return Results.Problem("Approved folder could not be read.", statusCode: 500); }
 }
 
-app.MapGet("/pair", (string? code) => Results.Content($"""
+app.MapGet("/pair", (string? code) => Results.Content("""
 <!doctype html><html lang="bn"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rumin Phone Pairing</title><body style="font:16px system-ui;background:#0b091b;color:#fff;padding:28px">
 <h2>Rumin AI · Phone Pairing</h2><p id="s">Pairing যাচাই হচ্ছে…</p>
