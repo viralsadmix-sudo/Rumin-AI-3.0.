@@ -149,6 +149,21 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
 <script>
 const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+/* Persistent, constrained Skill Vault: skills are reusable plans over existing native tools only. */
+const SkillVault={
+  key:'rumin_agent_skills_v1',
+  list(){try{const v=JSON.parse(LS.get(this.key,'[]'));return Array.isArray(v)?v.filter(x=>x&&typeof x.name==='string'&&Array.isArray(x.steps)):[]}catch(e){return[]}},
+  save(name,description,steps){
+    const allowed=new Set(['home','back','recents','notifications','quicksettings','volumeup','volumedown','alarm','timer','showalarms','showtimers','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up']);
+    if(!name||name.length>60||!Array.isArray(steps)||steps.length<1||steps.length>12)return false;
+    const clean=[];
+    for(const s of steps){if(!s||!allowed.has(String(s.tool))||['call','sms','power'].includes(String(s.tool)))return false;clean.push({tool:String(s.tool),a:String(s.a||'').slice(0,500),b:String(s.b||'').slice(0,500)})}
+    const all=this.list().filter(x=>x.name.toLowerCase()!==name.toLowerCase());
+    all.push({id:'skill-'+Date.now(),name:name.trim(),description:String(description||'').slice(0,240),steps:clean,approved:true,updatedAt:Date.now()});
+    LS.set(this.key,JSON.stringify(all.slice(-30)));return true;
+  },
+  context(){return this.list().map(x=>({name:x.name,description:x.description,steps:x.steps})).slice(-15)}
+};
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
 const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
@@ -303,7 +318,7 @@ function act(tool){runTool(tool);mood('happy',false);status('কাজটি ক
 
 /* ---------- AI ---------- */
 function system(extra=''){
-  const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
+  const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);\n  const learnedSkills=SkillVault.context();
   return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
 মূল আচরণ:
 - বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
