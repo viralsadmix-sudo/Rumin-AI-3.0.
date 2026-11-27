@@ -124,6 +124,21 @@ IResult ListRoot(string rootId)
     catch (IOException) { return Results.Problem("Approved folder could not be read.", statusCode: 500); }
 }
 
+app.MapGet("/pair", (string? code) => Results.Content($"""
+<!doctype html><html lang="bn"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rumin Phone Pairing</title><body style="font:16px system-ui;background:#0b091b;color:#fff;padding:28px">
+<h2>Rumin AI · Phone Pairing</h2><p id="s">Pairing যাচাই হচ্ছে…</p>
+<script>
+(async()=>{const code=new URLSearchParams(location.search).get('code');const s=document.getElementById('s');
+if(!code){s.textContent='Pairing code নেই।';return}
+try{const r=await fetch('/v1/pair/join',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})});
+const d=await r.json();if(!r.ok)throw Error(d.error||'Code invalid or expired');
+localStorage.setItem('ruminCompanionUrl',location.origin);localStorage.setItem('ruminCompanionToken',d.accessToken);
+s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্ত হয়েছে। এখন Rumin Android app integration অপেক্ষমাণ।';
+}catch(e){s.textContent='Pairing ব্যর্থ: '+e.message}
+})();
+</script></body></html>
+""", "text/html; charset=utf-8"));
 app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.2.0 · same-Wi-Fi pairing · /health", "text/plain"));
 Console.WriteLine("Rumin Windows Companion 0.2.0");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
