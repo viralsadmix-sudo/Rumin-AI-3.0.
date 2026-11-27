@@ -1,0 +1,31 @@
+name: Build Rumin Windows Companion
+
+on:
+  push:
+    branches:
+      - feature/openphoneuse-agent-port
+    paths:
+      - "pc-agent/windows-companion/**"
+      - ".github/workflows/build-windows-companion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build Companion
+        run: dotnet build pc-agent/windows-companion/RuminCompanion.csproj --configuration Release
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: rumin-windows-companion-build
+          path: pc-agent/windows-companion/bin/Release/net8.0/
