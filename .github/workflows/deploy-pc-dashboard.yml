@@ -33,11 +33,17 @@ jobs:
           mkdir -p _site
           cp -R pc-agent/. _site/
 
+      - name: Verify dashboard files
+        run: |
+          test -f _site/index.html
+          echo "Dashboard entry point found: $(wc -c < _site/index.html) bytes"
+          find _site -maxdepth 2 -type f -print
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 
