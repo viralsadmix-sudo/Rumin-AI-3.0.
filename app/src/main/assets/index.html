@@ -381,10 +381,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
     }catch(e){
       const detail=e&&e.message?e.message:'সংযোগ ব্যর্থ';
       failures.push(provider+': '+detail);
-      if(/UnknownHostException|DNS|No address associated|ইন্টারনেট\/DNS/i.test(detail)){
-        // All cloud providers require network access; stop retrying identical DNS failures.
-        if(failures.length===1)break;
-      }
+      // Continue to the next configured provider; each provider may use a different endpoint.
     }
   }
   throw new Error('কোনো AI Provider-এ সংযোগ করা যায়নি। '+failures.join(' | '));
