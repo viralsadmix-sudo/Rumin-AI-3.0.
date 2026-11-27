@@ -321,7 +321,8 @@ function act(tool){runTool(tool);mood('happy',false);status('কাজটি ক
 
 /* ---------- AI ---------- */
 function system(extra=''){
-  const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);\n  const learnedSkills=SkillVault.context();
+  const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
+  const learnedSkills=SkillVault.context();
   return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
 মূল আচরণ:
 - বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
