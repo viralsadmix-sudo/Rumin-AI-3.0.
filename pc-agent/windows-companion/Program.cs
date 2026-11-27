@@ -72,7 +72,9 @@ app.MapGet("/v1/files/roots", () => Results.Ok(roots.Select(x => new
     access = "read-only-listing"
 })));
 
-app.MapGet("/v1/files/list/{rootId}", (string rootId) =>
+app.MapGet("/v1/files/list/{rootId}", (string rootId) => ListRoot(rootId));
+
+IResult ListRoot(string rootId)
 {
     var match = roots.FirstOrDefault(x =>
         string.Equals(x.Key, rootId, StringComparison.OrdinalIgnoreCase));
@@ -110,7 +112,7 @@ app.MapGet("/v1/files/list/{rootId}", (string rootId) =>
     {
         return Results.Problem("The approved folder could not be read.", statusCode: 500);
     }
-});
+}
 
 app.MapGet("/", () => Results.Text(
     "Rumin Windows Companion is running on loopback. Use /health for status.",
