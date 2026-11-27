@@ -364,10 +364,30 @@ function nativeAiRequest(provider,key,msgs,extra){
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
-  const key=LS.get('rumin_gemini_key');
-  if(!key)throw new Error('Gemini API Key সেট করা নেই। Settings খুলে Gemini Key দিন।');
-  try{return await nativeAiRequest('gemini',key,msgs,extra)}
-  catch(e){throw new Error('Gemini উত্তর তৈরি করতে পারেনি: '+(e&&e.message?e.message:'অজানা API সমস্যা'))}
+  // Use every configured provider in order; Gemini is preferred, but must not be a single point of failure.
+  const providers=[
+    ['gemini',LS.get('rumin_gemini_key')],
+    ['groq',LS.get('rumin_groqcloud_key')],
+    ['grok',LS.get('rumin_grok_key')],
+    ['openai',LS.get('rumin_openai_key')],
+    ['muse',LS.get('rumin_muse_key')]
+  ].filter(x=>x[1]);
+  if(!providers.length)throw new Error('কোনো AI API Key সেট করা নেই। Settings-এ অন্তত একটি Provider Key দিন।');
+  const failures=[];
+  for(const [provider,key] of providers){
+    try{
+      status('AI সংযোগ: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+'…');
+      return await nativeAiRequest(provider,key,msgs,extra);
+    }catch(e){
+      const detail=e&&e.message?e.message:'সংযোগ ব্যর্থ';
+      failures.push(provider+': '+detail);
+      if(/UnknownHostException|DNS|No address associated|ইন্টারনেট\/DNS/i.test(detail)){
+        // All cloud providers require network access; stop retrying identical DNS failures.
+        if(failures.length===1)break;
+      }
+    }
+  }
+  throw new Error('কোনো AI Provider-এ সংযোগ করা যায়নি। '+failures.join(' | '));
 }
 async function askAgentAI(msgs=hist,extra='',role='planner'){
   // Reuse the user's existing Gemini key first: no separate Grok/OpenAI/Muse key is required for the core task planner.
