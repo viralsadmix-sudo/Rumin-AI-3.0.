@@ -18,14 +18,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: rumin-source
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
       - name: Build Companion
-        run: dotnet build pc-agent/windows-companion/RuminCompanion.csproj --configuration Release
+        run: dotnet build rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: rumin-windows-companion-build
-          path: pc-agent/windows-companion/bin/Release/net8.0/
+          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0/
