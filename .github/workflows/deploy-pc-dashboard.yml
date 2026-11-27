@@ -13,6 +13,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: "pages"
@@ -41,6 +42,27 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+
+      # A job rerun can leave the previous attempt's artifact in the same run.
+      # deploy-pages requires exactly one artifact named github-pages.
+      - name: Remove stale Pages artifacts from previous attempts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              { owner: context.repo.owner, repo: context.repo.repo, run_id: context.runId }
+            );
+            for (const artifact of artifacts) {
+              if (artifact.name === "github-pages") {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                core.info(`Deleted stale artifact ${artifact.id}`);
+              }
+            }
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
