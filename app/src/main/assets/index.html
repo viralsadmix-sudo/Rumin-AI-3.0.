@@ -669,7 +669,7 @@ on('save',()=>{
   LS.set('rumin_openai_key',$('ko').value.trim());
   LS.set('rumin_muse_key',$('km').value.trim());
   LS.set('rumin_groqcloud_key',$('kq').value.trim());
-  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.6-flash');
+  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');
   $('set').classList.remove('open');add('চারটি AI-এর Key সেটিংস সেভ হয়েছে। যেগুলোর Key আছে সেগুলোই ব্যবহার হবে।','s');status('Multi-AI Key সেটিংস সেভ হয়েছে')
 });
 async function verifyGeminiKey(){
