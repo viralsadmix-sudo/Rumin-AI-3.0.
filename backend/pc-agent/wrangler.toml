@@ -1,0 +1,11 @@
+name = "rumin-pc-agent-relay"
+main = "worker.js"
+compatibility_date = "2026-11-27"
+
+[[durable_objects.bindings]]
+name = "PAIRING"
+class_name = "PairingRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PairingRoom"]
