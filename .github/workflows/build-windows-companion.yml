@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,10 +24,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - name: Build Companion
-        run: dotnet build rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release
-      - name: Upload build output
+      - name: Build Windows Companion executable
+        run: dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release --runtime win-x64 --self-contained false -p:PublishSingleFile=true
+      - name: Upload Windows Companion
         uses: actions/upload-artifact@v4
         with:
-          name: rumin-windows-companion-build
-          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0/
+          name: rumin-windows-companion-win-x64
+          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0/win-x64/publish/
