@@ -497,8 +497,8 @@ async function agent(goal,firstAction=null){
       const successfulGlobalAction=log.some(x=>/^(home|back|recents|notifications|quicksettings)\(.*→ সফল$/.test(x));
       const screenVerified=!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:')&&!screen.startsWith('স্ক্রিন পড়া যায়নি:');
       const verified=(o.verified===true&&screenVerified)||successfulGlobalAction;
-      if(ok)lastAgentRecipe=recipe.slice(0,12);
       const ok=verified&&failedSteps.length===0;
+      if(ok)lastAgentRecipe=recipe.slice(0,12);
       const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nAgent-এর ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nশেষ স্ক্রিনের প্রমাণ: '+(screen||'পাওয়া যায়নি')+'\\nPlanner-এর নোট: '+message;
       if(live){
         // Live mode: do not ask a second Gemini HTTP session to compose a reply.
