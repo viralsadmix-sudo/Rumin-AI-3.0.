@@ -21,7 +21,7 @@ var app = builder.Build();
 // authenticated transport and explicit network security design.
 app.Use(async (context, next) =>
 {
-    if (!context.Connection.RemoteIpAddress?.IsLoopback() ?? true)
+    if (context.Connection.RemoteIpAddress is not { } remoteIp || !System.Net.IPAddress.IsLoopback(remoteIp))
     {
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return;
