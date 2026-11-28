@@ -608,7 +608,7 @@ class MainActivity : ComponentActivity() {
                             body.put("include_reasoning", false)
                         }
                     }
-                    connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
+                    val activeConnection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 20000
                         readTimeout = 60000
@@ -617,14 +617,15 @@ class MainActivity : ComponentActivity() {
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
                         else setRequestProperty("Authorization", "Bearer $key")
                     }
-                    activeAiConnections[requestId] = connection
+                    connection = activeConnection
+                    activeAiConnections[requestId] = activeConnection
                     if (cancelledAiRequests.contains(requestId)) {
-                        connection.disconnect()
+                        activeConnection.disconnect()
                         throw InterruptedException("AI request cancelled")
                     }
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    activeConnection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    val status = activeConnection.responseCode
+                    val stream = if (status in 200..299) activeConnection.inputStream else activeConnection.errorStream
                     val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                     val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
                     if (status !in 200..299) {
