@@ -405,10 +405,10 @@ function nativeAiRequest(provider,key,msgs,extra,timeoutMs=60000){
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
-  // Use every configured provider in order; Gemini is preferred, but must not be a single point of failure.
+  // Fast intent/chat lane: prefer low-latency Groq when configured; retain provider fallback.
   const providers=[
-    ['gemini',LS.get('rumin_gemini_key')],
     ['groq',LS.get('rumin_groqcloud_key')],
+    ['gemini',LS.get('rumin_gemini_key')],
     ['grok',LS.get('rumin_grok_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
@@ -418,7 +418,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
   for(const [provider,key] of providers){
     try{
       status('AI সংযোগ: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+'…');
-      return await nativeAiRequest(provider,key,msgs,extra,22000);
+      return await nativeAiRequest(provider,key,msgs.slice(-7),extra,12000);
     }catch(e){
       const detail=e&&e.message?e.message:'সংযোগ ব্যর্থ';
       failures.push(provider+': '+detail);
@@ -442,8 +442,8 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
   for(const [provider,key] of providers){
     try{
       status('Task Agent: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' পরিকল্পনা করছে…');
-      return await nativeAiRequest(provider,key,msgs,extra);
-    }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));add(last+' — পরের Agent চেষ্টা করছি।','s')}
+      return await nativeAiRequest(provider,key,msgs,extra,12000);
+    }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));}
   }
   throw new Error('সব Task Agent ব্যর্থ হয়েছে। '+last);
 }
@@ -477,9 +477,18 @@ async function think(text,hidden){
   if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
-    const intentRules = `তুমি Rumin AI-এর intent router। নিচের কথোপকথন ও সর্বশেষ ব্যবহারকারীর বার্তা দেখে সিদ্ধান্ত নাও এটি সাধারণ আলাপ/প্রশ্ন, নাকি ফোনে বাস্তব কাজের নির্দেশ। ফোনে কোনো কাজ করতে বললে অবশ্যই শুধু এই JSON দেবে: {"agent":true,"goal":"ব্যবহারকারীর সম্পূর্ণ লক্ষ্যটি বাংলায়","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, আমি কাজটি শুরু করছি।","emotion":"thinking"}। ফোনের কাজের জন্য agent:true বাধ্যতামূলক; শুধু reply বা actions দেবে না। ফোনের কাজের উদাহরণ: Home screen-এ যাওয়া, অ্যাপ খোলা, স্ক্রিনে কিছু খোঁজা/চাপা/লেখা, স্ক্রল, সেটিংস বা ফোনের কোনো কাজ। শুধু প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, অনুবাদ, লেখা, মতামত বা আলাপ হলে কোনো action করবে না; শুধু এই JSON দেবে: {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"}। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে, ফোনে কাজ শুরু করবে না। কোনো অতিরিক্ত লেখা বা Markdown নয়—শুধু বৈধ JSON।`;
+    const intentRules = `তুমি Rumin AI-এর intent router। সর্বশেষ বার্তা ও কথোপকথনের প্রসঙ্গ বুঝে ঠিক করো এটি সাধারণ প্রশ্ন/আলাপ, এক ধাপের নিরাপদ ফোনের কাজ, নাকি বহু-ধাপের কাজ। এক ধাপের স্পষ্ট ও নিরাপদ কাজ হলে quick_action দাও: {"quick_action":{"tool":"নিরাপদ উপলভ্য tool","a":"","b":""},"reply":"ঠিক আছে বস, করছি।","emotion":"thinking"}। quick_action শুধু অ্যাপ খোলা, হোম/ব্যাক, ভলিউম বা স্ক্রিন স্ক্রল/দেখার মতো কম-ঝুঁকির একক কাজের জন্য; click_text/type_text, কল, SMS, send/post/share/delete/buy/pay/confirm, security/privacy বা irreversible কাজ quick_action-এ দেবে না। বহু-ধাপের/অনিশ্চিত ফোনের কাজ হলে {"agent":true,"goal":"সম্পূর্ণ লক্ষ্য","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, কাজটি শুরু করছি।","emotion":"thinking"} দেবে। শুধু প্রশ্ন/আলাপ/লেখা/অনুবাদ হলে {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"} দেবে। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে। শুধু বৈধ JSON দেবে।`;
+    const FAST_SAFE_TOOLS=new Set(['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer','home','back','recents','notifications','quicksettings','volumeup','volumedown','volumemute','volumeunmute','inspect_screen','scroll_down','scroll_up']);
     const o=parse(await askAI(hist,intentRules+'\n'+modeExtra()));
     busy=false;
+    if(o.quick_action&&o.quick_action.tool&&FAST_SAFE_TOOLS.has(o.quick_action.tool)&&TOOLS.includes(o.quick_action.tool)){
+      const q=o.quick_action;
+      status('দ্রুত কাজ করছি…');mood('thinking',true);
+      const result=await callTool(q.tool,String(q.a||''),String(q.b||''),9000);
+      if(result.ok)reply(result.message||o.reply||'বস, কাজটি সম্পন্ন হয়েছে।','happy');
+      else reply('বস, দ্রুত কাজটি করা যায়নি: '+(result.message||'অজানা সমস্যা'),'sad');
+      return;
+    }
     if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text,o.first_action);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
     if(acts.length){
@@ -535,7 +544,7 @@ async function agent(goal,firstAction=null){
   for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
-    for(let attempt=0;attempt<2&&!o;attempt++){
+    for(let attempt=0;attempt<1&&!o;attempt++){
       try{
         const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
         o=parse(await askAgentAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nপ্রাসঙ্গিক সংরক্ষিত Skill: '+JSON.stringify(SkillVault.match(goal))+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+'\\nবর্তমান Permission/Service: '+JSON.stringify(agentCapabilities())+retryNote}],AGENT_RULES,'planner'));
