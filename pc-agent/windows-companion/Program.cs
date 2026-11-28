@@ -84,7 +84,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new {
-    service = "Rumin Windows Companion", status = "ready", version = "0.4.1",
+    service = "Rumin Windows Companion", status = "ready", version = "0.5.0",
     transport = "local-dashboard-and-private-lan-pairing", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing", "permission-management", "screen-capture", "desktop-input" }
 }));
 
@@ -133,12 +133,12 @@ app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
 
 app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     service = "Rumin Windows Companion",
-    version = "0.4.1",
+    version = "0.5.0",
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
     available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions" },
-    notYetAvailable = new[] { "screen-ocr", "ui-automation", "printer-control", "file-write", "file-move", "file-delete", "microphone-stream", "camera" }
+    notYetAvailable = new[] { "screen-ocr", "ui-automation", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
 }));
 
 app.MapGet("/v1/permissions", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
@@ -326,8 +326,130 @@ app.MapGet("/v1/system/info", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connec
     operatingSystem = Environment.OSVersion.VersionString,
     architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
     userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-    companionVersion = "0.4.1"
+    companionVersion = "0.5.0"
 }));
+
+
+var memoryPath = Path.Combine(appData, "agent-memory.json");
+var memoryLock = new object();
+var memoryItems = LoadMemory(memoryPath);
+
+app.MapGet("/v1/memory", (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("agent-memory")) return Results.Json(new { error = "permission_required", capability = "agent-memory" }, statusCode: 403);
+    lock (memoryLock) return Results.Ok(new { items = memoryItems, count = memoryItems.Count });
+});
+app.MapPost("/v1/memory", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("agent-memory")) return Results.Json(new { error = "permission_required", capability = "agent-memory" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<MemoryWriteRequest>();
+    if (body is null || body.Consent != true) return Results.BadRequest(new { error = "explicit_consent_required" });
+    if (string.IsNullOrWhiteSpace(body.Key) || body.Key.Length > 80 || !System.Text.RegularExpressions.Regex.IsMatch(body.Key, @"^[\p{L}\p{N}_. -]+$"))
+        return Results.BadRequest(new { error = "invalid_memory_key" });
+    if (body.Value is null || body.Value.Length > 4000) return Results.BadRequest(new { error = "memory_value_too_long" });
+    lock (memoryLock)
+    {
+        memoryItems[body.Key.Trim()] = body.Value;
+        SaveMemory(memoryPath, memoryItems);
+    }
+    return Results.Ok(new { saved = true, key = body.Key.Trim(), count = memoryItems.Count });
+});
+app.MapDelete("/v1/memory/{key}", (HttpContext ctx, string key) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("agent-memory")) return Results.Json(new { error = "permission_required", capability = "agent-memory" }, statusCode: 403);
+    lock (memoryLock)
+    {
+        var removed = memoryItems.Remove(key);
+        if (removed) SaveMemory(memoryPath, memoryItems);
+        return Results.Ok(new { removed, count = memoryItems.Count });
+    }
+});
+
+app.MapPost("/v1/files/write", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("file-write")) return Results.Json(new { error = "permission_required", capability = "file-write" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<FileWriteRequest>();
+    if (body is null || body.Confirm != true) return Results.BadRequest(new { error = "explicit_confirmation_required" });
+    if (body.Content is null || Encoding.UTF8.GetByteCount(body.Content) > 1_000_000) return Results.BadRequest(new { error = "content_limit_1mb" });
+    var path = ResolveApprovedPath(body.RootId, body.RelativePath, roots);
+    if (path is null) return Results.BadRequest(new { error = "path_outside_approved_roots_or_reparse_point" });
+    if (File.Exists(path) && body.Overwrite != true) return Results.Conflict(new { error = "overwrite_confirmation_required" });
+    try {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, body.Content, new UTF8Encoding(false));
+        return Results.Ok(new { written = true, name = Path.GetFileName(path), bytes = Encoding.UTF8.GetByteCount(body.Content) });
+    } catch (UnauthorizedAccessException) { return Results.Problem("Approved folder write access denied.", statusCode: 403); }
+      catch (IOException) { return Results.Problem("File write failed.", statusCode: 500); }
+});
+app.MapPost("/v1/files/move", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("file-write")) return Results.Json(new { error = "permission_required", capability = "file-write" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<FileMoveRequest>();
+    if (body is null || body.Confirm != true) return Results.BadRequest(new { error = "explicit_confirmation_required" });
+    var source = ResolveApprovedPath(body.RootId, body.SourceRelativePath, roots);
+    var destination = ResolveApprovedPath(body.RootId, body.DestinationRelativePath, roots);
+    if (source is null || destination is null || !File.Exists(source)) return Results.BadRequest(new { error = "invalid_file_path" });
+    if (File.Exists(destination)) return Results.Conflict(new { error = "destination_exists" });
+    try { Directory.CreateDirectory(Path.GetDirectoryName(destination)!); File.Move(source, destination); return Results.Ok(new { moved = true, name = Path.GetFileName(destination) }); }
+    catch (UnauthorizedAccessException) { return Results.Problem("Approved folder move access denied.", statusCode: 403); }
+    catch (IOException) { return Results.Problem("File move failed.", statusCode: 500); }
+});
+app.MapPost("/v1/files/delete", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("file-write")) return Results.Json(new { error = "permission_required", capability = "file-write" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<FileDeleteRequest>();
+    if (body is null || body.Confirm != true) return Results.BadRequest(new { error = "explicit_confirmation_required" });
+    var path = ResolveApprovedPath(body.RootId, body.RelativePath, roots);
+    if (path is null || !File.Exists(path)) return Results.NotFound(new { error = "file_not_found" });
+    try {
+        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+        return Results.Ok(new { deleted = true, recycleBin = true, name = Path.GetFileName(path) });
+    } catch (UnauthorizedAccessException) { return Results.Problem("Approved folder delete access denied.", statusCode: 403); }
+      catch (IOException) { return Results.Problem("File delete failed.", statusCode: 500); }
+});
+
+app.MapGet("/v1/printers", (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("printing")) return Results.Json(new { error = "permission_required", capability = "printing" }, statusCode: 403);
+    try {
+        var printers = System.Drawing.Printing.PrinterSettings.InstalledPrinters.Cast<string>().Select(name => new {
+            name, isDefault = string.Equals(name, new System.Drawing.Printing.PrinterSettings().PrinterName, StringComparison.OrdinalIgnoreCase)
+        }).ToArray();
+        return Results.Ok(new { printers });
+    } catch (Exception) { return Results.Problem("Windows printer enumeration failed.", statusCode: 500); }
+});
+app.MapPost("/v1/print/text", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!permissions.GetValueOrDefault("printing")) return Results.Json(new { error = "permission_required", capability = "printing" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<PrintTextRequest>();
+    if (body is null || body.Confirm != true) return Results.BadRequest(new { error = "explicit_print_confirmation_required" });
+    if (string.IsNullOrWhiteSpace(body.PrinterName) || body.Text is null || body.Text.Length is < 1 or > 20000)
+        return Results.BadRequest(new { error = "printer_and_text_required_max_20000_chars" });
+    try {
+        var settings = new System.Drawing.Printing.PrinterSettings { PrinterName = body.PrinterName };
+        if (!settings.IsValid) return Results.NotFound(new { error = "printer_not_found" });
+        using var document = new System.Drawing.Printing.PrintDocument();
+        document.PrinterSettings = settings;
+        using var reader = new StringReader(body.Text);
+        document.PrintPage += (_, e) => {
+            using var font = new Font("Arial", 10);
+            var layout = new RectangleF(45, 45, e.MarginBounds.Width, e.MarginBounds.Height);
+            var remaining = reader.ReadToEnd();
+            e.Graphics!.DrawString(remaining, font, Brushes.Black, layout);
+            e.HasMorePages = false;
+        };
+        document.Print();
+        return Results.Ok(new { submitted = true, printer = body.PrinterName });
+    } catch (Exception) { return Results.Problem("Windows could not submit the print job.", statusCode: 500); }
+});
 
 app.MapGet("/v1/files/roots", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : Results.Ok(roots.Select(x => new {
     id = x.Key, displayName = x.Value, access = "read-only-listing"
@@ -369,11 +491,11 @@ s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্
 </script></body></html>
 """, "text/html; charset=utf-8"));
 app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.4.1 · same-Wi-Fi pairing · /health", "text/plain"));
-Console.WriteLine("Rumin Windows Companion 0.4.1");
+Console.WriteLine("Rumin Windows Companion 0.5.0");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
 Console.WriteLine("Local bearer token: " + tokenPath);
 Console.WriteLine("Approved roots: " + rootsPath);
-Console.WriteLine("Pairing codes expire in 5 minutes and are one-use. File access is read-only.");
+Console.WriteLine("Pairing codes expire in 5 minutes and are one-use. File access is permission-gated; delete sends files to Recycle Bin.");
 await app.RunAsync();
 
 static void AddCors(HttpContext c)
@@ -437,12 +559,45 @@ static Dictionary<string, string> LoadOrCreateRoots(string path)
     return defaults;
 }
 
+
+static Dictionary<string, string> LoadMemory(string path)
+{
+    try { return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? new(); }
+    catch (Exception ex) when (ex is IOException or JsonException) { return new(); }
+}
+static void SaveMemory(string path, Dictionary<string, string> items)
+{
+    var temp = path + ".tmp";
+    File.WriteAllText(temp, JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true }));
+    File.Move(temp, path, true);
+}
+static string? ResolveApprovedPath(string? rootId, string? relativePath, Dictionary<string, string> roots)
+{
+    if (string.IsNullOrWhiteSpace(rootId) || string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath)) return null;
+    var root = roots.FirstOrDefault(x => string.Equals(x.Key, rootId, StringComparison.OrdinalIgnoreCase));
+    if (string.IsNullOrWhiteSpace(root.Key)) return null;
+    var basePath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(root.Value));
+    var fullPath = Path.GetFullPath(Path.Combine(basePath, relativePath));
+    var prefix = basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+    if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
+    var current = basePath;
+    var relative = Path.GetRelativePath(basePath, fullPath);
+    foreach (var part in relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+    {
+        current = Path.Combine(current, part);
+        if (File.Exists(current) || Directory.Exists(current))
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return null;
+    }
+    return fullPath;
+}
+
 static Dictionary<string, bool> LoadOrCreatePermissions(string path)
 {
     var defaults = new Dictionary<string, bool> {
         ["app-discovery"] = false, ["app-launch"] = false,
         ["file-read"] = false, ["screen-control"] = false,
-        ["printing"] = false, ["file-write"] = false, ["screen-capture"] = false
+        ["printing"] = false, ["file-write"] = false, ["screen-capture"] = false,
+        ["agent-memory"] = false
     };
     if (File.Exists(path)) try {
         var saved = JsonSerializer.Deserialize<Dictionary<string, bool>>(File.ReadAllText(path));
@@ -532,5 +687,12 @@ static class NativeInput
         return true;
     }
 }
+
+
+record MemoryWriteRequest(string? Key, string? Value, bool Consent = false);
+record FileWriteRequest(string? RootId, string? RelativePath, string? Content, bool Confirm = false, bool Overwrite = false);
+record FileMoveRequest(string? RootId, string? SourceRelativePath, string? DestinationRelativePath, bool Confirm = false);
+record FileDeleteRequest(string? RootId, string? RelativePath, bool Confirm = false);
+record PrintTextRequest(string? PrinterName, string? Text, bool Confirm = false);
 
 record PairRequest(string? Code);
