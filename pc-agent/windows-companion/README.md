@@ -1,4 +1,4 @@
-# Rumin Windows Companion — 0.3.0 (Windows 10)
+# Rumin Windows Companion — 0.4.1 (Windows 10/11)
 
 The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 PC Agent. It is a .NET 8 ASP.NET Core process; it is not yet a signed installer or a Windows service.
 
@@ -42,7 +42,7 @@ dotnet build .\RuminCompanion.csproj -c Release
 dotnet run --project .\RuminCompanion.csproj
 ```
 
-The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`.
+The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`; the JSON should report version `0.4.1` after updating.
 
 ## Local data
 - Token: `%LOCALAPPDATA%\RuminAI\Companion\companion.token`
