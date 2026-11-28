@@ -189,11 +189,11 @@ app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
 
 app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     service = "Rumin Windows Companion",
-    version = "0.5.0",
+    version = "0.6.0",
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
-    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print", "windows-ui-automation-tree", "confirmed-ui-automation-actions", "gemini-planner-preview", "windows-speaker-tts" },
+    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print", "windows-ui-automation-tree", "confirmed-ui-automation-actions", "local-audit-log", "gemini-planner-preview", "windows-speaker-tts" },
     notYetAvailable = new[] { "screen-ocr", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
 }));
 
