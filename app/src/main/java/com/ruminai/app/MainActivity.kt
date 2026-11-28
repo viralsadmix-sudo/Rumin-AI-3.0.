@@ -25,6 +25,7 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
     private var pendingLiveKey: String? = null
+    @Volatile private var pendingUpdateInstallFile: File? = null
 
     private val phonePermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.filterValues { it }.keys
@@ -302,6 +304,93 @@ class MainActivity : ComponentActivity() {
                 }
                 val safe = JSONObject.quote(message)
                 runOnUiThread { webView.evaluateJavascript("window.onPcPairResult && window.onPcPairResult($ok, $safe)", null) }
+            }
+        }
+
+        @JavascriptInterface fun checkForAppUpdate() {
+            pcNetworkExecutor.execute {
+                var ok = false
+                var available = false
+                var version = ""
+                var notes = ""
+                var message = "আপডেট পরীক্ষা করা যায়নি"
+                try {
+                    val connection = (URL("https://api.github.com/repos/viralsadmix-sudo/Rumin-AI-3.0./releases/latest").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10000; readTimeout = 15000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val release = try {
+                        if (connection.responseCode !in 200..299) throw IllegalStateException("GitHub Release API HTTP ${connection.responseCode}")
+                        JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    } finally { connection.disconnect() }
+                    version = release.optString("tag_name")
+                    notes = release.optString("body").take(700)
+                    val asset = release.optJSONArray("assets")?.let { assets ->
+                        (0 until assets.length()).map { assets.getJSONObject(it) }
+                            .firstOrNull { it.optString("name").endsWith(".apk", true) }
+                    } ?: throw IllegalStateException("সর্বশেষ Release-এ APK পাওয়া যায়নি")
+                    val current = BuildConfig.VERSION_NAME
+                    val remoteDigits = version.removePrefix("v").substringAfterLast(".").toIntOrNull() ?: 0
+                    val currentDigits = current.substringAfterLast(".").toIntOrNull() ?: 0
+                    available = version != current && remoteDigits > currentDigits
+                    ok = true
+                    message = if (available) "নতুন সংস্করণ পাওয়া গেছে: $version" else "আপনার Rumin AI সর্বশেষ সংস্করণে আছে ($current)"
+                } catch (e: Exception) { message = e.message ?: "আপডেট পরীক্ষা ব্যর্থ" }
+                val safe = JSONObject.quote(message)
+                val safeVersion = JSONObject.quote(version)
+                val safeNotes = JSONObject.quote(notes)
+                runOnUiThread { webView.evaluateJavascript("window.onRuminUpdateCheck && window.onRuminUpdateCheck($ok, $available, $safeVersion, $safeNotes, $safe)", null) }
+            }
+        }
+
+        @JavascriptInterface fun downloadAndInstallUpdate() {
+            pcNetworkExecutor.execute {
+                var ok = false
+                var message = "APK ডাউনলোড করা যায়নি"
+                try {
+                    val api = (URL("https://api.github.com/repos/viralsadmix-sudo/Rumin-AI-3.0./releases/latest").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10000; readTimeout = 15000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val release = try {
+                        if (api.responseCode !in 200..299) throw IllegalStateException("GitHub API HTTP ${api.responseCode}")
+                        JSONObject(api.inputStream.bufferedReader().use { it.readText() })
+                    } finally { api.disconnect() }
+                    val asset = release.optJSONArray("assets")?.let { assets ->
+                        (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.optString("name").endsWith(".apk", true) }
+                    } ?: throw IllegalStateException("Release APK পাওয়া যায়নি")
+                    val downloadUrl = asset.optString("browser_download_url")
+                    if (!downloadUrl.startsWith("https://github.com/")) throw IllegalStateException("নিরাপদ GitHub APK URL পাওয়া যায়নি")
+                    val connection = (URL(downloadUrl).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 15000; readTimeout = 60000; instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val apk = File(cacheDir, "rumin-update.apk")
+                    try {
+                        if (connection.responseCode !in 200..299) throw IllegalStateException("APK ডাউনলোড HTTP ${connection.responseCode}")
+                        if (connection.contentLengthLong > 120L * 1024L * 1024L) throw IllegalStateException("APK ফাইল অস্বাভাবিক বড়")
+                        connection.inputStream.use { input -> apk.outputStream().use { output ->
+                            val buffer = ByteArray(8192); var total = 0L
+                            while (true) { val count = input.read(buffer); if (count < 0) break; total += count
+                                if (total > 120L * 1024L * 1024L) throw IllegalStateException("APK ফাইল সীমার চেয়ে বড়")
+                                output.write(buffer, 0, count)
+                            }
+                        } }
+                    } finally { connection.disconnect() }
+                    if (!apk.exists() || apk.length() < 500000L) throw IllegalStateException("ডাউনলোড করা APK অসম্পূর্ণ")
+                    val archive = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+                        ?: throw IllegalStateException("ডাউনলোড করা ফাইলটি বৈধ APK নয়")
+                    if (archive.packageName != packageName) throw IllegalStateException("APK-টি Rumin AI-এর নয়")
+                    if (archive.versionCode <= BuildConfig.VERSION_CODE) throw IllegalStateException("ইনস্টল করা সংস্করণ নতুন বা সমান")
+                    pendingUpdateInstallFile = apk
+                    ok = true
+                    message = "APK ডাউনলোড ও পরীক্ষা সম্পন্ন। এখন Android Installer খুলছি।"
+                    runOnUiThread { installDownloadedUpdate() }
+                } catch (e: Exception) { message = e.message ?: "APK ডাউনলোড ব্যর্থ" }
+                val safe = JSONObject.quote(message)
+                runOnUiThread { webView.evaluateJavascript("window.onRuminUpdateDownload && window.onRuminUpdateDownload($ok, $safe)", null) }
             }
         }
 
@@ -862,9 +951,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun installDownloadedUpdate() {
+        val apk = pendingUpdateInstallFile ?: return
+        if (!apk.exists()) { pendingUpdateInstallFile = null; return }
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        try {
+            val contentUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            if (::webView.isInitialized) webView.evaluateJavascript("window.onRuminUpdateDownload && window.onRuminUpdateDownload(false, ${JSONObject.quote(e.message ?: "Installer খুলতে সমস্যা")})", null)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         RuminLiveVoiceService.listener = liveUiListener
+        if (pendingUpdateInstallFile != null && (android.os.Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) installDownloadedUpdate()
         RuminLiveVoiceService.current?.let { reportLiveVoice("Live Voice ব্যাকগ্রাউন্ডে চালু আছে।", "listening") }
     }
 
