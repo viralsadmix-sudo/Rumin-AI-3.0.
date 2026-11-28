@@ -58,6 +58,13 @@ app.Use(async (context, next) =>
         return;
     }
 
+    // Local dashboard requests are accepted only from loopback. Remote devices still need a paired bearer token.
+    if (IPAddress.IsLoopback(remote))
+    {
+        await next();
+        return;
+    }
+
     var supplied = context.Request.Headers.Authorization.ToString();
     var valid = supplied.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
         (FixedEquals(supplied[7..], token) ||
