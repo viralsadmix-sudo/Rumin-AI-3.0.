@@ -325,6 +325,85 @@ app.MapPost("/v1/agent/execute", async (HttpContext ctx) => {
 
 // Windows UI Automation: read the visible control tree and invoke only a selected,
  // user-confirmed control. Password values are never returned or written.
+
+// Gemini planner: generates a constrained preview only. It never executes actions.
+app.MapPost("/v1/agent/plan", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<GeminiPlanRequest>();
+    if (body is null || string.IsNullOrWhiteSpace(body.ApiKey) || body.ApiKey.Length > 256 ||
+        string.IsNullOrWhiteSpace(body.Task) || body.Task.Length > 2000)
+        return Results.BadRequest(new { error = "api_key_and_task_required" });
+    var model = string.IsNullOrWhiteSpace(body.Model) ? "gemini-2.5-flash" : body.Model.Trim();
+    if (!System.Text.RegularExpressions.Regex.IsMatch(model, @"^gemini-[a-zA-Z0-9.-]{1,80}$"))
+        return Results.BadRequest(new { error = "invalid_gemini_model" });
+    const string instruction = "You are Rumin PC Agent Planner. Return ONLY JSON: {\"summary\":string,\"actions\":[...]}. Allowed actions: open_app {tool:'open_app',appId:string}; click {tool:'click',x:int,y:int}; scroll {tool:'scroll',delta:int}; type_text {tool:'type_text',text:string}; press_key {tool:'press_key',key:string}. Maximum 8 actions. Never propose shell, PowerShell, arbitrary URLs, passwords, payment, account deletion, security changes, or destructive file actions. If the request is unsafe or lacks information, return an empty actions array and explain in summary. This is a preview; do not claim anything was executed.";
+    var requestJson = JsonSerializer.Serialize(new {
+        contents = new[] { new { parts = new[] { new { text = instruction + "\nUser task: " + body.Task } } } },
+        generationConfig = new { responseMimeType = "application/json", temperature = 0.1 }
+    });
+    try
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+        using var response = await http.PostAsync(
+            "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + Uri.EscapeDataString(body.ApiKey),
+            new StringContent(requestJson, Encoding.UTF8, "application/json"));
+        var raw = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode) return Results.Json(new { error = "gemini_request_failed", status = (int)response.StatusCode }, statusCode: 502);
+        using var doc = JsonDocument.Parse(raw);
+        var text = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
+        if (string.IsNullOrWhiteSpace(text)) return Results.Problem("Gemini returned an empty plan.", statusCode: 502);
+        using var planDoc = JsonDocument.Parse(text);
+        var root = planDoc.RootElement;
+        var summary = root.TryGetProperty("summary", out var summaryNode) ? summaryNode.GetString() ?? "" : "";
+        if (!root.TryGetProperty("actions", out var actionNodes) || actionNodes.ValueKind != JsonValueKind.Array || actionNodes.GetArrayLength() > 8)
+            return Results.BadRequest(new { error = "invalid_plan_schema" });
+        var actions = new List<object>();
+        foreach (var item in actionNodes.EnumerateArray())
+        {
+            var tool = item.TryGetProperty("tool", out var toolNode) ? toolNode.GetString() : null;
+            switch (tool)
+            {
+                case "open_app":
+                    var appId = item.TryGetProperty("appId", out var appNode) ? appNode.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(appId) || !DiscoverStartMenuApps().Any(x => FixedEquals(x.Id, appId)))
+                        return Results.BadRequest(new { error = "planner_proposed_unknown_app" });
+                    actions.Add(new { tool, appId });
+                    break;
+                case "click":
+                    if (!item.TryGetProperty("x", out var xNode) || !xNode.TryGetInt32(out var x) ||
+                        !item.TryGetProperty("y", out var yNode) || !yNode.TryGetInt32(out var y) ||
+                        x < 0 || y < 0 || x >= NativeInput.GetSystemMetrics(0) || y >= NativeInput.GetSystemMetrics(1))
+                        return Results.BadRequest(new { error = "planner_proposed_invalid_coordinates" });
+                    actions.Add(new { tool, x, y });
+                    break;
+                case "scroll":
+                    if (!item.TryGetProperty("delta", out var deltaNode) || !deltaNode.TryGetInt32(out var delta) || delta == 0 || Math.Abs((long)delta) > 1200)
+                        return Results.BadRequest(new { error = "planner_proposed_invalid_scroll" });
+                    actions.Add(new { tool, delta });
+                    break;
+                case "type_text":
+                    var typed = item.TryGetProperty("text", out var textNode) ? textNode.GetString() : null;
+                    if (string.IsNullOrEmpty(typed) || typed.Length > 1000)
+                        return Results.BadRequest(new { error = "planner_proposed_invalid_text" });
+                    actions.Add(new { tool, text = typed });
+                    break;
+                case "press_key":
+                    var key = item.TryGetProperty("key", out var keyNode) ? keyNode.GetString() : null;
+                    if (!NativeInput.PressAllowedKey(key ?? ""))
+                        return Results.BadRequest(new { error = "planner_proposed_disallowed_key" });
+                    actions.Add(new { tool, key });
+                    break;
+                default: return Results.BadRequest(new { error = "planner_proposed_disallowed_tool" });
+            }
+        }
+        return Results.Ok(new { previewOnly = true, summary, actions });
+    }
+    catch (JsonException) { return Results.BadRequest(new { error = "gemini_returned_invalid_json" }); }
+    catch (TaskCanceledException) { return Results.Json(new { error = "gemini_timeout" }, statusCode: 504); }
+    catch (Exception) { return Results.Problem("Gemini planner failed. Check network, model availability and API key.", statusCode: 502); }
+});
+
 app.MapGet("/v1/desktop/uia/tree", (HttpContext ctx, int? maxNodes, int? maxDepth) =>
 {
     if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
@@ -794,5 +873,6 @@ record FileMoveRequest(string? RootId, string? SourceRelativePath, string? Desti
 record FileDeleteRequest(string? RootId, string? RelativePath, bool Confirm = false);
 record PrintTextRequest(string? PrinterName, string? Text, bool Confirm = false);
 record UiAutomationActionRequest(int[]? RuntimeId, string? Action, string? Value = null, bool Confirm = false);
+record GeminiPlanRequest(string? ApiKey, string? Task, string? Model = null);
 
 record PairRequest(string? Code);
