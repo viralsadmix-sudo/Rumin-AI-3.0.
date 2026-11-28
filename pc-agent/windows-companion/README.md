@@ -1,4 +1,4 @@
-# Rumin Windows Companion — 0.4.1 (Windows 10/11)
+# Rumin Windows Companion — 0.5.0 (Windows 10/11)
 
 The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 PC Agent. It is a .NET 8 ASP.NET Core process; it is not yet a signed installer or a Windows service.
 
@@ -7,7 +7,10 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 - Per-client rate limiting for one-time pairing-code guesses (8 attempts per five-minute window).
 - Separate, opt-in permissions stored in `%LOCALAPPDATA%\RuminAI\Companion\permissions.json`.
 - Start Menu shortcut discovery and launch by an ID returned by the local app catalog (no arbitrary command-line endpoint).
-- Read-only listing of Documents and Pictures roots, with the allowed-root map stored in `allowed-roots.json`.
+- Listing of approved Documents and Pictures roots, with the allowed-root map stored in `allowed-roots.json`.
+- Permission-gated text-file create/overwrite and file move inside approved roots; file delete sends regular files to the Windows Recycle Bin. Paths are canonicalized and reparse-point traversal is rejected.
+- Local Agent Memory stored in `%LOCALAPPDATA%\\RuminAI\\Companion\\agent-memory.json`; writes require explicit user consent and the memory permission.
+- Windows printer enumeration and explicitly confirmed plain-text print jobs.
 - Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
 - Permission-gated primary-display screenshot endpoint (JPEG, no-cache) while the local desktop session is active.
 - Batched local agent execution for up to eight supported actions in one request.
@@ -20,18 +23,19 @@ The dashboard's **PC Permissions** page lets the Windows user separately enable:
 - Read approved folders
 - Mouse and keyboard control
 - Screen capture (separate opt-in; local only)
-- Printing (reserved; not implemented)
-- File write/edit/move (reserved; not implemented)
+- Printing (printer discovery and confirmed plain-text jobs)
+- File write/move/delete (approved roots only; delete sends files to Recycle Bin)
+- Local Agent Memory (non-encrypted JSON; do not store secrets)
 
-All permissions except read-only folder listing default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. Screen capture additionally requires the separate screen-capture permission. The session can be stopped from the dashboard at any time.
+All permissions default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. Screen capture additionally requires the separate screen-capture permission. The session can be stopped from the dashboard at any time.
 
 Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; future UI Automation, OCR, printing, microphone, and camera features need their own implementation and consent. UAC secure desktop and protected system surfaces cannot be bypassed.
 
 ## Not implemented yet
-- Remote phone-to-PC execution through a secure encrypted relay.
-- OCR, UI Automation tree reading, and AI screen feedback loop.
-- File create/edit/copy/move/delete, recycle-bin recovery, and user-selected root management UI.
-- Printer enumeration, print preview, and confirmed printing.
+- Remote phone-to-PC execution through a secure encrypted relay and native Android pairing client.
+- OCR, Windows UI Automation tree reading, and AI screen feedback loop.
+- Gemini natural-language planner/tool loop and approval orchestration.
+- Rich document/PDF/image print preview, print settings, and multi-page print layout.
 - Microphone/camera streaming, arbitrary settings changes, and background service mode.
 - Signed installer, auto-update, and production certificate/key management.
 
