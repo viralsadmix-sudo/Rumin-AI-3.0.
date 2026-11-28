@@ -204,7 +204,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun checkPcConnection(hostInput: String) {
             val host = hostInput.trim()
             val validIpv4 = Regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$").matches(host) &&
-                host.split(".").all { it.toIntOrNull() in 0..255 }
+                host.split(".").all { (it.toIntOrNull() ?: -1) in 0..255 }
             if (!validIpv4) {
                 runOnUiThread { webView.evaluateJavascript("window.onPcConnectionResult && window.onPcConnectionResult(false, 'সঠিক PC IPv4 address দিন (যেমন 192.168.1.10)', '')", null) }
                 return
@@ -217,10 +217,10 @@ class MainActivity : ComponentActivity() {
                     java.net.Socket().use { socket ->
                         socket.connect(java.net.InetSocketAddress(host, 47831), 1800)
                         socket.soTimeout = 1800
-                        val request = "GET /health HTTP/1.1\\r\\nHost: $host\\r\\nConnection: close\\r\\n\\r\\n"
+                        val request = "GET /health HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n"
                         socket.getOutputStream().write(request.toByteArray(Charsets.US_ASCII))
                         val response = socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText().take(8192) }
-                        val split = response.indexOf("\\r\\n\\r\\n")
+                        val split = response.indexOf("\r\n\r\n")
                         if (!response.startsWith("HTTP/1.1 200") || split < 0) throw IllegalStateException("PC Companion health check ব্যর্থ")
                         payload = response.substring(split + 4)
                         val health = JSONObject(payload)
