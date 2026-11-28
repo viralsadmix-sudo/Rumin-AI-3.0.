@@ -784,7 +784,7 @@ function stars(){
   if(pair&&code){
     pair.addEventListener('click',()=>{
       const host=hostInput.value.trim(), pairingCode=code.value.trim();
-      if(!host||!/^\\d{6}$/.test(pairingCode)){out.textContent='PC IP এবং ৬ সংখ্যার Pairing Code দিন';out.style.color='#ff8a9a';return;}
+      if(!host||!/^\d{6}$/.test(pairingCode)){out.textContent='PC IP এবং ৬ সংখ্যার Pairing Code দিন';out.style.color='#ff8a9a';return;}
       out.textContent='Rumin অ্যাপ PC-এর সঙ্গে Pair হচ্ছে…';out.style.color='#e0aaff';
       if(N&&typeof N.pairPcCompanion==='function')N.pairPcCompanion(host,pairingCode);
       else {out.textContent='এই APK-তে Native Pairing Bridge নেই।';out.style.color='#ff8a9a';}
