@@ -4,11 +4,77 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090817"><title>Rumin AI 3.0 — PC Agent</title>
 <style>
-:root{color-scheme:dark;--bg:#090817;--panel:#121126;--panel2:#19172f;--line:#30294c;--pink:#ff2bd6;--blue:#5795ff;--muted:#a8a4c2;--green:#49d6a2}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#251044 0,transparent 42%),radial-gradient(ellipse at 100% 20%,#101f48 0,transparent 38%),var(--bg);color:#f7f4ff;font:15px/1.5 Inter,system-ui,"Noto Sans Bengali",sans-serif;min-height:100vh}
-button,input{font:inherit}.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{padding:28px 18px;border-right:1px solid var(--line);background:#090817b8}.brand{font-size:21px;font-weight:800;letter-spacing:.5px}.brand span{color:var(--pink)}.sub{color:var(--muted);font-size:12px;margin-top:2px}.nav{margin-top:36px;display:grid;gap:8px}.nav button{border:1px solid transparent;background:transparent;color:#c9c4df;text-align:left;padding:12px 14px;border-radius:12px;cursor:pointer}.nav button.active,.nav button:hover{background:#211a3a;border-color:#54346e;color:white}.sidefoot{position:sticky;top:90vh;margin-top:48px;color:var(--muted);font-size:12px}.main{padding:30px;max-width:1450px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:26px}.eyebrow{color:var(--pink);font-size:12px;letter-spacing:1.8px;text-transform:uppercase}.top h1{font-size:clamp(25px,3vw,34px);margin:4px 0}.pill{border:1px solid #71543b;background:#2c211b;color:#ffd29a;border-radius:99px;padding:7px 12px;font-size:12px;white-space:nowrap}.hero{padding:24px;border:1px solid #49336c;border-radius:20px;background:linear-gradient(120deg,#21143c,#111a35);display:flex;justify-content:space-between;gap:20px;align-items:center}.hero h2{margin:0 0 7px;font-size:22px}.hero p{margin:0;color:#c2bdd8;max-width:690px}.heroicon{font-size:42px;filter:drop-shadow(0 0 18px #ff2bd688)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-top:17px}.card{background:#121126eF;border:1px solid var(--line);border-radius:17px;padding:19px;min-width:0}.card h3{margin:7px 0 4px;font-size:16px}.card p{margin:0;color:var(--muted);font-size:13px}.ico{font-size:23px}.state{display:inline-block;margin-top:14px;color:#ffcf91;background:#332619;padding:4px 9px;border-radius:99px;font-size:11px}.section{margin-top:25px}.sectionhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.sectionhead h2{font-size:18px;margin:0}.muted{color:var(--muted);font-size:13px}.pair{display:grid;grid-template-columns:1.1fr .9fr;gap:15px}.steps{padding-left:20px;color:#c9c4df}.steps li{padding:5px 0}.outline{background:transparent;color:#d8d1ed;border:1px solid #51466c;padding:9px 13px;border-radius:10px}.outline:disabled{opacity:.55;cursor:not-allowed}.drop{border:1px dashed #5c4b83;border-radius:14px;padding:20px;text-align:center;background:#0d0c1d}.drop input{max-width:100%;margin-top:10px}.preview{margin-top:10px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}.page{display:none}.page.active{display:block}.footer{margin-top:28px;border-top:1px solid var(--line);padding-top:15px;color:#8883a5;font-size:12px}
-@media(max-width:850px){.shell{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid var(--line);padding:15px}.nav{display:flex;overflow:auto;margin-top:14px}.nav button{white-space:nowrap;padding:9px 11px}.sidefoot{display:none}.main{padding:18px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pair{grid-template-columns:1fr}}
-@media(max-width:520px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.hero{align-items:flex-start}.heroicon{display:none}}
+:root{color-scheme:dark;--bg:#070914;--panel:#101426;--panel2:#151d34;--line:#27334f;--line2:#35466c;--pink:#ff3ccf;--blue:#5b9dff;--cyan:#54d9ef;--muted:#9aa8c4;--green:#43ddb0;--amber:#ffc879;--text:#f3f6ff}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;color:var(--text);font:14px/1.55 Inter,system-ui,"Noto Sans Bengali",sans-serif;background:radial-gradient(ellipse at 14% -10%,#263a70 0,transparent 36%),radial-gradient(ellipse at 92% 5%,#34184e 0,transparent 30%),linear-gradient(145deg,#070914,#090d1c 48%,#080b17);background-attachment:fixed}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.15;background-image:linear-gradient(rgba(118,153,220,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(118,153,220,.12) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,black,transparent 80%);z-index:-1}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.shell{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 17px 20px;border-right:1px solid rgba(91,126,185,.2);background:linear-gradient(180deg,rgba(12,17,34,.96),rgba(8,12,25,.93));backdrop-filter:blur(22px);box-shadow:14px 0 48px #0002;z-index:5}
+.brand{font-size:21px;font-weight:850;letter-spacing:1.2px;color:#f5f7ff;text-shadow:0 0 22px #5795ff38}
+.brand span{color:var(--pink)}
+.sub{color:#7f91b5;font-size:10px;letter-spacing:1.7px;margin-top:5px}
+.nav{margin-top:34px;display:grid;gap:6px}
+.nav:before{content:"WORKSPACE MODULES";color:#617393;font-size:10px;letter-spacing:1.7px;padding:0 12px 8px;font-weight:800}
+.nav button{position:relative;border:1px solid transparent;background:transparent;color:#aab7d0;text-align:left;padding:11px 13px;border-radius:12px;cursor:pointer;font-size:13px;letter-spacing:.1px}
+.nav button:before{content:"";position:absolute;left:0;top:25%;bottom:25%;width:2px;border-radius:3px;background:transparent}
+.nav button.active,.nav button:hover{background:linear-gradient(100deg,#1a2b4b,#171a35);border-color:#42608a66;color:#fff;box-shadow:inset 0 0 22px #5b9dff0c,0 7px 18px #0002}
+.nav button.active:before{background:linear-gradient(var(--cyan),var(--pink));box-shadow:0 0 12px var(--cyan)}
+.sidefoot{position:absolute;bottom:22px;left:18px;right:18px;padding:13px;border:1px solid #2b3a58;border-radius:13px;background:#10182b;color:#8fa0bf;font-size:11px;line-height:1.7}
+.sidefoot:before{content:"●  LOCAL CONTROL SURFACE";display:block;color:var(--cyan);font-size:9px;letter-spacing:1.2px;font-weight:800;margin-bottom:4px}
+.main{padding:30px clamp(18px,3vw,46px) 36px;max-width:1600px;width:100%;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:26px;padding-bottom:20px;border-bottom:1px solid rgba(91,126,185,.17)}
+.eyebrow{color:var(--cyan);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;font-weight:800}
+.top h1{font-size:clamp(25px,3vw,35px);letter-spacing:-.8px;margin:4px 0 2px;font-weight:760}
+.muted{color:var(--muted);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid #74583a;background:linear-gradient(120deg,#2c241d,#1b1a25);color:#ffd29a;border-radius:999px;padding:9px 14px;font-size:10px;font-weight:800;letter-spacing:1.1px;white-space:nowrap;box-shadow:0 0 22px #ffb65b0b}
+.hero{position:relative;isolation:isolate;overflow:hidden;padding:30px 32px;border:1px solid #47638a80;border-radius:22px;background:linear-gradient(112deg,rgba(22,43,75,.96),rgba(23,25,56,.96) 58%,rgba(49,23,68,.92));display:flex;justify-content:space-between;gap:22px;align-items:center;box-shadow:0 20px 55px #0003,inset 0 1px #ffffff12}
+.hero:before{content:"";position:absolute;z-index:-1;width:310px;height:310px;right:5%;top:-190px;border:1px solid #6ac6ff30;border-radius:50%;box-shadow:0 0 0 24px #66baff08,0 0 0 52px #66baff06,0 0 80px #4a8fff20}
+.hero:after{content:"";position:absolute;z-index:-1;width:210px;height:210px;right:12%;bottom:-170px;border:1px solid #ff4dd633;border-radius:50%;box-shadow:0 0 0 24px #ff4dd60a,0 0 0 50px #ff4dd606}
+.hero h2{margin:0 0 8px;font-size:clamp(20px,2vw,26px);letter-spacing:-.3px}
+.hero p{margin:0;color:#b9c9e4;max-width:760px;font-size:13px;line-height:1.8}
+.heroicon{font-size:48px;color:#8ddfff;filter:drop-shadow(0 0 20px #5b9dffb0);animation:float 5s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-8px) rotate(4deg)}}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:19px}
+.card{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(18,27,48,.94),rgba(13,19,35,.96));border:1px solid var(--line);border-radius:17px;padding:20px;min-width:0;box-shadow:0 12px 32px #00000020;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.card:before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,#77c9ff55,transparent);opacity:.7}
+.card:hover{transform:translateY(-3px);border-color:#4c75a6;box-shadow:0 17px 38px #0004,0 0 24px #4e8fff0c}
+.card h2,.card h3{color:#edf4ff;letter-spacing:-.2px}
+.card h2{font-size:20px;margin:0 0 8px}
+.card h3{margin:7px 0 5px;font-size:15px}
+.card p{margin:0;color:#9eacc7;font-size:12px;line-height:1.7}
+.ico{font-size:23px;filter:drop-shadow(0 0 10px #70baff40)}
+.state{display:inline-flex;align-items:center;gap:6px;margin-top:14px;color:#f4c987;background:#332b24;border:1px solid #775b3a66;padding:5px 10px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.2px}
+.section{margin-top:26px}
+.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}
+.sectionhead h2{font-size:17px;margin:0;letter-spacing:-.3px}
+.pair{display:grid;grid-template-columns:1.1fr .9fr;gap:22px}
+.steps{padding-left:20px;color:#bdc9df;font-size:12px}
+.steps li{padding:6px 0}
+.steps li::marker{color:var(--cyan);font-weight:800}
+.outline{background:linear-gradient(120deg,#172b49,#1d1d3b);color:#e5efff;border:1px solid #47648c;padding:10px 15px;border-radius:10px;font-size:12px;font-weight:700;box-shadow:0 6px 16px #0002}
+.outline:hover{background:linear-gradient(120deg,#20406a,#33204f);border-color:#6ba9e8;transform:translateY(-1px);box-shadow:0 8px 20px #4c8ee51c}
+.outline:active{transform:translateY(0)}
+.outline:disabled{opacity:.5;cursor:not-allowed;transform:none}
+input,textarea,select{background:#0a1222!important;color:#edf4ff!important;border:1px solid #314362!important;border-radius:10px!important;padding:10px 12px!important;max-width:100%}
+input::placeholder,textarea::placeholder{color:#71819e}
+input:focus,textarea:focus,select:focus{border-color:#61b7e7!important;box-shadow:0 0 0 3px #54d9ef13}
+textarea{line-height:1.65}
+.drop{border:1px dashed #52749d;border-radius:15px;padding:23px;text-align:center;background:linear-gradient(145deg,#101d32,#0b1425);color:#b9c9e4}
+.drop input{margin-top:12px}
+.preview{margin-top:10px;padding:11px 13px;color:#9eacc7;font-size:12px;overflow-wrap:anywhere;background:#0b1323;border:1px solid #263955;border-radius:10px}
+.page{display:none;animation:pageIn .22s ease}
+.page.active{display:block}
+@keyframes pageIn{from{opacity:.45;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.footer{margin-top:30px;border-top:1px solid #293752;padding-top:16px;color:#71819e;font-size:10px;letter-spacing:1px}
+pre{max-width:100%;overflow:auto;color:#bcd2ef!important;background:#0a1222!important;border:1px solid #293b59;border-radius:12px;padding:14px!important}
+@media(max-width:1050px){.shell{grid-template-columns:220px minmax(0,1fr)}.side{padding-left:13px;padding-right:13px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:850px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto;overflow:visible;border-right:0;border-bottom:1px solid var(--line);padding:15px}.nav{display:flex;overflow:auto;margin-top:16px;padding-bottom:3px}.nav:before{display:none}.nav button{white-space:nowrap;padding:9px 12px}.sidefoot{display:none}.main{padding:20px 16px}.pair{grid-template-columns:1fr}}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.hero{padding:22px;align-items:flex-start}.heroicon{display:none}.sectionhead{align-items:flex-start;flex-wrap:wrap}.pill{font-size:9px}.main{padding:16px 12px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 </style></head>
 <body><div class="shell">
 <aside class="side"><div class="brand">RUMIN AI <span>3.0</span></div><div class="sub">PC AGENT · SABBIR RUBEL TECH</div>
@@ -16,9 +82,9 @@ button,input{font:inherit}.shell{display:grid;grid-template-columns:250px 1fr;mi
 <button class="active" data-page="overview">⌂ &nbsp; Overview</button><button data-page="connect">⌁ &nbsp; Phone Connect</button><button data-page="files">▧ &nbsp; Files & Photos</button><button data-page="print">▤ &nbsp; Printing</button><button data-page="screen">▣ &nbsp; Screen Control</button><button data-page="apps">▣ &nbsp; Apps</button><button data-page="permissions">♧ &nbsp; PC Permissions</button><button data-page="agents">✦ &nbsp; Agent Control</button><button data-page="memory">◈ &nbsp; Agent Memory</button><button data-page="diagnostics">⌘ &nbsp; Diagnostics</button>
 </nav><div class="sidefoot">Secure by design<br>Windows 10/11 Companion required</div></aside>
 <main class="main">
-<header class="top"><div><div class="eyebrow">PERSONAL AI WORKSPACE</div><h1 id="heading">PC Agent Dashboard</h1><div class="muted">আপনার ফোনের Rumin থেকে PC-তে কাজ পরিচালনার কেন্দ্র</div></div><div class="pill" id="connectionPill">● PC NOT CONNECTED</div></header>
+<header class="top"><div><div class="eyebrow">RUMIN INTELLIGENCE SYSTEM · WORKSPACE</div><h1 id="heading">PC Agent Dashboard</h1><div class="muted">আপনার Windows পরিবেশের জন্য স্মার্ট কন্ট্রোল সেন্টার</div></div><div class="pill" id="connectionPill">● PC NOT CONNECTED</div></header>
 <section class="page active" id="overview">
-<div class="hero"><div><h2>আসসালামু আলাইকুম, বস!</h2><p>আমি Rumin PC Agent। এই Dashboard হলো আপনার Windows PC-এর নিয়ন্ত্রণকেন্দ্র। Windows Companion একই PC-তে যুক্ত হলে এই Dashboard থেকে অনুমোদিত local কাজ চালানো যাবে। Android ফোন থেকে দূরবর্তী নিয়ন্ত্রণ এখনো চালু হয়নি।</p></div><div class="heroicon">✦</div></div>
+<div class="hero"><div><div class="eyebrow">INTELLIGENT DESKTOP CONTROL</div><h2>আসসালামু আলাইকুম, বস!</h2><p>Rumin PC Agent — আপনার Windows কাজের জন্য একটি আধুনিক AI control workspace। Companion সংযুক্ত হলে অনুমোদিত ফাইল, অ্যাপ, স্ক্রিন ও প্রিন্টিং কার্যক্রম এখান থেকে পরিচালনা করা যাবে। Android থেকে নিরাপদ remote control এখনো সংযুক্তির অপেক্ষায়।</p></div><div class="heroicon" aria-hidden="true">✧</div></div>
 <div class="grid">
 <div class="card"><div class="ico">📱</div><h3>Local pairing prototype</h3><p>Local pairing prototype; Android app relay pending</p><span class="state">পরবর্তী ধাপ: Pairing Service</span></div>
 <div class="card"><div class="ico">🖼️</div><h3>Photos & Files</h3><p>Browser image preview, approved folder listing ও confirmed file actions</p><span class="state">Companion প্রয়োজন</span></div>
