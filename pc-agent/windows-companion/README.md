@@ -1,4 +1,4 @@
-# Rumin Windows Companion — 0.5.0 (Windows 10/11)
+# Rumin Windows Companion — 0.6.0 (Windows 10/11)
 
 The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 PC Agent. It is a .NET 8 ASP.NET Core process; it is not yet a signed installer or a Windows service.
 
@@ -11,6 +11,8 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 - Permission-gated text-file create/overwrite and file move inside approved roots; file delete sends regular files to the Windows Recycle Bin. Paths are canonicalized and reparse-point traversal is rejected.
 - Local Agent Memory stored in `%LOCALAPPDATA%\\RuminAI\\Companion\\agent-memory.json`; writes require explicit user consent and the memory permission.
 - Windows printer enumeration and explicitly confirmed plain-text print jobs.
+- Opt-in Windows UI Automation control-tree inspection (bounded depth/node count; password values redacted).
+- Explicitly confirmed UIA Invoke and Value actions on enabled, non-password controls.
 - Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
 - Permission-gated primary-display screenshot endpoint (JPEG, no-cache) while the local desktop session is active.
 - Batched local agent execution for up to eight supported actions in one request.
@@ -26,14 +28,15 @@ The dashboard's **PC Permissions** page lets the Windows user separately enable:
 - Printing (printer discovery and confirmed plain-text jobs)
 - File write/move/delete (approved roots only; delete sends files to Recycle Bin)
 - Local Agent Memory (non-encrypted JSON; do not store secrets)
+- Windows UI Automation (control tree and confirmed control actions)
 
 All permissions default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. Screen capture additionally requires the separate screen-capture permission. The session can be stopped from the dashboard at any time.
 
-Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; future UI Automation, OCR, printing, microphone, and camera features need their own implementation and consent. UAC secure desktop and protected system surfaces cannot be bypassed.
+Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; OCR, microphone, and camera features still need their own implementation and consent. UI Automation has a separate opt-in permission. UAC secure desktop and protected system surfaces cannot be bypassed.
 
 ## Not implemented yet
 - Remote phone-to-PC execution through a secure encrypted relay and native Android pairing client.
-- OCR, Windows UI Automation tree reading, and AI screen feedback loop.
+- OCR and AI screen feedback loop.
 - Gemini natural-language planner/tool loop and approval orchestration.
 - Rich document/PDF/image print preview, print settings, and multi-page print layout.
 - Microphone/camera streaming, arbitrary settings changes, and background service mode.
@@ -47,7 +50,7 @@ dotnet build .\RuminCompanion.csproj -c Release
 dotnet run --project .\RuminCompanion.csproj
 ```
 
-The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`; the JSON should report version `0.4.1` after updating.
+The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`; the JSON should report version `0.6.0` after updating.
 
 ## Local data
 - Token: `%LOCALAPPDATA%\RuminAI\Companion\companion.token`
