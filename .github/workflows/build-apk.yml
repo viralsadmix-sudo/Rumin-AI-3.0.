@@ -51,7 +51,6 @@ jobs:
           test -n "$RUMIN_KEY_ALIAS" || (echo "Missing RUMIN_KEY_ALIAS secret" && exit 1)
           test -n "$RUMIN_KEY_PASSWORD" || (echo "Missing RUMIN_KEY_PASSWORD secret" && exit 1)
       - name: Configure permanent signing key when available
-        if: ${{ secrets.RUMIN_KEYSTORE_BASE64 != '' }}
         env:
           RUMIN_KEYSTORE_BASE64: ${{ secrets.RUMIN_KEYSTORE_BASE64 }}
           RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD }}
