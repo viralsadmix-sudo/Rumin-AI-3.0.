@@ -5,7 +5,7 @@ on:
     branches:
       - feature/openphoneuse-agent-port
     paths:
-      - "rumin-source/pc-agent/windows-companion/**"
+      - "pc-agent/windows-companion/**"
       - ".github/workflows/build-windows-companion.yml"
   workflow_dispatch:
 
