@@ -54,14 +54,14 @@ app.Use(async (context, next) =>
     // Pair-code generation is allowed only from the PC itself.
     if ((path == "/v1/pair/create" || path == "/v1/permissions/grant" ||
          path == "/v1/desktop/session/start" || path == "/v1/desktop/session/stop") &&
-        IPAddress.IsLoopback(remote))
+        IsLoopbackAddress(remote))
     {
         await next();
         return;
     }
 
     // Local dashboard requests are accepted only from loopback. Remote devices still need a paired bearer token.
-    if (IPAddress.IsLoopback(remote))
+    if (IsLoopbackAddress(remote))
     {
         await next();
         return;
@@ -119,13 +119,13 @@ app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     notYetAvailable = new[] { "screen-ocr", "ui-automation", "printer-control", "file-write", "file-move", "file-delete", "microphone-stream", "camera" }
 }));
 
-app.MapGet("/v1/permissions", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
+app.MapGet("/v1/permissions", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
     permissions,
     note = "Permissions are granted by the PC user from the local dashboard. Windows does not provide one universal accessibility permission."
 }));
 
 app.MapPost("/v1/permissions/grant", async (HttpContext ctx) => {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
     var body = await ctx.Request.ReadFromJsonAsync<PermissionRequest>();
     if (body?.Capability is null || !permissions.ContainsKey(body.Capability))
         return Results.BadRequest(new { error = "unknown_capability" });
@@ -184,7 +184,7 @@ app.MapGet("/v1/desktop/screenshot", (HttpContext ctx) =>
 });
 
 app.MapPost("/v1/desktop/session/start", (HttpContext ctx) => {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
     if (!permissions.GetValueOrDefault("screen-control")) return Results.Json(new { error = "permission_required", capability = "screen-control" }, statusCode: 403);
     desktopSessionActive = true;
     return Results.Ok(new { active = true, message = "Desktop control session enabled locally. Stop it from this PC at any time." });
@@ -356,14 +356,26 @@ await app.RunAsync();
 
 static void AddCors(HttpContext c)
 {
+    // GitHub Pages (HTTPS) calls this local HTTP endpoint from the same Windows PC.
+    // Keep the response compatible with CORS + Chromium Private Network Access preflights.
     c.Response.Headers["Access-Control-Allow-Origin"] = "*";
     c.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS";
     c.Response.Headers["Access-Control-Allow-Headers"] = "content-type,authorization";
     c.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+    c.Response.Headers.Append("Vary", "Origin");
+    c.Response.Headers.Append("Vary", "Access-Control-Request-Method");
+    c.Response.Headers.Append("Vary", "Access-Control-Request-Headers");
+    c.Response.Headers.Append("Vary", "Access-Control-Request-Private-Network");
+}
+static bool IsLoopbackAddress(IPAddress? ip)
+{
+    if (ip is null) return false;
+    if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+    return IPAddress.IsLoopback(ip);
 }
 static bool IsPrivateOrLoopback(IPAddress ip)
 {
-    if (IPAddress.IsLoopback(ip)) return true;
+    if (IsLoopbackAddress(ip)) return true;
     if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
     if (ip.AddressFamily == AddressFamily.InterNetwork)
     {
