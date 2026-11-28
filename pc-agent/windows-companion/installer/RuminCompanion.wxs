@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Rumin AI Windows Companion"
+    Manufacturer="SABBIR RUBEL TECH"
+    Version="0.6.1"
+    UpgradeCode="{7C18B9F4-1F43-4C86-A6A0-5D7E9A5F3061}"
+    Scope="perUser">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Rumin AI Windows Companion is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="Rumin AI Windows Companion" Level="1">
+      <ComponentRef Id="CompanionExecutable" />
+      <ComponentRef Id="FirstRunGuide" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="APPFOLDER" Name="Rumin AI Windows Companion">
+          <Component Id="CompanionExecutable" Guid="{A2D3B4C5-6E7F-4890-AB12-CD34EF567890}">
+            <File Id="CompanionExe" Source="..\publish\RuminCompanion.exe" KeyPath="yes" />
+          </Component>
+          <Component Id="FirstRunGuide" Guid="{B3E4C5D6-7F80-4901-BC23-DE45F0678912}">
+            <File Id="FirstRunReadme" Source="..\publish\README-FIRST.txt" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="RuminStartMenuFolder" Name="Rumin AI Windows Companion">
+        <Component Id="StartMenuShortcut" Guid="{C4F5D6E7-8091-4A12-CD34-EF5678901234}">
+          <Shortcut
+            Id="RuminCompanionShortcut"
+            Name="Rumin AI Windows Companion"
+            Target="[APPFOLDER]RuminCompanion.exe"
+            WorkingDirectory="APPFOLDER" />
+          <RemoveFolder Id="RemoveRuminStartMenuFolder" On="uninstall" />
+          <RegistryValue
+            Root="HKCU"
+            Key="Software\SabbirRubelTech\RuminAI\Companion"
+            Name="installed"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+  </Package>
+</Wix>
