@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
+        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String, timeoutMs: Int) {
             if (key.isBlank()) {
                 deliverAiResult(requestId, false, "API Key ফাঁকা")
                 return
@@ -299,8 +299,8 @@ class MainActivity : ComponentActivity() {
                     }
                     connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 60000
+                        connectTimeout = if (timeoutMs < 60000) 12000 else 20000
+                        readTimeout = timeoutMs.coerceIn(12000, 60000)
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json; charset=utf-8")
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
