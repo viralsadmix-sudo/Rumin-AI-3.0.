@@ -31,7 +31,7 @@ assert.ok(html.includes('id="runDiagnostics"'), "diagnostics action must exist")
 assert.ok(!html.includes("api.qrserver.com"), "pairing data must not be sent to a third-party QR service");
 
 const companion = fs.readFileSync(new URL("../windows-companion/Program.cs", import.meta.url), "utf8");
-assert.ok(companion.includes('version = "0.6.0"'), "Companion version must match the dashboard release");
+assert.ok(companion.includes('version = "0.6.1"'), "Companion version must match the dashboard release");
 assert.ok(companion.includes("attempts.Count > 8"), "local pairing must throttle repeated guesses");
 assert.ok(companion.includes("atomic one-use claim"), "one-time pairing code consumption must be atomic");
 assert.ok(companion.includes('app.MapGet("/v1/files/list/{rootId}"'), "approved-folder listing endpoint must exist");
@@ -54,6 +54,9 @@ assert.ok(companion.includes("SpeakAsyncCancelAll"), "PC speech must support can
 const project = fs.readFileSync(new URL("../windows-companion/RuminCompanion.csproj", import.meta.url), "utf8");
 assert.ok(project.includes('PackageReference Include="System.Speech"'), "Windows speech synthesis package must be installed");
 assert.ok(companion.includes('if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);'), "remote speech must remain blocked until secure relay exists");
+assert.ok(companion.includes('app.MapGet("/pair"'), "phone pairing landing page must exist");
+assert.ok(companion.includes('localStorage.setItem(\'ruminCompanionToken\',d.accessToken)'), "phone pairing page must retain the returned browser pairing token");
+assert.ok(companion.includes('version = "0.6.1"'), "Companion health version must match 0.6.1");
 assert.ok(companion.includes('app.MapGet("/v1/audit/recent"'), "local audit history endpoint must exist");
 assert.ok(companion.includes("static class AuditTrail"), "audit trail writer must exist");
 assert.ok(companion.includes("TakeLast(500)"), "audit log must be bounded to the latest 500 events");
