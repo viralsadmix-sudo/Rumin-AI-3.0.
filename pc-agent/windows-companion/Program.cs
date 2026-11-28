@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Windows.Automation;
 
 var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuminAI", "Companion");
 Directory.CreateDirectory(appData);
@@ -84,7 +85,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new {
-    service = "Rumin Windows Companion", status = "ready", version = "0.5.0",
+    service = "Rumin Windows Companion", status = "ready", version = "0.6.0",
     transport = "local-dashboard-and-private-lan-pairing", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing", "permission-management", "screen-capture", "desktop-input" }
 }));
 
@@ -138,7 +139,7 @@ app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     permissions = permissions,
     desktopSessionActive,
     available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print" },
-    notYetAvailable = new[] { "screen-ocr", "ui-automation", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
+    notYetAvailable = new[] { "screen-ocr", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
 }));
 
 app.MapGet("/v1/permissions", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
@@ -321,12 +322,110 @@ app.MapPost("/v1/agent/execute", async (HttpContext ctx) => {
     return Results.Ok(new { success = true, count = results.Count, results });
 });
 
+
+// Windows UI Automation: read the visible control tree and invoke only a selected,
+ // user-confirmed control. Password values are never returned or written.
+app.MapGet("/v1/desktop/uia/tree", (HttpContext ctx, int? maxNodes, int? maxDepth) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control") || !permissions.GetValueOrDefault("ui-automation"))
+        return Results.Json(new { error = "ui_automation_not_authorized" }, statusCode: 403);
+    try
+    {
+        var limit = Math.Clamp(maxNodes ?? 120, 1, 250);
+        var depthLimit = Math.Clamp(maxDepth ?? 4, 1, 6);
+        var items = new List<object>();
+        var root = AutomationElement.RootElement;
+        var walker = TreeWalker.ControlViewWalker;
+        void Visit(AutomationElement node, int depth)
+        {
+            if (items.Count >= limit || depth > depthLimit) return;
+            try
+            {
+                var c = node.Current;
+                var runtime = node.GetRuntimeId();
+                items.Add(new {
+                    runtimeId = runtime,
+                    name = c.IsPassword ? "" : (c.Name ?? ""),
+                    automationId = c.AutomationId ?? "",
+                    controlType = c.ControlType?.ProgrammaticName ?? "",
+                    className = c.ClassName ?? "",
+                    isEnabled = c.IsEnabled,
+                    isOffscreen = c.IsOffscreen,
+                    isPassword = c.IsPassword,
+                    depth
+                });
+                for (var child = walker.GetFirstChild(node); child is not null && items.Count < limit; child = walker.GetNextSibling(child))
+                    Visit(child, depth + 1);
+            }
+            catch (ElementNotAvailableException) { }
+        }
+        Visit(root, 0);
+        return Results.Ok(new { count = items.Count, truncated = items.Count >= limit, items });
+    }
+    catch (Exception) { return Results.Problem("Windows UI Automation tree could not be read. Unlock the desktop and retry.", statusCode: 500); }
+});
+
+app.MapPost("/v1/desktop/uia/action", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control") || !permissions.GetValueOrDefault("ui-automation"))
+        return Results.Json(new { error = "ui_automation_not_authorized" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<UiAutomationActionRequest>();
+    if (body?.Confirm != true) return Results.BadRequest(new { error = "explicit_action_confirmation_required" });
+    if (body.RuntimeId is null || body.RuntimeId.Length is < 1 or > 32) return Results.BadRequest(new { error = "invalid_runtime_id" });
+    if (body.Action is not ("invoke" or "set_value")) return Results.BadRequest(new { error = "unsupported_uia_action" });
+    if (body.Action == "set_value" && (body.Value is null || body.Value.Length > 1000)) return Results.BadRequest(new { error = "value_length_invalid" });
+    try
+    {
+        var target = FindAutomationElement(body.RuntimeId);
+        if (target is null) return Results.NotFound(new { error = "uia_element_not_found_refresh_tree" });
+        if (!target.Current.IsEnabled || target.Current.IsPassword) return Results.BadRequest(new { error = "element_disabled_or_password_protected" });
+        if (body.Action == "invoke")
+        {
+            if (target.TryGetCurrentPattern(InvokePattern.Pattern, out var pattern) && pattern is InvokePattern invoke)
+                invoke.Invoke();
+            else return Results.BadRequest(new { error = "invoke_pattern_unavailable" });
+        }
+        else
+        {
+            if (target.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern) && pattern is ValuePattern value)
+                value.SetValue(body.Value!);
+            else return Results.BadRequest(new { error = "value_pattern_unavailable" });
+        }
+        return Results.Ok(new { executed = true, action = body.Action, name = target.Current.Name });
+    }
+    catch (ElementNotAvailableException) { return Results.Conflict(new { error = "element_changed_refresh_tree" }); }
+    catch (Exception) { return Results.Problem("Windows rejected the UI Automation action.", statusCode: 500); }
+});
+
+AutomationElement? FindAutomationElement(int[] runtimeId)
+{
+    var walker = TreeWalker.ControlViewWalker;
+    var queue = new Queue<AutomationElement>();
+    queue.Enqueue(AutomationElement.RootElement);
+    var visited = 0;
+    while (queue.Count > 0 && visited++ < 1000)
+    {
+        var current = queue.Dequeue();
+        try
+        {
+            if (current.GetRuntimeId().SequenceEqual(runtimeId)) return current;
+            for (var child = walker.GetFirstChild(current); child is not null; child = walker.GetNextSibling(child))
+                queue.Enqueue(child);
+        }
+        catch (ElementNotAvailableException) { }
+    }
+    return null;
+}
+
+
 app.MapGet("/v1/system/info", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
     computerName = Environment.MachineName,
     operatingSystem = Environment.OSVersion.VersionString,
     architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
     userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-    companionVersion = "0.5.0"
+    companionVersion = "0.6.0"
 }));
 
 
@@ -490,8 +589,8 @@ s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্
 })();
 </script></body></html>
 """, "text/html; charset=utf-8"));
-app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.4.1 · same-Wi-Fi pairing · /health", "text/plain"));
-Console.WriteLine("Rumin Windows Companion 0.5.0");
+app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.6.0 · same-Wi-Fi pairing · /health", "text/plain"));
+Console.WriteLine("Rumin Windows Companion 0.6.0");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
 Console.WriteLine("Local bearer token: " + tokenPath);
 Console.WriteLine("Approved roots: " + rootsPath);
@@ -597,7 +696,7 @@ static Dictionary<string, bool> LoadOrCreatePermissions(string path)
         ["app-discovery"] = false, ["app-launch"] = false,
         ["file-read"] = false, ["screen-control"] = false,
         ["printing"] = false, ["file-write"] = false, ["screen-capture"] = false,
-        ["agent-memory"] = false
+        ["agent-memory"] = false, ["ui-automation"] = false
     };
     if (File.Exists(path)) try {
         var saved = JsonSerializer.Deserialize<Dictionary<string, bool>>(File.ReadAllText(path));
@@ -694,5 +793,6 @@ record FileWriteRequest(string? RootId, string? RelativePath, string? Content, b
 record FileMoveRequest(string? RootId, string? SourceRelativePath, string? DestinationRelativePath, bool Confirm = false);
 record FileDeleteRequest(string? RootId, string? RelativePath, bool Confirm = false);
 record PrintTextRequest(string? PrinterName, string? Text, bool Confirm = false);
+record UiAutomationActionRequest(int[]? RuntimeId, string? Action, string? Value = null, bool Confirm = false);
 
 record PairRequest(string? Code);
