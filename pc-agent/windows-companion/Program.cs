@@ -79,7 +79,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new {
-    service = "Rumin Windows Companion", status = "ready", version = "0.2.0",
+    service = "Rumin Windows Companion", status = "ready", version = "0.3.0",
     transport = "same-wifi-lan", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing" }
 }));
 
@@ -133,12 +133,14 @@ app.MapPost("/v1/permissions/grant", async (HttpContext ctx) => {
     return Results.Ok(new { capability = body.Capability, enabled = body.Enabled, permissions });
 });
 
-app.MapGet("/v1/apps/list", (HttpContext ctx) => {\n    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+app.MapGet("/v1/apps/list", (HttpContext ctx) => {
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
     if (!permissions.GetValueOrDefault("app-discovery")) return Results.Json(new { error = "permission_required", capability = "app-discovery" }, statusCode: 403);
     return Results.Ok(DiscoverStartMenuApps().Select(x => new { id = x.Id, name = x.Name }).ToArray());
 });
 
-app.MapPost("/v1/apps/open", async (HttpContext ctx) => {\n    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+app.MapPost("/v1/apps/open", async (HttpContext ctx) => {
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
     if (!permissions.GetValueOrDefault("app-launch")) return Results.Json(new { error = "permission_required", capability = "app-launch" }, statusCode: 403);
     var body = await ctx.Request.ReadFromJsonAsync<AppLaunchRequest>();
     if (string.IsNullOrWhiteSpace(body?.AppId)) return Results.BadRequest(new { error = "app_id_required" });
@@ -205,7 +207,7 @@ app.MapGet("/v1/system/info", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Con
     operatingSystem = Environment.OSVersion.VersionString,
     architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
     userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-    companionVersion = "0.2.0"
+    companionVersion = "0.3.0"
 }));
 
 app.MapGet("/v1/files/roots", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : Results.Ok(roots.Select(x => new {
