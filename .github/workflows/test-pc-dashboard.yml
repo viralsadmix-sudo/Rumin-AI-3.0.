@@ -1,0 +1,29 @@
+name: Test Rumin PC Dashboard
+
+on:
+  push:
+    branches:
+      - feature/openphoneuse-agent-port
+    paths:
+      - "pc-agent/**"
+      - "backend/pc-agent/**"
+      - ".github/workflows/test-pc-dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate Cloudflare Worker syntax
+        run: cp backend/pc-agent/worker.js /tmp/worker.mjs && node --check /tmp/worker.mjs
+      - name: Run dashboard smoke tests
+        run: node pc-agent/tests/smoke.mjs
