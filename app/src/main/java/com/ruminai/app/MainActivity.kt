@@ -367,7 +367,7 @@ class MainActivity : ComponentActivity() {
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
-                        body = JSONObject().put("model", "gemini-3.5-flash-lite").put("input", lines.joinToString("\n"))
+                        body = JSONObject().put("model", "gemini-3.8-flash").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
                         val memoryContext = recentMemoryContext()
@@ -400,8 +400,8 @@ class MainActivity : ComponentActivity() {
                     }
                     connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 60000
+                        connectTimeout = 10000
+                        // Keep native calls shorter than the JS 35s provider timeout so a timed-out provider\n                        // releases the single-thread executor before the next fallback provider is queued.\n                        readTimeout = 25000
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json; charset=utf-8")
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
