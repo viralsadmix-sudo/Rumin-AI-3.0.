@@ -22,6 +22,12 @@ assert.ok(html.includes('id="diagnostics"'), "system diagnostics page must exist
 assert.ok(html.includes('id="runDiagnostics"'), "diagnostics action must exist");
 assert.ok(!html.includes("api.qrserver.com"), "pairing data must not be sent to a third-party QR service");
 
+const companion = fs.readFileSync(new URL("../windows-companion/Program.cs", import.meta.url), "utf8");
+assert.ok(companion.includes('version = "0.4.1"'), "Companion version must match the dashboard release");
+assert.ok(companion.includes("attempts.Count > 8"), "local pairing must throttle repeated guesses");
+assert.ok(companion.includes("atomic one-use claim"), "one-time pairing code consumption must be atomic");
+assert.ok(companion.includes('app.MapGet("/v1/files/list/{rootId}"'), "approved-folder listing endpoint must exist");
+
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
 assert.ok(worker.includes('url.pathname === "/health"'), "relay health endpoint must exist");
