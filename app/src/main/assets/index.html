@@ -133,6 +133,14 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
 <div id="sheet"><div id="sheetBox"></div></div>
 <div id="set">
   <h2>সেটিংস</h2>
+  <section style="margin:12px 0 18px;padding:14px;border:1px solid #51466c;border-radius:14px;background:rgba(28,20,52,.72)">
+    <h3 style="margin:0 0 8px;color:#e0aaff">🖥️ PC Connect · Local Network</h3>
+    <p style="font-size:12px;opacity:.82">Windows 10 PC ও ফোন একই private Wi-Fi-তে রাখুন। PC Companion চালু করে PC-র IPv4 address দিন। এই পরীক্ষা শুধু PC-র health status পড়ে; কোনো PC control command বা pairing token পাঠায় না।</p>
+    <label>PC IPv4 Address</label>
+    <input id="pcHost" type="text" inputmode="decimal" autocomplete="off" placeholder="যেমন 192.168.1.10">
+    <div class="row"><button class="g" id="pcCheck">PC খুঁজুন / সংযোগ পরীক্ষা</button></div>
+    <p id="pcConnectStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো PC পরীক্ষা করা হয়নি।</p>
+  </section>
   <label>Gemini API Key (Live Voice + দ্রুত উত্তর)</label><input id="kg" type="password" autocomplete="off" placeholder="Gemini API Key">
   <label>Grok API Key (Task Agent)</label><input id="kx" type="password" autocomplete="off" placeholder="xAI Grok API Key">
   <label>ChatGPT API Key (Task Agent)</label><input id="ko" type="password" autocomplete="off" placeholder="OpenAI API Key">
@@ -751,6 +759,24 @@ function stars(){
       x.fillStyle='rgba(150,175,255,'+Math.min(1,.9-p.z*.6)+')';x.beginPath();x.arc(px,py,r,0,6.283);x.fill()}
     requestAnimationFrame(f)})();
 }
+
+// PC local-network discovery: read-only health probe; pairing/control stays disabled until TLS pinning is implemented.
+(function(){
+  const hostInput=$('pcHost'),check=$('pcCheck'),out=$('pcConnectStatus');
+  if(!hostInput||!check||!out)return;
+  hostInput.value=LS.get('rumin_pc_host','');
+  check.addEventListener('click',()=>{
+    const host=hostInput.value.trim();
+    LS.set('rumin_pc_host',host);
+    out.textContent='PC খোঁজা হচ্ছে…';
+    if(N&&typeof N.checkPcConnection==='function')N.checkPcConnection(host);
+    else out.textContent='এই অ্যাপ build-এ Native PC Network Bridge নেই।';
+  });
+  window.onPcConnectionResult=(ok,message)=>{
+    out.textContent=(ok?'✓ ':'✕ ')+message;
+    out.style.color=ok?'#49d6a2':'#ff8a9a';
+  };
+})();
 try{stars()}catch(e){}
 hist=JSON.parse(LS.get('rumin_text_history','[]'));
 add('আসসালামু আলাইকুম বস! আমি রুমিন AI। মাইক চেপে বলুন, যেমন: “ইউটিউব খোলো”, “ভলিউম বাড়াও”, “আমার মন খারাপ”।','b');
