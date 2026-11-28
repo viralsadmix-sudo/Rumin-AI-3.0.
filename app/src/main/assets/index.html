@@ -251,8 +251,7 @@ window.onLiveToolCall=(callId,functionName,argsJson)=>{
     N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'এই Live tool সমর্থিত নয়।'}));return;
   }
   const goal=String(args.goal||'').trim();
-  const normalizedGoal=bn2en(goal).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(?:আগের কাজ\s*)?(?:বাতিল|ক্যানসেল|cancel)(?:\s*করো|\s*করুন|\s*করে দাও)?$|^(?:কাজ\s*)?(?:থামাও|থামিয়ে দাও|বন্ধ করো|stop)$|^(?:এটা\s*)?(?:বন্ধ করো|থামাও|ক্যানসেল করো)$/.test(normalizedGoal)){
+  if(isCancelCommand(goal)){
     cancelAgentTask('Live Voice-এ ব্যবহারকারীর নির্দেশে কাজ বাতিল');
     if(N&&typeof N.sendLiveToolResponse==='function')N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:true,cancelled:true,message:'চলমান কাজ থামানোর নির্দেশ গ্রহণ করেছি।'}));
     return;
@@ -318,9 +317,16 @@ function quickCommand(raw){
   if(!target||target.length>64)return null;
   return {tool:'open_app',a:target,label:target};
 }
+function isCancelCommand(raw){
+  const t=bn2en(String(raw||'')).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  return /^(?:আগের\s*)?(?:কাজ(?:টা|টি)?\s*)?(?:বাতিল|ক্যানসেল|cancel|থামাও|থামিয়ে দাও|বন্ধ করো|stop)$/i.test(t) ||
+    /^(?:থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/i.test(t) ||
+    /(?:আগের|চলমান|বর্তমান|এই)?\s*(?:কাজ(?:টা|টি)?|এটা|ওটা)\s*(?:এখন\s*)?(?:বাতিল|ক্যানসেল|cancel|থামাও|থামিয়ে দাও|বন্ধ করো|stop)/i.test(t) ||
+    /^(?:cancel|stop)\s+(?:the\s+)?(?:previous|current|last)\s+task$/i.test(t);
+}
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){cancelAgentTask('কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(isCancelCommand(t)){cancelAgentTask('ব্যবহারকারীর নির্দেশে কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, চলমান কাজ থামালাম।');return true}
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){
@@ -675,8 +681,7 @@ async function execConfirmed(p){
 function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
-  const cancelText=/^(আগের কাজ(টা|টি)?\s*)?(বাতিল|ক্যানসেল|cancel)(\s*করো|\s*করুন|\s*করে দাও)?$|^(কাজ(টা|টি)?\s*)?(থামাও|থামিয়ে দাও|বন্ধ করো|বাতিল করো|ক্যানসেল করো)$|^(এটা\s*)?(বন্ধ করো|থামাও|ক্যানসেল করো)$|^(cancel|stop) (the )?(previous|current|last) task$/i.test(bn2en(text).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim());
-  if(cancelText){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, চলমান AI পরিকল্পনা ও অপেক্ষমাণ অনুরোধ থামানোর নির্দেশ দিয়েছি। ইতিমধ্যে সম্পন্ন ফোনের কাজ উল্টানো যায় না।','calm');return}
+  if(isCancelCommand(text)){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, চলমান AI পরিকল্পনা ও অপেক্ষমাণ অনুরোধ থামানোর নির্দেশ দিয়েছি। ইতিমধ্যে সম্পন্ন ফোনের কাজ উল্টানো যায় না।','calm');return}
   if(pendingConfirm){
     const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
