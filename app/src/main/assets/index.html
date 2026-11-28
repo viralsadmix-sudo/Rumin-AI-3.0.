@@ -842,11 +842,14 @@ function stars(){
 (function(){
   const check=$('checkRuminUpdate'),download=$('downloadRuminUpdate'),statusEl=$('ruminUpdateStatus'),notes=$('ruminUpdateNotes');
   if(!check||!download||!statusEl)return;
-  check.addEventListener('click',()=>{
-    statusEl.textContent='সর্বশেষ Release পরীক্ষা হচ্ছে…';download.disabled=true;notes.textContent='';
+  const LAST_CHECK_KEY='rumin_last_auto_update_check';
+  function requestUpdateCheck(silent){
+    statusEl.textContent='সর্বশেষ Official Release পরীক্ষা হচ্ছে…';
+    if(!silent){download.disabled=true;notes.textContent='';}
     if(N&&typeof N.checkForAppUpdate==='function')N.checkForAppUpdate();
-    else statusEl.textContent='এই APK-তে Update Bridge নেই।';
-  });
+    else if(!silent)statusEl.textContent='এই APK-তে Update Bridge নেই।';
+  }
+  check.addEventListener('click',()=>requestUpdateCheck(false));
   download.addEventListener('click',()=>{
     download.disabled=true;statusEl.textContent='APK ডাউনলোড হচ্ছে…';
     if(N&&typeof N.downloadAndInstallUpdate==='function')N.downloadAndInstallUpdate();
@@ -856,11 +859,21 @@ function stars(){
     statusEl.textContent=message||'আপডেট পরীক্ষা শেষ';
     download.disabled=!(ok&&available);
     notes.textContent=releaseNotes||'';
+    if(ok&&available){
+      const notice='রুমিন AI-এর নতুন সংস্করণ '+version+' পাওয়া গেছে। Settings > Rumin AI Update থেকে ডাউনলোড ও ইনস্টল করতে পারবেন।';
+      if(typeof add==='function')add(notice,'s');
+    }
   };
   window.onRuminUpdateDownload=(ok,message)=>{
     statusEl.textContent=message|| (ok?'ডাউনলোড সম্পন্ন':'ডাউনলোড ব্যর্থ');
     if(!ok)download.disabled=false;
   };
+  // Check automatically after startup, then at most once every 12 hours.
+  const lastCheck=Number(LS.get(LAST_CHECK_KEY,'0'))||0;
+  if(Date.now()-lastCheck>=12*60*60*1000){
+    LS.set(LAST_CHECK_KEY,String(Date.now()));
+    setTimeout(()=>requestUpdateCheck(true),5000);
+  }
 })();
 try{stars()}catch(e){}
 hist=JSON.parse(LS.get('rumin_text_history','[]'));
