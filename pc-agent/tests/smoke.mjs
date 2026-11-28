@@ -24,5 +24,6 @@ assert.ok(!html.includes("api.qrserver.com"), "pairing data must not be sent to 
 
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
+assert.ok(worker.includes('url.pathname === "/health"'), "relay health endpoint must exist");
 assert.ok(worker.includes("relay_transport_not_enabled_yet"), "relay must remain explicitly disabled until secure transport is implemented");
 console.log("PC dashboard smoke tests passed: JS syntax, DOM references, navigation, diagnostics, pairing privacy and relay safety.");
