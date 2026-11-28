@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
-                        body = JSONObject().put("model", "gemini-3.6-flash").put("input", lines.joinToString("\n"))
+                        body = JSONObject().put("model", "gemini-3.8-flash").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
                         messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
@@ -297,21 +297,38 @@ class MainActivity : ComponentActivity() {
                             body.put("include_reasoning", false)
                         }
                     }
-                    connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 60000
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                        if (isGemini) setRequestProperty("x-goog-api-key", key)
-                        else setRequestProperty("Authorization", "Bearer $key")
-                    }
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                    val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                    val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
-                    if (status !in 200..299) {
+                    var status = 0
+                    var response = JSONObject()
+                    var responseText = ""
+                    // Gemini 3.8 Flash can return temporary 503/429 overload responses.
+                    // Retry only transient server/rate-limit failures; keep the same model and request.
+                    for (attempt in 0..2) {
+                        connection?.disconnect()
+                        val activeConnection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 20000
+                            readTimeout = 60000
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                            if (isGemini) setRequestProperty("x-goog-api-key", key)
+                            else setRequestProperty("Authorization", "Bearer $key")
+                        }
+                        connection = activeConnection
+                        activeConnection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                        status = activeConnection.responseCode
+                        val stream = if (status in 200..299) activeConnection.inputStream else activeConnection.errorStream
+                        responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                        response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+                        if (status in 200..299) break
+
+                        val transient = status == 429 || status == 500 || status == 502 || status == 503 || status == 504
+                        if (isGemini && transient && attempt < 2) {
+                            val retryAfterSeconds = activeConnection.getHeaderField("Retry-After")?.toLongOrNull()
+                            val waitMs = if (retryAfterSeconds != null) (retryAfterSeconds * 1000L).coerceIn(1000L, 10000L)
+                                else 1500L * (1L shl attempt)
+                            Thread.sleep(waitMs)
+                            continue
+                        }
                         val errorObj = response.optJSONObject("error")
                         val message = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
                             ?: response.optString("message").takeIf { it.isNotBlank() }
