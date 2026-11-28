@@ -9,19 +9,19 @@ This is the existing PC Agent dashboard for the Rumin AI 3.0 project. The curren
 - Windows Apps: discovers Start Menu shortcuts and opens a selected app after permission is granted.
 - Files & Photos: browser image preview plus read-only listing of approved Documents/Pictures folders (explicit opt-in; disabled by default).
 - Screen Control: local session start/stop, permission-gated desktop screenshot, coordinate click, scroll, Unicode typing, and a small allowlisted key set.
-- Agent execution: one local batch request can execute up to eight supported deterministic actions, reducing request overhead for short tasks.
+- Agent execution: one local batch request can execute up to eight supported deterministic actions, reducing request overhead for short tasks.\n- Windows UI Automation: reads a bounded control tree and supports explicitly confirmed Invoke/SetValue actions; password values are excluded.\n- Safety Center: reads a local JSONL audit trail of mutating API requests (timestamp, route, status and client address only); request bodies, API keys and typed text are not recorded. The log is capped at 500 events.
 
 ## Windows Companion
 
-Current Companion version: **0.4.1**. Rebuild/restart the Companion after updating its source; the browser dashboard and Windows executable are separate pieces and both must be current.
+Current Companion source version: **0.6.0** (source has changed; rebuild and restart the Windows Companion before using the updated endpoints). Rebuild/restart the Companion after updating its source; the browser dashboard and Windows executable are separate pieces and both must be current.
 Build the Windows-side executable from `pc-agent/windows-companion/RuminCompanion.csproj`. Install the .NET 8 runtime if using the framework-dependent build, then start the Companion on the PC. It listens on port 47831.
 
 The hosted browser dashboard must be opened on the same Windows PC for the current local-control milestone. Chrome/Edge may request Local Network Access permission; allow it for this site. If Windows Firewall prompts, allow Private networks only. The PC user must grant each permission explicitly; all capabilities now default to off, including approved-folder read access. The screen-control session is local and can be stopped at any time. Screen capture is a separate opt-in permission and returns a no-cache JPEG snapshot only while the local session is active.
 
 ## Not complete yet
-The Phone Connect page currently provides a local one-time browser-pairing prototype only; it does not connect the Android Rumin app or enable remote PC actions. The dashboard also removes third-party QR image hosting so pairing codes/links are not sent to an external QR service.
+The Phone Connect page currently provides a local one-time browser-pairing prototype only; it does not connect the Android Rumin app or enable remote PC actions. The dashboard also removes third-party QR image hosting so pairing codes/links are not sent to an external QR service. The local audit history is available at `/v1/audit/recent` from the Safety Center.
 
-This is not yet the full phone-controlled Universal PC Agent. Android-to-PC native pairing, encrypted relay, remote execution, screen OCR/UI Automation, Gemini tool loop, file write/copy/move/delete, printer control, and microphone/camera features are not complete. The Companion intentionally blocks remote app/file/desktop actions until secure device transport is implemented.
+This is not yet the full phone-controlled Universal PC Agent. Android-to-PC native pairing, encrypted relay, remote execution, screen OCR, encrypted Android-to-PC relay, remote execution, and a live Gemini tool loop are not complete. UI Automation is available only in a local, permission-gated session; file write/move/recycle and confirmed text printing have local endpoints, but have not yet been validated on a real Windows machine in this environment. The Companion intentionally blocks remote app/file/desktop actions until secure device transport is implemented.
 
 ## Troubleshooting `Failed to fetch`
 
