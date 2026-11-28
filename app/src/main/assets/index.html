@@ -155,7 +155,7 @@ const SkillVault={
   key:'rumin_agent_skills_v1',
   list(){try{const v=JSON.parse(LS.get(this.key,'[]'));return Array.isArray(v)?v.filter(x=>x&&typeof x.name==='string'&&Array.isArray(x.steps)):[]}catch(e){return[]}},
   save(name,description,steps){
-    const allowed=new Set(['home','back','recents','notifications','quicksettings','volumeup','volumedown','alarm','timer','showalarms','showtimers','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up']);
+    const allowed=new Set(['open_app','web_search','home','back','recents','notifications','quicksettings','volumeup','volumedown','alarm','timer','showalarms','showtimers','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up']);
     if(!name||name.length>60||!Array.isArray(steps)||steps.length<1||steps.length>12)return false;
     const clean=[];
     for(const s of steps){if(!s||!allowed.has(String(s.tool))||['call','sms','power'].includes(String(s.tool)))return false;clean.push({tool:String(s.tool),a:String(s.a||'').slice(0,500),b:String(s.b||'').slice(0,500)})}
@@ -163,12 +163,37 @@ const SkillVault={
     all.push({id:'skill-'+Date.now(),name:name.trim(),description:String(description||'').slice(0,240),steps:clean,approved:true,updatedAt:Date.now()});
     LS.set(this.key,JSON.stringify(all.slice(-30)));return true;
   },
-  context(){return this.list().map(x=>({name:x.name,description:x.description,steps:x.steps})).slice(-15)}
+  context(){return this.list().map(x=>({name:x.name,description:x.description,steps:x.steps})).slice(-15)},
+  match(goal){
+    const q=String(goal||'').toLowerCase().replace(/[।,.!?]/g,' ');
+    const exact=this.list().filter(x=>x.approved&&x.name&&q.includes(x.name.toLowerCase())).sort((a,b)=>b.updatedAt-a.updatedAt)[0];
+    if(exact)return exact;
+    const stop=new Set(['আমি','তুমি','এটা','ওটা','করে','করো','করুন','দাও','দিয়ে','দিয়ে','আমার','একটা','আগের','কাজ','please','the','this','that','do','run','open']);
+    const tokens=s=>String(s||'').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(t=>t.length>2&&!stop.has(t));
+    const wanted=new Set(tokens(q));let best=null,bestScore=0;
+    for(const skill of this.list().filter(x=>x.approved)){
+      const available=new Set(tokens(skill.name+' '+skill.description));
+      const overlap=[...wanted].filter(t=>available.has(t)).length;
+      const score=overlap/Math.max(1,Math.min(wanted.size,available.size));
+      if(score>bestScore){bestScore=score;best=skill}
+    }
+    return bestScore>=0.34?best:null;
+  }
 };
+function agentCapabilities(){
+  try{if(N&&typeof N.getAgentCapabilities==='function')return JSON.parse(N.getAgentCapabilities())}catch(e){}
+  return {androidSdk:null,permissions:[],services:{accessibility:false,notificationAccess:false,writeSettings:false},availableTools:[],limitations:['Native capability discovery is unavailable in this build.']};
+}
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const BASE_TOOLS=['open_app','web_search','home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const ACC=['inspect_screen','read_screen','click_text','tap','type_text','scroll_down','scroll_up'];
+let TOOLS=BASE_TOOLS.slice();
+function refreshAgentRegistry(caps=agentCapabilities()){
+  const accessibility=!!(caps&&caps.services&&caps.services.accessibility);
+  TOOLS=BASE_TOOLS.filter(tool=>!ACC.includes(tool)||accessibility);
+  return TOOLS;
+}
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
 /* ---------- UI helpers ---------- */
@@ -276,6 +301,18 @@ function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
   if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){cancelAgentTask('কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
+  if(/(নিজে নিজে|স্বয়ংক্রিয়ভাবে|অটো).*(শিখে রাখো|শেখো|লার্নিং চালু)|সব কাজ থেকে শিখে রাখো/i.test(raw)){
+    LS.set('rumin_auto_learn','1');reply('ঠিক আছে বস, এখন থেকে সফল ও নিরাপদ কাজগুলো থেকে Skill নিজে সংরক্ষণ করব। ঝুঁকিপূর্ণ কাজ বা অনুমতি ছাড়া কাজ সংরক্ষণ/চালানো হবে না।','happy');return true;
+  }
+  if(/(নিজে নিজে|স্বয়ংক্রিয়ভাবে|অটো).*(শিখবে না|শেখা বন্ধ|লার্নিং বন্ধ)|অটো লার্ন বন্ধ/i.test(raw)){
+    LS.set('rumin_auto_learn','0');reply('ঠিক আছে বস, স্বয়ংক্রিয় Skill Learning বন্ধ করেছি।','calm');return true;
+  }
+  if(/(পারমিশন|অনুমতি).*(কী কী|কোন কোন|দেখাও|পরীক্ষা)|আমার (অনুমতি|পারমিশন)গুলো/i.test(raw)){
+    const caps=agentCapabilities();
+    const granted=(caps.permissions||[]).filter(x=>x.granted).map(x=>x.name.split('.').pop());
+    const denied=(caps.permissions||[]).filter(x=>!x.granted).map(x=>x.name.split('.').pop());
+    reply('বস, Android '+(caps.androidSdk||'')+'। অনুমোদিত: '+(granted.join(', ')||'কোনোটিই নয়')+'. অননুমোদিত: '+(denied.join(', ')||'কোনোটিই নেই')+'. বিশেষ সেবা: Accessibility '+(caps.services?.accessibility?'চালু':'বন্ধ')+', Notification Access '+(caps.services?.notificationAccess?'চালু':'বন্ধ')+', Modify System Settings '+(caps.services?.writeSettings?'চালু':'বন্ধ')+'.', 'calm');return true;
+  }
   const skillSave=raw.trim().match(/^(এই কাজটা|কাজটা) (স্কিল হিসেবে )?(শিখে রাখো|মনে রাখো)(?: নাম (.+))?$/i);
   if(skillSave){if(!lastAgentRecipe.length){reply('বস, আগে একটি ফোনের কাজ সফলভাবে শেষ হতে দিন, তারপর সেটিকে Skill হিসেবে সংরক্ষণ করতে পারব।','calm');return true;}const name=(skillSave[4]||'আমার সংরক্ষিত কাজ').trim();const ok=SkillVault.save(name,'বসের সফলভাবে সম্পন্ন করা কাজ থেকে তৈরি পুনর্ব্যবহারযোগ্য রুটিন',lastAgentRecipe);reply(ok?'বস, “'+name+'” Skill হিসেবে ফোনে সংরক্ষণ করেছি।':'এই কাজটিকে নিরাপদ Skill হিসেবে সংরক্ষণ করা যায়নি।','happy');return true;}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
@@ -323,10 +360,12 @@ function act(tool){runTool(tool);mood('happy',false);status('কাজটি ক
 function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
   const learnedSkills=SkillVault.context();
+  const capabilities=agentCapabilities();
+  refreshAgentRegistry(capabilities);
   return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
 মূল আচরণ:
 - বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
-- ব্যবহারকারী ফোনে কোনো কাজ করতে বললে agent:true দেবে এবং goal-এ ব্যবহারকারীর আসল উদ্দেশ্য রাখবে। কাজ এক ধাপের হলেও agent:true ব্যবহার করবে, যাতে Agent নিজে পরিকল্পনা ও ফলাফল যাচাই করে।
+- ফোনের বহু-ধাপ/অনিশ্চিত কাজ হলে agent:true দিয়ে goal ও first_action দেবে। এক ধাপের স্পষ্ট, কম-ঝুঁকির কাজ হলে quick_action দেবে; তবে click/type, কল/SMS, পাঠানো/পোস্ট/শেয়ার/ডিলিট/পেমেন্ট বা নিরাপত্তা-সংক্রান্ত কাজ quick_action নয়।
 - ব্যবহারকারী শুধু প্রশ্ন করলে বা গল্প করতে চাইলে agent:false রাখবে এবং স্বাভাবিক বাংলায় উত্তর দেবে।
 - শুধু JSON দেবে: {"reply":"সংক্ষিপ্ত বাংলা প্রতিক্রিয়া","emotion":"calm|happy|sad|angry|thinking","actions":[],"agent":true,"goal":"ব্যবহারকারীর কাজের উদ্দেশ্য","first_action":{"tool":"inspect_screen","a":"","b":""}}। ফোনের কাজের ক্ষেত্রে first_action অবশ্যই inspect_screen হবে; এতে প্রথম AI উত্তরেই ফোনের কাজ শনাক্ত করে Agent-কে স্ক্রিন পড়তে বলা হবে। এরপর Agent Planner স্ক্রিনের বাস্তব তথ্য দেখে পরবর্তী সব পদক্ষেপ ঠিক করবে। সাধারণ প্রশ্নে agent:false এবং first_action বাদ দেবে।
 - Agent-কে কোনো নির্দিষ্ট phrase বা অ্যাপের তালিকা মুখস্থ করিয়ে দেবে না। ব্যবহারকারীর উদ্দেশ্য থেকে নিজে পরবর্তী পদক্ষেপ তৈরি করবে।
@@ -334,9 +373,11 @@ function system(extra=''){
 - কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
 - কাজটি উপলভ্য tool দিয়ে সম্ভব না হলে সৎভাবে সীমাবদ্ধতা জানাবে এবং বিকল্প বলবে।
 - বসের কথায় সম্ভাব্য অনুভূতি (খুশি, বিরক্তি, দুশ্চিন্তা, হতাশা, আগ্রহ, ক্লান্তি) ভাষা ও প্রসঙ্গ থেকে বুঝে সহানুভূতিশীল উত্তর দেবে; অনুভূতি নিশ্চিত ধরে নেবে না, প্রয়োজনে নরমভাবে যাচাই করবে। আগের আলাপের আবেগ ও অসমাপ্ত বিষয় মনে রেখে কথোপকথন চালাবে। শুধু প্রশ্নের উত্তর দিয়ে থেমে না থেকে প্রাসঙ্গিক হলে নিজে থেকে একটি স্বাভাবিক follow-up বা সাহায্যের প্রস্তাব দেবে; অকারণে বারবার বাধা দেবে না বা মনগড়া ব্যক্তিগত তথ্য বলবে না।
-- ফোনের যেকোনো কাজ—এক ধাপের হলেও—সরাসরি local shortcut দিয়ে নয়, Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
+- এক ধাপের স্পষ্ট ও নিরাপদ কাজ quick_action দিয়ে দ্রুত চালাবে এবং ফলাফল নেবে। একাধিক ধাপ, অস্পষ্টতা বা স্ক্রিন-নির্ভর কাজ Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং প্রতিটি ধাপ যাচাই করবে।
 - বসকে সম্মানজনক, সংক্ষিপ্ত, স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
 উপলভ্য Native capabilities (এগুলোই বাস্তব ক্ষমতার সীমা): ${TOOLS.join(', ')}।
+বর্তমান Android permission/service অবস্থা: ${JSON.stringify(capabilities)}।
+সংরক্ষিত পুনর্ব্যবহারযোগ্য Skill: ${JSON.stringify(learnedSkills)}।
 ব্যবহারকারীর সংরক্ষিত তথ্য: ${facts.length?facts.join('; '):'নেই'}
 ${extra}`;
 }
@@ -350,24 +391,24 @@ window.onNativeAiResponse=(id,ok,message)=>{
   const done=aiWaiters[id];if(!done)return;delete aiWaiters[id];
   if(ok)done.resolve(message);else done.reject(new Error(message||'Native AI অনুরোধ ব্যর্থ হয়েছে'));
 };
-function nativeAiRequest(provider,key,msgs,extra){
+function nativeAiRequest(provider,key,msgs,extra,timeoutMs=60000){
   return new Promise((resolve,reject)=>{
     if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; দ্রুত fallback চেষ্টা করছি'))},timeoutMs);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id,timeoutMs)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
 async function askAI(msgs=hist,extra='',role='answer'){
-  // Use every configured provider in order; Gemini is preferred, but must not be a single point of failure.
+  // Fast intent/chat lane: prefer low-latency Groq when configured; retain provider fallback.
   const providers=[
-    ['gemini',LS.get('rumin_gemini_key')],
     ['groq',LS.get('rumin_groqcloud_key')],
+    ['gemini',LS.get('rumin_gemini_key')],
     ['grok',LS.get('rumin_grok_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
@@ -377,7 +418,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
   for(const [provider,key] of providers){
     try{
       status('AI সংযোগ: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+'…');
-      return await nativeAiRequest(provider,key,msgs,extra);
+      return await nativeAiRequest(provider,key,msgs.slice(-7),extra,12000);
     }catch(e){
       const detail=e&&e.message?e.message:'সংযোগ ব্যর্থ';
       failures.push(provider+': '+detail);
@@ -396,13 +437,13 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
   ].filter(x=>x[1]);
-  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ Gemini API Key দিন।');
+  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ অন্তত একটি AI Provider Key দিন।');
   let last='';
   for(const [provider,key] of providers){
     try{
       status('Task Agent: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+' পরিকল্পনা করছে…');
-      return await nativeAiRequest(provider,key,msgs,extra);
-    }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));add(last+' — পরের Agent চেষ্টা করছি।','s')}
+      return await nativeAiRequest(provider,key,msgs,extra,12000);
+    }catch(e){last=(provider+': '+(e.message||'সংযোগ ব্যর্থ'));}
   }
   throw new Error('সব Task Agent ব্যর্থ হয়েছে। '+last);
 }
@@ -436,9 +477,24 @@ async function think(text,hidden){
   if(busy)return;busy=true;status('ভাবছি…');mood('thinking',true);
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
-    const intentRules = `তুমি Rumin AI-এর intent router। নিচের কথোপকথন ও সর্বশেষ ব্যবহারকারীর বার্তা দেখে সিদ্ধান্ত নাও এটি সাধারণ আলাপ/প্রশ্ন, নাকি ফোনে বাস্তব কাজের নির্দেশ। ফোনে কোনো কাজ করতে বললে অবশ্যই শুধু এই JSON দেবে: {"agent":true,"goal":"ব্যবহারকারীর সম্পূর্ণ লক্ষ্যটি বাংলায়","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, আমি কাজটি শুরু করছি।","emotion":"thinking"}। ফোনের কাজের জন্য agent:true বাধ্যতামূলক; শুধু reply বা actions দেবে না। ফোনের কাজের উদাহরণ: Home screen-এ যাওয়া, অ্যাপ খোলা, স্ক্রিনে কিছু খোঁজা/চাপা/লেখা, স্ক্রল, সেটিংস বা ফোনের কোনো কাজ। শুধু প্রশ্ন, সাধারণ জ্ঞান, ব্যাখ্যা, অনুবাদ, লেখা, মতামত বা আলাপ হলে কোনো action করবে না; শুধু এই JSON দেবে: {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"}। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে, ফোনে কাজ শুরু করবে না। কোনো অতিরিক্ত লেখা বা Markdown নয়—শুধু বৈধ JSON।`;
+    const intentRules = `তুমি Rumin AI-এর intent router। সর্বশেষ বার্তা ও কথোপকথনের প্রসঙ্গ বুঝে ঠিক করো এটি সাধারণ প্রশ্ন/আলাপ, এক ধাপের নিরাপদ ফোনের কাজ, নাকি বহু-ধাপের কাজ। এক ধাপের স্পষ্ট ও নিরাপদ কাজ হলে quick_action দাও: {"quick_action":{"tool":"নিরাপদ উপলভ্য tool","a":"","b":""},"reply":"ঠিক আছে বস, করছি।","emotion":"thinking"}। quick_action শুধু অ্যাপ খোলা, হোম/ব্যাক, ভলিউম বা স্ক্রিন স্ক্রল/দেখার মতো কম-ঝুঁকির একক কাজের জন্য; click_text/type_text, কল, SMS, send/post/share/delete/buy/pay/confirm, security/privacy বা irreversible কাজ quick_action-এ দেবে না। বহু-ধাপের/অনিশ্চিত ফোনের কাজ হলে {"agent":true,"goal":"সম্পূর্ণ লক্ষ্য","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, কাজটি শুরু করছি।","emotion":"thinking"} দেবে। শুধু প্রশ্ন/আলাপ/লেখা/অনুবাদ হলে {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"} দেবে। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে। শুধু বৈধ JSON দেবে।`;
+    const FAST_SAFE_TOOLS=new Set(['open_app','web_search','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer','home','back','recents','notifications','quicksettings','volumeup','volumedown','volumemute','volumeunmute','inspect_screen','scroll_down','scroll_up']);
     const o=parse(await askAI(hist,intentRules+'\n'+modeExtra()));
     busy=false;
+    if(o.quick_action){
+      const q=o.quick_action;
+      if(q.tool&&FAST_SAFE_TOOLS.has(q.tool)&&TOOLS.includes(q.tool)){
+        busy=true;status('দ্রুত কাজ করছি…');mood('thinking',true);
+        const result=await callTool(q.tool,String(q.a||''),String(q.b||''),9000);
+        busy=false;
+        if(result.ok)reply(result.message||o.reply||'বস, কাজটি সম্পন্ন হয়েছে।','happy');
+        else reply('বস, দ্রুত কাজটি করা যায়নি: '+(result.message||'অজানা সমস্যা'),'sad');
+        return;
+      }
+      // A quick action that needs a missing capability is escalated to the full planner.
+      reply(o.reply||'বস, কাজটি যাচাই করে করছি।',o.emotion||'thinking');
+      agent(text);return;
+    }
     if(o.agent){reply(o.reply||'ঠিক আছে বস, কাজটা শুরু করছি।',o.emotion);agent(o.goal||text,o.first_action);return}
     const acts=Array.isArray(o.actions)?o.actions.filter(x=>x&&TOOLS.includes(x.tool)).slice(0,4):[];
     if(acts.length){
@@ -455,10 +511,11 @@ async function think(text,hidden){
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
-const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const OPENERS=['open_app','web_search','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
-সংরক্ষিত Skill: ${JSON.stringify(SkillVault.context())}। প্রাসঙ্গিক হলে ধাপগুলো বর্তমান স্ক্রিন দেখে মানিয়ে নেবে।
-উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
+সংরক্ষিত Skill: ${JSON.stringify(SkillVault.context())}। লক্ষ্য-সংশ্লিষ্ট Skill থাকলে সেটিকে প্রাথমিক পদ্ধতি হিসেবে ব্যবহার করো, কিন্তু প্রতিটি ধাপ বর্তমান স্ক্রিন ও permission দেখে যাচাই করে মানিয়ে নেবে; পুরোনো ধাপ অন্ধভাবে চালাবে না।
+বর্তমান Android capabilities: ${JSON.stringify(agentCapabilities())}। Permission না থাকলে সেটি গোপন করবে না; নিরাপদে প্রয়োজনীয় Android Settings খুলে ব্যবহারকারীকে অনুমতি দিতে বলবে, নিজে অনুমতি পাশ কাটাবে না।
+উপলভ্য tool: ${TOOLS.join(', ')}। open_app দিয়ে ইনস্টল করা অ্যাপের নাম বা package name দিয়ে খোলার চেষ্টা করবে; web_search দিয়ে ওয়েবে খুঁজবে; read_screen দিয়ে স্ক্রিন পড়বে; tap কেবল inspect_screen-এ পাওয়া বাস্তব x,y অবস্থানে ব্যবহার করবে। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
@@ -476,6 +533,7 @@ function cancelAgentTask(reason='ব্যবহারকারীর নির�
 }
 async function agent(goal,firstAction=null){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
+  refreshAgentRegistry(agentCapabilities());
   const runId=++agentGeneration;
   const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
@@ -492,10 +550,10 @@ async function agent(goal,firstAction=null){
   for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
-    for(let attempt=0;attempt<2&&!o;attempt++){
+    for(let attempt=0;attempt<1&&!o;attempt++){
       try{
         const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
-        o=parse(await askAgentAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
+        o=parse(await askAgentAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nপ্রাসঙ্গিক সংরক্ষিত Skill: '+JSON.stringify(SkillVault.match(goal))+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+'\\nবর্তমান Permission/Service: '+JSON.stringify(agentCapabilities())+retryNote}],AGENT_RULES,'planner'));
       }catch(e){
         lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
         if(attempt===0){await sleep(250);continue}
@@ -516,7 +574,14 @@ async function agent(goal,firstAction=null){
       const screenVerified=!!(screen&&screen.trim())&&!screen.startsWith('(স্ক্রিন পড়া যায়নি:')&&!screen.startsWith('স্ক্রিন পড়া যায়নি:');
       const verified=(o.verified===true&&screenVerified)||successfulGlobalAction;
       const ok=verified&&failedSteps.length===0;
-      if(ok)lastAgentRecipe=recipe.slice(0,12);
+      if(ok){
+        lastAgentRecipe=recipe.slice(0,12);
+        if(LS.get('rumin_auto_learn','0')==='1'&&lastAgentRecipe.length){
+          const learnedName=('স্বয়ংক্রিয় Skill: '+String(goal||'কাজ').trim()).slice(0,58);
+          SkillVault.save(learnedName,'বসের অনুমতিতে সফল Agent workflow থেকে শেখা পুনর্ব্যবহারযোগ্য রুটিন',lastAgentRecipe);
+          add('বসের অনুমতিতে সফল কাজটি Skill হিসেবে সংরক্ষণ করেছি: '+learnedName,'s');
+        }
+      }
       const resultContext='ব্যবহারকারীর মূল অনুরোধ: '+goal+'\\nAgent-এর ধাপ ও ফলাফল: '+log.join(' ; ')+'\\nশেষ স্ক্রিনের প্রমাণ: '+(screen||'পাওয়া যায়নি')+'\\nPlanner-এর নোট: '+message;
       if(live){
         // Live mode: do not ask a second Gemini HTTP session to compose a reply.
@@ -548,6 +613,18 @@ async function agent(goal,firstAction=null){
       const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';
       reply(message,'calm');return {ok:false,message};
     }
+    if(x.tool==='call'||x.tool==='sms'){
+      pendingConfirm={tool:x.tool,a:x.a||'',b:x.b||''};
+      finished=true;busy=false;agentRun=false;
+      const message=x.tool==='sms'?'বস, মেসেজ অ্যাপ খোলার আগে আপনার অনুমতি চাই। চালিয়ে যাব?':'বস, ডায়ালার খোলার আগে আপনার অনুমতি চাই। চালিয়ে যাব?';
+      reply(message,'calm');return {ok:false,requires_confirmation:true,message};
+    }
+    if(x.tool==='click_text'&&/(send|পাঠান|পোস্ট|publish|share|শেয়ার|delete|ডিলিট|মুছুন|buy|কিনুন|pay|পেমেন্ট|confirm|নিশ্চিত করুন)/i.test(String(x.a||''))){
+      pendingConfirm={tool:'agent_action',actionTool:x.tool,a:x.a||'',b:x.b||''};
+      finished=true;busy=false;agentRun=false;
+      const message='বস, এই বোতামটি কোনো বার্তা পাঠানো, পোস্ট, শেয়ার, মুছে ফেলা, কেনাকাটা বা পেমেন্ট নিশ্চিত করতে পারে। চাপ দেওয়ার আগে আপনার স্পষ্ট অনুমতি চাই।';
+      reply(message,'calm');return {ok:false,requires_confirmation:true,message};
+    }
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
@@ -557,7 +634,7 @@ async function agent(goal,firstAction=null){
     // Give Android a short settle window; long fixed waits made every Agent step sluggish.
     await sleep(OPENERS.includes(x.tool)?650:180);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    if(x.tool==='inspect_screen'){
+    if(x.tool==='inspect_screen'||x.tool==='read_screen'){
       screen=Array.from(r.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(r.elements||[]).slice(0,100));
       if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
       continue;
@@ -580,7 +657,14 @@ async function agent(goal,firstAction=null){
   return {ok:false,message:'Agent Planner কাজটি সম্পন্ন করতে পারেনি।'};
 }
 async function execConfirmed(p){
-  if(p.tool==='sms'){
+  if(p.tool==='agent_action'){
+    const r=await callTool(p.actionTool,p.a||'',p.b||'',20000);
+    if(r.ok){
+      await sleep(250);
+      const screen=await callTool('inspect_screen','','',12000);
+      reply(screen.ok?'বস, আপনার অনুমোদনের পর কাজটি চালিয়েছি। স্ক্রিনের বর্তমান অবস্থা: '+Array.from(screen.items||[]).slice(0,18).join(' | '):'কাজটি চালানো হয়েছে, তবে স্ক্রিন যাচাই করা যায়নি।','happy');
+    }else reply('বস, অনুমোদিত কাজটি সম্পন্ন হয়নি: '+(r.message||'অজানা সমস্যা'),'sad');
+  }else if(p.tool==='sms'){
     const r=await callTool('sms',p.a||'',p.b||'');
     if(r.ok)agent('এসএমএস অ্যাপে বার্তা তৈরি আছে। পাঠানোর (Send/পাঠান) বোতাম চেপে বার্তা পাঠাও; স্ক্রিনে নিশ্চিত হলে done দাও। লক্ষ্য নম্বর: '+(p.a||'')+'; বার্তা: '+(p.b||''));
     else reply('বস, এসএমএস শুরু করা যায়নি: '+(r.message||'অজানা সমস্যা'),'sad');
@@ -669,7 +753,7 @@ on('save',()=>{
   LS.set('rumin_openai_key',$('ko').value.trim());
   LS.set('rumin_muse_key',$('km').value.trim());
   LS.set('rumin_groqcloud_key',$('kq').value.trim());
-  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.6-flash');
+  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');
   $('set').classList.remove('open');add('চারটি AI-এর Key সেটিংস সেভ হয়েছে। যেগুলোর Key আছে সেগুলোই ব্যবহার হবে।','s');status('Multi-AI Key সেটিংস সেভ হয়েছে')
 });
 async function verifyGeminiKey(){

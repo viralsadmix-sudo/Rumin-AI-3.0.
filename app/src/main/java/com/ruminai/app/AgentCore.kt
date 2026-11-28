@@ -29,7 +29,7 @@ internal data class AgentLogEvent(
 
 internal class AgentToolRegistry {
     private val commandTools = setOf(
-        "home", "back", "recents", "notifications", "quicksettings", "power",
+        "open_app", "web_search", "set_alarm", "home", "back", "recents", "notifications", "quicksettings", "power",
         "writesettings", "volumeup", "volumedown", "volumemute", "volumeunmute",
         "alarm", "timer", "showalarms", "showtimers", "call", "sms", "dialer",
         "accessibility", "notificationaccess", "apppermissions", "ttssettings",
@@ -38,7 +38,7 @@ internal class AgentToolRegistry {
         "playstore", "maps", "chatgpt"
     )
     private val accessibilityTools = setOf(
-        "inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up",
+        "inspect_screen", "read_screen", "click_text", "tap", "type_text", "scroll_down", "scroll_up",
         "back", "home", "recents", "notifications", "quicksettings", "power"
     )
 

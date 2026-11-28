@@ -81,7 +81,7 @@ class RuminAccessibilityService : AccessibilityService() {
     fun runNativeAction(name: String, value: String): JSONObject {
         return try {
             when (name) {
-                "inspect_screen" -> {
+                "inspect_screen", "read_screen" -> {
                     val root = rootInActiveWindow
                     if (root == null) JSONObject().put("ok", false).put("message", "সক্রিয় স্ক্রিন পড়া যাচ্ছে না।")
                     else {
@@ -102,6 +102,13 @@ class RuminAccessibilityService : AccessibilityService() {
                         JSONObject().put("ok", true).put("items", rows).put("elements", elements)
                             .put("message", if (elements.length() == 0) "স্ক্রিনে শনাক্তযোগ্য উপাদান পাওয়া যায়নি।" else "স্ক্রিনের উপাদান পড়েছি।")
                     }
+                }
+                "tap" -> {
+                    val parts = value.split(",")
+                    val x = parts.getOrNull(0)?.trim()?.toFloatOrNull()
+                    val y = parts.getOrNull(1)?.trim()?.toFloatOrNull()
+                    val ok = x != null && y != null && gesture(listOf(x to y), 180L)
+                    JSONObject().put("ok", ok).put("message", if (ok) "নির্দিষ্ট স্ক্রিন অবস্থানে ট্যাপ করা হয়েছে।" else "Tap-এর x,y অবস্থান সঠিক নয় বা gesture ব্যর্থ হয়েছে।")
                 }
                 "click_text" -> {
                     val root = rootInActiveWindow

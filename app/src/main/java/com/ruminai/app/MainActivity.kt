@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
+        @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String, timeoutMs: Int) {
             if (key.isBlank()) {
                 deliverAiResult(requestId, false, "API Key ফাঁকা")
                 return
@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
-                        body = JSONObject().put("model", "gemini-3.6-flash").put("input", lines.joinToString("\n"))
+                        body = JSONObject().put("model", "gemini-3.8-flash").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
                         messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
@@ -299,8 +299,8 @@ class MainActivity : ComponentActivity() {
                     }
                     connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
-                        connectTimeout = 20000
-                        readTimeout = 60000
+                        connectTimeout = timeoutMs.coerceIn(4000, 8000)
+                        readTimeout = timeoutMs.coerceIn(6000, 20000)
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json; charset=utf-8")
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
@@ -361,6 +361,56 @@ class MainActivity : ComponentActivity() {
                     webView.evaluateJavascript("window.onNativeAiResponse && window.onNativeAiResponse($idJson, $success, $messageJson)", null)
                 }
             }
+        }
+
+        @JavascriptInterface fun getAgentCapabilities(): String {
+            val permissions = JSONArray()
+            val runtimePermissions = listOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.READ_CONTACTS,
+                Manifest.permission.WRITE_CONTACTS,
+                Manifest.permission.CALL_PHONE,
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) + if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN) else emptyList()
+            val allRuntimePermissions = runtimePermissions + if (android.os.Build.VERSION.SDK_INT >= 33)
+                listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+            for (permission in allRuntimePermissions.distinct()) {
+                val granted = ContextCompat.checkSelfPermission(this@MainActivity, permission) == PackageManager.PERMISSION_GRANTED
+                permissions.put(JSONObject().put("name", permission).put("granted", granted))
+            }
+            val accessibilityEnabled = try {
+                val enabled = android.provider.Settings.Secure.getInt(contentResolver, android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
+                val services = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+                enabled && services.contains(packageName, ignoreCase = true) && services.contains("RuminAccessibilityService", ignoreCase = true)
+            } catch (_: Exception) { false }
+            val notificationAccess = try {
+                android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+                    .orEmpty().contains(packageName, ignoreCase = true)
+            } catch (_: Exception) { false }
+            val writeSettings = android.provider.Settings.System.canWrite(this@MainActivity)
+            val services = JSONObject()
+                .put("accessibility", accessibilityEnabled)
+                .put("notificationAccess", notificationAccess)
+                .put("writeSettings", writeSettings)
+            val availableTools = JSONArray().put("open_app").put("web_search").put("read_screen").put("tap").put("open_apps").put("volume_control").put("alarms").put("timers")
+                .put("settings_navigation").put("dialer_compose").put("sms_compose")
+            if (accessibilityEnabled) {
+                listOf("inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "home", "back", "recents", "notifications", "quicksettings")
+                    .forEach { availableTools.put(it) }
+            }
+            return JSONObject()
+                .put("androidSdk", android.os.Build.VERSION.SDK_INT)
+                .put("permissions", permissions)
+                .put("services", services)
+                .put("availableTools", availableTools)
+                .put("limitations", JSONArray().put("SMS is opened as a draft; Rumin does not silently send it.")
+                    .put("Calls open the dialer; the user confirms the call.")
+                    .put("Accessibility and Notification Access require manual enablement in Android Settings."))
+                .toString()
         }
 
         @JavascriptInterface fun executeAgentTool(action: String, first: String, second: String, taskId: String) {
@@ -485,7 +535,17 @@ class MainActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     val intent = when (action) {
-                        "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                        "open_app" -> {
+                            val requested = first.trim()
+                            val direct = packageManager.getLaunchIntentForPackage(requested)
+                            if (direct != null) direct else {
+                                val app = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+                                    .firstOrNull { info -> info.loadLabel(packageManager).toString().contains(requested, ignoreCase = true) }
+                                app?.let { packageManager.getLaunchIntentForPackage(it.packageName) }
+                            }
+                        }
+                        "web_search" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + java.net.URLEncoder.encode(first, "UTF-8")))
+                        "alarm", "set_alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                             putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
                             putExtra(android.provider.AlarmClock.EXTRA_MINUTES, second.toInt())
                             putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
@@ -551,6 +611,8 @@ class MainActivity : ComponentActivity() {
                         "camera" -> "ক্যামেরা খুলেছি।"
                         "contacts" -> "কন্টাক্টস খুলেছি।"
                         "browser" -> "ব্রাউজার খুলেছি।"
+                        "open_app" -> "অ্যাপ খোলার চেষ্টা করেছি: $first।"
+                        "web_search" -> "ওয়েব সার্চ খুলেছি।"
                         "youtube" -> "YouTube খুলেছি।"
                         "facebook" -> "Facebook খুলেছি।"
                         "whatsapp" -> "WhatsApp খুলেছি।"
