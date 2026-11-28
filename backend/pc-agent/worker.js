@@ -30,7 +30,7 @@ export class PairingRoom {
       if (!code) return json({ error: "try_again" }, 503);
       const session = crypto.randomUUID();
       const pcSecret = randomToken();
-      record = { session, pcSecret, created: Date.now(), phone: false, pc: true, used: false };
+      record = { session, pcSecret, created: Date.now(), phone: false, pc: false, used: false };
       await this.ctx.storage.put("pair:" + code, record, { expirationTtl: 300 });
       await this.ctx.storage.put("session:" + session, record, { expirationTtl: 3600 });
       return json({ code, session, pcSecret, expiresIn: 300 });
@@ -39,7 +39,7 @@ export class PairingRoom {
     if (request.method === "POST" && path === "/api/pair/join") {
       const body = await request.json().catch(() => ({}));
       const code = String(body.code || "");
-      if (!/^\\d{6}$/.test(code)) return json({ error: "invalid_code" }, 400);
+      if (!/^\d{6}$/.test(code)) return json({ error: "invalid_code" }, 400);
       const pair = await this.ctx.storage.get("pair:" + code);
       if (!pair || pair.used || Date.now() - pair.created > 300000)
         return json({ error: "code_expired_or_used" }, 410);
