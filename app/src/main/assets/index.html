@@ -391,16 +391,16 @@ window.onNativeAiResponse=(id,ok,message)=>{
   const done=aiWaiters[id];if(!done)return;delete aiWaiters[id];
   if(ok)done.resolve(message);else done.reject(new Error(message||'Native AI অনুরোধ ব্যর্থ হয়েছে'));
 };
-function nativeAiRequest(provider,key,msgs,extra){
+function nativeAiRequest(provider,key,msgs,extra,timeoutMs=60000){
   return new Promise((resolve,reject)=>{
     if(!N||typeof N.requestAi!=='function'){reject(new Error('Native Gemini সংযোগ পাওয়া যায়নি'));return}
     const id='ai-'+Date.now()+'-'+(++counter);
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},60000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; দ্রুত fallback চেষ্টা করছি'))},timeoutMs);
     aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
-    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
+    try{N.requestAi(provider,key,JSON.stringify(conversation),current,id,timeoutMs)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
 }
@@ -418,7 +418,7 @@ async function askAI(msgs=hist,extra='',role='answer'){
   for(const [provider,key] of providers){
     try{
       status('AI সংযোগ: '+({gemini:'Gemini',grok:'Grok',groq:'Groq',openai:'ChatGPT',muse:'Muse Spark'}[provider])+'…');
-      return await nativeAiRequest(provider,key,msgs,extra);
+      return await nativeAiRequest(provider,key,msgs,extra,22000);
     }catch(e){
       const detail=e&&e.message?e.message:'সংযোগ ব্যর্থ';
       failures.push(provider+': '+detail);
@@ -431,13 +431,13 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
   // Reuse the user's existing Gemini key first: no separate Grok/OpenAI/Muse key is required for the core task planner.
   // This is the Gemini API planner lane; Gemini Live remains the voice/conversation lane.
   const providers=[
-    ['gemini',LS.get('rumin_gemini_key')],
     ['groq',LS.get('rumin_groqcloud_key')],
+    ['gemini',LS.get('rumin_gemini_key')],
     ['grok',LS.get('rumin_grok_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
   ].filter(x=>x[1]);
-  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ Gemini API Key দিন।');
+  if(!providers.length)throw new Error('Task Agent চালাতে Settings-এ অন্তত একটি AI Provider Key দিন।');
   let last='';
   for(const [provider,key] of providers){
     try{
