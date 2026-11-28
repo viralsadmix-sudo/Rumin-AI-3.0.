@@ -138,7 +138,7 @@ app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
-    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print" },
+    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print", "windows-ui-automation-tree", "confirmed-ui-automation-actions" },
     notYetAvailable = new[] { "screen-ocr", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
 }));
 
