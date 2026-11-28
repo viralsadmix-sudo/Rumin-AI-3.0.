@@ -363,6 +363,56 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun getAgentCapabilities(): String {
+            val permissions = JSONArray()
+            val runtimePermissions = listOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.READ_CONTACTS,
+                Manifest.permission.WRITE_CONTACTS,
+                Manifest.permission.CALL_PHONE,
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) + if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN) else emptyList()
+            for (permission in runtimePermissions.distinct()) {
+                val granted = ContextCompat.checkSelfPermission(this@MainActivity, permission) == PackageManager.PERMISSION_GRANTED
+                permissions.put(JSONObject().put("name", permission).put("granted", granted))
+            }
+            val accessibilityEnabled = try {
+                val enabled = android.provider.Settings.Secure.getInt(contentResolver, android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
+                val services = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+                enabled && services.contains(packageName, ignoreCase = true) && services.contains("RuminAccessibilityService", ignoreCase = true)
+            } catch (_: Exception) { false }
+            val notificationAccess = try {
+                android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+                    .orEmpty().contains(packageName, ignoreCase = true)
+            } catch (_: Exception) { false }
+            val writeSettings = android.provider.Settings.System.canWrite(this@MainActivity)
+            val services = JSONObject()
+                .put("accessibility", accessibilityEnabled)
+                .put("notificationAccess", notificationAccess)
+                .put("writeSettings", writeSettings)
+            val availableTools = JSONArray().put("open_apps").put("volume_control").put("alarms").put("timers")
+                .put("settings_navigation").put("dialer_compose").put("sms_compose")
+            if (accessibilityEnabled) {
+                listOf("inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "home", "back", "recents", "notifications", "quicksettings")
+                    .forEach { availableTools.put(it) }
+            }
+            if (notificationAccess) availableTools.put("read_notifications")
+            if (writeSettings) availableTools.put("modify_system_settings")
+            return JSONObject()
+                .put("androidSdk", android.os.Build.VERSION.SDK_INT)
+                .put("permissions", permissions)
+                .put("services", services)
+                .put("availableTools", availableTools)
+                .put("limitations", JSONArray().put("SMS is opened as a draft; Rumin does not silently send it.")
+                    .put("Calls open the dialer; the user confirms the call.")
+                    .put("Accessibility and Notification Access require manual enablement in Android Settings."))
+                .toString()
+        }
+
         @JavascriptInterface fun executeAgentTool(action: String, first: String, second: String, taskId: String) {
             val accessibility = action.startsWith("accessibility:")
             val actualAction = if (accessibility) action.removePrefix("accessibility:") else action
