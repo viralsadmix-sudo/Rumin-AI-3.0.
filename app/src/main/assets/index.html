@@ -155,7 +155,7 @@ const SkillVault={
   key:'rumin_agent_skills_v1',
   list(){try{const v=JSON.parse(LS.get(this.key,'[]'));return Array.isArray(v)?v.filter(x=>x&&typeof x.name==='string'&&Array.isArray(x.steps)):[]}catch(e){return[]}},
   save(name,description,steps){
-    const allowed=new Set(['home','back','recents','notifications','quicksettings','volumeup','volumedown','alarm','timer','showalarms','showtimers','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up']);
+    const allowed=new Set(['open_app','web_search','home','back','recents','notifications','quicksettings','volumeup','volumedown','alarm','timer','showalarms','showtimers','dialer','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up']);
     if(!name||name.length>60||!Array.isArray(steps)||steps.length<1||steps.length>12)return false;
     const clean=[];
     for(const s of steps){if(!s||!allowed.has(String(s.tool))||['call','sms','power'].includes(String(s.tool)))return false;clean.push({tool:String(s.tool),a:String(s.a||'').slice(0,500),b:String(s.b||'').slice(0,500)})}
@@ -186,8 +186,8 @@ function agentCapabilities(){
 }
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const BASE_TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
-const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const BASE_TOOLS=['open_app','web_search','home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const ACC=['inspect_screen','read_screen','click_text','tap','type_text','scroll_down','scroll_up'];
 let TOOLS=BASE_TOOLS.slice();
 function refreshAgentRegistry(caps=agentCapabilities()){
   const accessibility=!!(caps&&caps.services&&caps.services.accessibility);
@@ -431,8 +431,8 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
   // Reuse the user's existing Gemini key first: no separate Grok/OpenAI/Muse key is required for the core task planner.
   // This is the Gemini API planner lane; Gemini Live remains the voice/conversation lane.
   const providers=[
-    ['groq',LS.get('rumin_groqcloud_key')],
     ['gemini',LS.get('rumin_gemini_key')],
+    ['groq',LS.get('rumin_groqcloud_key')],
     ['grok',LS.get('rumin_grok_key')],
     ['openai',LS.get('rumin_openai_key')],
     ['muse',LS.get('rumin_muse_key')]
@@ -478,7 +478,7 @@ async function think(text,hidden){
   hist.push({r:'u',t:text});hist=hist.slice(-14);
   try{
     const intentRules = `তুমি Rumin AI-এর intent router। সর্বশেষ বার্তা ও কথোপকথনের প্রসঙ্গ বুঝে ঠিক করো এটি সাধারণ প্রশ্ন/আলাপ, এক ধাপের নিরাপদ ফোনের কাজ, নাকি বহু-ধাপের কাজ। এক ধাপের স্পষ্ট ও নিরাপদ কাজ হলে quick_action দাও: {"quick_action":{"tool":"নিরাপদ উপলভ্য tool","a":"","b":""},"reply":"ঠিক আছে বস, করছি।","emotion":"thinking"}। quick_action শুধু অ্যাপ খোলা, হোম/ব্যাক, ভলিউম বা স্ক্রিন স্ক্রল/দেখার মতো কম-ঝুঁকির একক কাজের জন্য; click_text/type_text, কল, SMS, send/post/share/delete/buy/pay/confirm, security/privacy বা irreversible কাজ quick_action-এ দেবে না। বহু-ধাপের/অনিশ্চিত ফোনের কাজ হলে {"agent":true,"goal":"সম্পূর্ণ লক্ষ্য","first_action":{"tool":"inspect_screen","a":"","b":""},"reply":"ঠিক আছে বস, কাজটি শুরু করছি।","emotion":"thinking"} দেবে। শুধু প্রশ্ন/আলাপ/লেখা/অনুবাদ হলে {"reply":"স্বাভাবিক বাংলা উত্তর","emotion":"calm"} দেবে। অস্পষ্ট হলে একটি ছোট প্রশ্ন করবে। শুধু বৈধ JSON দেবে।`;
-    const FAST_SAFE_TOOLS=new Set(['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer','home','back','recents','notifications','quicksettings','volumeup','volumedown','volumemute','volumeunmute','inspect_screen','scroll_down','scroll_up']);
+    const FAST_SAFE_TOOLS=new Set(['open_app','web_search','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer','home','back','recents','notifications','quicksettings','volumeup','volumedown','volumemute','volumeunmute','inspect_screen','scroll_down','scroll_up']);
     const o=parse(await askAI(hist,intentRules+'\n'+modeExtra()));
     busy=false;
     if(o.quick_action){
@@ -511,11 +511,11 @@ async function think(text,hidden){
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
-const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const OPENERS=['open_app','web_search','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 সংরক্ষিত Skill: ${JSON.stringify(SkillVault.context())}। লক্ষ্য-সংশ্লিষ্ট Skill থাকলে সেটিকে প্রাথমিক পদ্ধতি হিসেবে ব্যবহার করো, কিন্তু প্রতিটি ধাপ বর্তমান স্ক্রিন ও permission দেখে যাচাই করে মানিয়ে নেবে; পুরোনো ধাপ অন্ধভাবে চালাবে না।
 বর্তমান Android capabilities: ${JSON.stringify(agentCapabilities())}। Permission না থাকলে সেটি গোপন করবে না; নিরাপদে প্রয়োজনীয় Android Settings খুলে ব্যবহারকারীকে অনুমতি দিতে বলবে, নিজে অনুমতি পাশ কাটাবে না।
-উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
+উপলভ্য tool: ${TOOLS.join(', ')}। open_app দিয়ে ইনস্টল করা অ্যাপের নাম বা package name দিয়ে খোলার চেষ্টা করবে; web_search দিয়ে ওয়েবে খুঁজবে; read_screen দিয়ে স্ক্রিন পড়বে; tap কেবল inspect_screen-এ পাওয়া বাস্তব x,y অবস্থানে ব্যবহার করবে। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
 যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
@@ -634,7 +634,7 @@ async function agent(goal,firstAction=null){
     // Give Android a short settle window; long fixed waits made every Agent step sluggish.
     await sleep(OPENERS.includes(x.tool)?650:180);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    if(x.tool==='inspect_screen'){
+    if(x.tool==='inspect_screen'||x.tool==='read_screen'){
       screen=Array.from(r.items||[]).slice(0,90).join(' | ')+'\\nUI উপাদান: '+JSON.stringify(Array.from(r.elements||[]).slice(0,100));
       if(!r.ok)screen='স্ক্রিন পড়া যায়নি: '+(r.message||'অজানা');
       continue;
@@ -753,7 +753,7 @@ on('save',()=>{
   LS.set('rumin_openai_key',$('ko').value.trim());
   LS.set('rumin_muse_key',$('km').value.trim());
   LS.set('rumin_groqcloud_key',$('kq').value.trim());
-  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.6-flash');
+  LS.set('rumin_provider','gemini');LS.set('rumin_gemini_model','gemini-3.8-flash');
   $('set').classList.remove('open');add('চারটি AI-এর Key সেটিংস সেভ হয়েছে। যেগুলোর Key আছে সেগুলোই ব্যবহার হবে।','s');status('Multi-AI Key সেটিংস সেভ হয়েছে')
 });
 async function verifyGeminiKey(){
