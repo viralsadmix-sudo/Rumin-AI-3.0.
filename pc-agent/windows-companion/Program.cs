@@ -81,8 +81,8 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new {
-    service = "Rumin Windows Companion", status = "ready", version = "0.3.0",
-    transport = "same-wifi-lan", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing" }
+    service = "Rumin Windows Companion", status = "ready", version = "0.4.0",
+    transport = "local-dashboard-and-private-lan-pairing", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing", "permission-management", "screen-capture", "desktop-input" }
 }));
 
 app.MapPost("/v1/pair/create", () =>
@@ -111,7 +111,7 @@ app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
 
 app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     service = "Rumin Windows Companion",
-    version = "0.3.0",
+    version = "0.4.0",
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
@@ -347,7 +347,7 @@ s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্
 </script></body></html>
 """, "text/html; charset=utf-8"));
 app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.2.0 · same-Wi-Fi pairing · /health", "text/plain"));
-Console.WriteLine("Rumin Windows Companion 0.2.0");
+Console.WriteLine("Rumin Windows Companion 0.4.0");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
 Console.WriteLine("Local bearer token: " + tokenPath);
 Console.WriteLine("Approved roots: " + rootsPath);
@@ -407,7 +407,7 @@ static Dictionary<string, bool> LoadOrCreatePermissions(string path)
 {
     var defaults = new Dictionary<string, bool> {
         ["app-discovery"] = false, ["app-launch"] = false,
-        ["file-read"] = true, ["screen-control"] = false,
+        ["file-read"] = false, ["screen-control"] = false,
         ["printing"] = false, ["file-write"] = false, ["screen-capture"] = false
     };
     if (File.Exists(path)) try {
