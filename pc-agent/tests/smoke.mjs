@@ -67,6 +67,16 @@ assert.ok(html.includes('id="loadSafetyAudit"'), "Safety Center must expose audi
 assert.ok(html.includes('id="safetyAuditItems"'), "Safety Center must render recent audit events");
 
 
+
+const installerScript = fs.readFileSync(new URL("../windows-companion/installer/RuminCompanion.iss", import.meta.url), "utf8");
+assert.ok(installerScript.includes("PrivilegesRequired=lowest"), "Windows installer must not require administrator privileges");
+assert.ok(installerScript.includes("RuminCompanion.exe"), "Windows installer must install the Companion executable");
+assert.ok(installerScript.includes("UninstallDisplayName"), "Windows installer must register an uninstall entry");
+const windowsBuild = fs.readFileSync(new URL("../../.github/workflows/build-windows-companion.yml", import.meta.url), "utf8");
+assert.ok(windowsBuild.includes("runs-on: windows-latest"), "Windows Companion must be built on a Windows runner");
+assert.ok(windowsBuild.includes("Inno Setup"), "Windows build must compile the installer");
+assert.ok(windowsBuild.includes("Rumin-Windows-Companion-Setup-0.6.1.exe"), "Windows build must verify and upload the installer EXE");
+
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
 assert.ok(worker.includes('url.pathname === "/health"'), "relay health endpoint must exist");
