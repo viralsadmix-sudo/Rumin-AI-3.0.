@@ -202,6 +202,74 @@ app.MapPost("/v1/desktop/input", async (HttpContext ctx) => {
     }
 });
 
+
+app.MapPost("/v1/agent/execute", async (HttpContext ctx) => {
+    // Batch execution reduces HTTP/model round trips for short, deterministic PC tasks.
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress))
+        return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<AgentBatchRequest>();
+    if (body?.Actions is null || body.Actions.Count is < 1 or > 8)
+        return Results.BadRequest(new { error = "actions_must_contain_1_to_8_items" });
+
+    var results = new List<object>();
+    for (var index = 0; index < body.Actions.Count; index++)
+    {
+        var action = body.Actions[index];
+        try
+        {
+            switch (action.Tool?.ToLowerInvariant())
+            {
+                case "open_app":
+                    if (!permissions.GetValueOrDefault("app-launch"))
+                        return Results.Json(new { error = "permission_required", capability = "app-launch", completed = results }, statusCode: 403);
+                    var appItem = DiscoverStartMenuApps().FirstOrDefault(x => FixedEquals(x.Id, action.AppId ?? ""));
+                    if (appItem is null)
+                        return Results.Json(new { error = "app_not_found", failedIndex = index, completed = results }, statusCode: 404);
+                    Process.Start(new ProcessStartInfo { FileName = appItem.Path, UseShellExecute = true });
+                    results.Add(new { tool = "open_app", success = true, app = appItem.Name });
+                    break;
+                case "click":
+                    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
+                        return Results.Json(new { error = "desktop_session_not_authorized", failedIndex = index, completed = results }, statusCode: 403);
+                    var w = NativeInput.GetSystemMetrics(0); var h = NativeInput.GetSystemMetrics(1);
+                    if (action.X < 0 || action.Y < 0 || action.X >= w || action.Y >= h)
+                        return Results.Json(new { error = "coordinates_out_of_bounds", failedIndex = index, completed = results }, statusCode: 400);
+                    NativeInput.Click(action.X, action.Y);
+                    results.Add(new { tool = "click", success = true });
+                    break;
+                case "scroll":
+                    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
+                        return Results.Json(new { error = "desktop_session_not_authorized", failedIndex = index, completed = results }, statusCode: 403);
+                    NativeInput.Scroll(Math.Clamp(action.Delta, -1200, 1200));
+                    results.Add(new { tool = "scroll", success = true });
+                    break;
+                case "type_text":
+                    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
+                        return Results.Json(new { error = "desktop_session_not_authorized", failedIndex = index, completed = results }, statusCode: 403);
+                    if (string.IsNullOrEmpty(action.Text) || action.Text.Length > 2000)
+                        return Results.BadRequest(new { error = "text_length_invalid", failedIndex = index, completed = results });
+                    NativeInput.TypeText(action.Text);
+                    results.Add(new { tool = "type_text", success = true, characters = action.Text.Length });
+                    break;
+                case "press_key":
+                    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
+                        return Results.Json(new { error = "desktop_session_not_authorized", failedIndex = index, completed = results }, statusCode: 403);
+                    if (!NativeInput.PressAllowedKey(action.Key ?? ""))
+                        return Results.BadRequest(new { error = "key_not_allowed", failedIndex = index, completed = results });
+                    results.Add(new { tool = "press_key", success = true });
+                    break;
+                default:
+                    return Results.BadRequest(new { error = "unsupported_tool", tool = action.Tool, failedIndex = index, completed = results });
+            }
+        }
+        catch (Exception)
+        {
+            return Results.Problem("Windows rejected an agent action.", statusCode: 500);
+        }
+    }
+    return Results.Ok(new { success = true, count = results.Count, results });
+});
+
 app.MapGet("/v1/system/info", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
     computerName = Environment.MachineName,
     operatingSystem = Environment.OSVersion.VersionString,
@@ -347,6 +415,8 @@ record StartMenuApp(string Id, string Name, string Path);
 record PermissionRequest(string? Capability, bool Enabled);
 record AppLaunchRequest(string? AppId);
 record DesktopInputRequest(string? Action, int X, int Y, int Delta, string? Text, string? Key);
+record AgentBatchRequest(List<AgentAction>? Actions);
+record AgentAction(string? Tool, int X = 0, int Y = 0, int Delta = 0, string? Text = null, string? Key = null, string? AppId = null);
 
 static class NativeInput
 {
