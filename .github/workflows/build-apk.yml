@@ -1,16 +1,22 @@
 name: Build Rumin AI 3.0 APK
+# Trigger fresh signed build after repository signing secrets are configured
 
 on:
   workflow_dispatch:
   push:
     branches:
       - feature/openphoneuse-agent-port
+      - feature/android-pc-pairing-integration
     paths:
       - 'app/**'
       - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: rumin-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -28,8 +34,47 @@ jobs:
           curl -fL --retry 3 --retry-delay 2 'https://storage.googleapis.com/vidiq-user-videos/562b25d4-d0d9-4ce5-9218-75914e17ac3f/7629967e-657a-41bc-823c-0521ebe2db4f.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1796136976&Signature=LAn%2FMETIH%2BAP1QNcBuyJ4b%2BuMyDF88JEAZ9ZgNM%2BivSyZa4cUY2NVHP5Rs0CNCGifDx8hFpTvvzaMbMyB5bfe4J2OvkvosHFnM%2BgNS130t32g3ZA621fam1%2Bn8xj%2FWN3b23IWEA9KoRYj8N5Y%2BEQxzGHin%2BkU8mvHEVxvghOpBAdzNM4mPcOEo9lNAco%2FGMbFcBnYUF3lIWXLzarJ3BVyKoI%2FDAu%2BCqlaEPwDcavcHJF6OlbRJR4RtmikXnzK5e1LfBMSOD419HsDN5WX%2Bs21bypQbT3RxUmVZxswq1lBpTGO2AaTBS0l%2FnF%2BvlntnBrPHdh4YiU2qkpn23ekyV9fg%3D%3D' -o app/src/main/assets/rumin-home-character.mp4
           test -s app/src/main/assets/rumin-home-character.mp4
           file app/src/main/assets/rumin-home-character.mp4
+      - name: Set increasing Android app version
+        run: |
+          echo "RUMIN_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "RUMIN_VERSION_NAME=3.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+      - name: Require permanent signing key for official releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          RUMIN_KEYSTORE_BASE64: ${{ secrets.RUMIN_KEYSTORE_BASE64 }}
+          RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD }}
+          RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS }}
+          RUMIN_KEY_PASSWORD: ${{ secrets.RUMIN_KEY_PASSWORD }}
+        run: |
+          test -n "$RUMIN_KEYSTORE_BASE64" || (echo "Missing RUMIN_KEYSTORE_BASE64 secret" && exit 1)
+          test -n "$RUMIN_KEYSTORE_PASSWORD" || (echo "Missing RUMIN_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "$RUMIN_KEY_ALIAS" || (echo "Missing RUMIN_KEY_ALIAS secret" && exit 1)
+          test -n "$RUMIN_KEY_PASSWORD" || (echo "Missing RUMIN_KEY_PASSWORD secret" && exit 1)
+      - name: Configure permanent signing key when available
+        env:
+          RUMIN_KEYSTORE_BASE64: ${{ secrets.RUMIN_KEYSTORE_BASE64 }}
+          RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD }}
+          RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS }}
+          RUMIN_KEY_PASSWORD: ${{ secrets.RUMIN_KEY_PASSWORD }}
+        run: |
+          test -n "$RUMIN_KEYSTORE_PASSWORD" || (echo "Missing RUMIN_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "$RUMIN_KEY_ALIAS" || (echo "Missing RUMIN_KEY_ALIAS secret" && exit 1)
+          test -n "$RUMIN_KEY_PASSWORD" || (echo "Missing RUMIN_KEY_PASSWORD secret" && exit 1)
+          mkdir -p "$RUNNER_TEMP/rumin-signing"
+          echo "$RUMIN_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rumin-signing/rumin-release.jks"
+          test -s "$RUNNER_TEMP/rumin-signing/rumin-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/rumin-signing/rumin-release.jks" -storepass "$RUMIN_KEYSTORE_PASSWORD" -alias "$RUMIN_KEY_ALIAS" >/dev/null
+          echo "RUMIN_KEYSTORE_PATH=$RUNNER_TEMP/rumin-signing/rumin-release.jks" >> "$GITHUB_ENV"
+          echo "RUMIN_KEYSTORE_PASSWORD=$RUMIN_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "RUMIN_KEY_ALIAS=$RUMIN_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "RUMIN_KEY_PASSWORD=$RUMIN_KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Build release APK
         uses: gradle/gradle-build-action@v3
+        env:
+          RUMIN_KEYSTORE_PATH: ${{ secrets.RUMIN_KEYSTORE_BASE64 != '' && format('{0}/rumin-signing/rumin-release.jks', runner.temp) || '' }}
+          RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD }}
+          RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS }}
+          RUMIN_KEY_PASSWORD: ${{ secrets.RUMIN_KEY_PASSWORD }}
         with:
           gradle-version: "8.9"
           arguments: assembleRelease

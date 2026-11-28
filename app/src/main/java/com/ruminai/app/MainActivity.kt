@@ -25,14 +25,19 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : ComponentActivity() {
-    private val aiExecutor = Executors.newSingleThreadExecutor()
+    private val aiExecutor = Executors.newFixedThreadPool(3)
+    private val activeAiConnections = ConcurrentHashMap<String, HttpURLConnection>()
+    private val cancelledAiRequests = ConcurrentHashMap.newKeySet<String>()
+    private val pendingAiRequests = ConcurrentHashMap.newKeySet<String>()
     private val pcNetworkExecutor = Executors.newSingleThreadExecutor()
     private val ttsExecutor = Executors.newSingleThreadExecutor()
     private val ttsHttp = OkHttpClient.Builder().callTimeout(35, TimeUnit.SECONDS).build()
@@ -47,6 +52,8 @@ class MainActivity : ComponentActivity() {
     private var continuousRecognizer: SpeechRecognizer? = null
     private var continuousListening = false
     private var pendingLiveKey: String? = null
+    @Volatile private var pendingUpdateInstallFile: File? = null
+    @Volatile private var waitingForInstallPermission = false
 
     private val phonePermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.filterValues { it }.keys
@@ -242,6 +249,156 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+
+        /** One-time LAN pairing. The returned bearer is encrypted at rest with Android Keystore. */
+        @JavascriptInterface fun pairPcCompanion(hostInput: String, codeInput: String) {
+            val host = hostInput.trim()
+            val code = codeInput.trim()
+            val validIpv4 = Regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$").matches(host) &&
+                host.split(".").all { (it.toIntOrNull() ?: -1) in 0..255 }
+            if (!validIpv4 || !Regex("^[0-9]{6}$").matches(code)) {
+                runOnUiThread {
+                    webView.evaluateJavascript("window.onPcPairResult && window.onPcPairResult(false, 'PC IPv4 address ও ৬ সংখ্যার Pairing Code দিন')", null)
+                }
+                return
+            }
+            pcNetworkExecutor.execute {
+                var ok = false
+                var message = "PC Pairing ব্যর্থ"
+                try {
+                    val body = JSONObject().put("code", code).toString().toByteArray(Charsets.UTF_8)
+                    val responseText = java.net.Socket().use { socket ->
+                        socket.connect(java.net.InetSocketAddress(host, 47831), 3500)
+                        socket.soTimeout = 5000
+                        val headers = "POST /v1/pair/join HTTP/1.1\r\n" +
+                            "Host: $host:47831\r\nContent-Type: application/json\r\n" +
+                            "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                        socket.getOutputStream().apply {
+                            write(headers.toByteArray(Charsets.US_ASCII))
+                            write(body)
+                            flush()
+                        }
+                        socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText().take(16384) }
+                    }
+                    val split = responseText.indexOf("\r\n\r\n")
+                    if (split < 0) throw IllegalStateException("PC Companion-এর উত্তর বোঝা যায়নি")
+                    val statusLine = responseText.substringBefore("\r\n")
+                    val responseBody = responseText.substring(split + 4)
+                    if (!statusLine.contains(" 200 ")) {
+                        val status = statusLine.substringAfter(" ").substringBefore(" ").toIntOrNull()
+                        message = when (status) {
+                            410 -> "Pairing Code ভুল, মেয়াদ শেষ, অথবা আগে ব্যবহার হয়েছে। PC-তে নতুন Code তৈরি করুন।"
+                            429 -> "অনেকবার চেষ্টা হয়েছে। ৫ মিনিট পরে আবার চেষ্টা করুন।"
+                            else -> "PC Pairing প্রত্যাখ্যান করেছে (HTTP ${status ?: "?"})"
+                        }
+                    } else {
+                        val result = JSONObject(responseBody)
+                        val accessToken = result.optString("accessToken")
+                        if (!result.optBoolean("paired") || accessToken.length < 32)
+                            throw IllegalStateException("PC Companion বৈধ Pairing Token দেয়নি")
+                        CompanionTokenStore(applicationContext).save(host, accessToken)
+                        ok = true
+                        message = "Rumin অ্যাপ PC Companion-এর সঙ্গে Pair হয়েছে। Token Android Keystore দিয়ে এনক্রিপ্ট করে রাখা হয়েছে। নিরাপত্তার জন্য PC-র Remote Control এখনো বন্ধ; HTTPS secure relay যুক্ত হলে চালু হবে।"
+                    }
+                } catch (e: Exception) {
+                    message = when (e) {
+                        is java.net.SocketTimeoutException -> "PC উত্তর দিচ্ছে না। Companion চালু আছে কি না দেখুন।"
+                        is java.net.ConnectException -> "PC-তে সংযোগ হয়নি। IP ও একই Wi-Fi পরীক্ষা করুন।"
+                        else -> e.message ?: "PC Pairing ব্যর্থ"
+                    }
+                }
+                val safe = JSONObject.quote(message)
+                runOnUiThread { webView.evaluateJavascript("window.onPcPairResult && window.onPcPairResult($ok, $safe)", null) }
+            }
+        }
+
+        @JavascriptInterface fun checkForAppUpdate() {
+            pcNetworkExecutor.execute {
+                var ok = false
+                var available = false
+                var version = ""
+                var notes = ""
+                var message = "আপডেট পরীক্ষা করা যায়নি"
+                try {
+                    val connection = (URL("https://api.github.com/repos/viralsadmix-sudo/Rumin-AI-3.0./releases/latest").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10000; readTimeout = 15000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val release = try {
+                        if (connection.responseCode !in 200..299) throw IllegalStateException("GitHub Release API HTTP ${connection.responseCode}")
+                        JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    } finally { connection.disconnect() }
+                    version = release.optString("tag_name")
+                    notes = release.optString("body").take(700)
+                    val asset = release.optJSONArray("assets")?.let { assets ->
+                        (0 until assets.length()).map { assets.getJSONObject(it) }
+                            .firstOrNull { it.optString("name").endsWith(".apk", true) }
+                    } ?: throw IllegalStateException("সর্বশেষ Release-এ APK পাওয়া যায়নি")
+                    val current = BuildConfig.VERSION_NAME
+                    val remoteDigits = version.removePrefix("v").substringAfterLast(".").toIntOrNull() ?: 0
+                    val currentDigits = current.substringAfterLast(".").toIntOrNull() ?: 0
+                    available = version != current && remoteDigits > currentDigits
+                    ok = true
+                    message = if (available) "নতুন সংস্করণ পাওয়া গেছে: $version" else "আপনার Rumin AI সর্বশেষ সংস্করণে আছে ($current)"
+                } catch (e: Exception) { message = e.message ?: "আপডেট পরীক্ষা ব্যর্থ" }
+                val safe = JSONObject.quote(message)
+                val safeVersion = JSONObject.quote(version)
+                val safeNotes = JSONObject.quote(notes)
+                runOnUiThread { webView.evaluateJavascript("window.onRuminUpdateCheck && window.onRuminUpdateCheck($ok, $available, $safeVersion, $safeNotes, $safe)", null) }
+            }
+        }
+
+        @JavascriptInterface fun downloadAndInstallUpdate() {
+            pcNetworkExecutor.execute {
+                var ok = false
+                var message = "APK ডাউনলোড করা যায়নি"
+                try {
+                    val api = (URL("https://api.github.com/repos/viralsadmix-sudo/Rumin-AI-3.0./releases/latest").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10000; readTimeout = 15000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val release = try {
+                        if (api.responseCode !in 200..299) throw IllegalStateException("GitHub API HTTP ${api.responseCode}")
+                        JSONObject(api.inputStream.bufferedReader().use { it.readText() })
+                    } finally { api.disconnect() }
+                    val asset = release.optJSONArray("assets")?.let { assets ->
+                        (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.optString("name").endsWith(".apk", true) }
+                    } ?: throw IllegalStateException("Release APK পাওয়া যায়নি")
+                    val downloadUrl = asset.optString("browser_download_url")
+                    if (!downloadUrl.startsWith("https://github.com/")) throw IllegalStateException("নিরাপদ GitHub APK URL পাওয়া যায়নি")
+                    val connection = (URL(downloadUrl).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 15000; readTimeout = 60000; instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "Rumin-AI-Android")
+                    }
+                    val apk = File(cacheDir, "rumin-update.apk")
+                    try {
+                        if (connection.responseCode !in 200..299) throw IllegalStateException("APK ডাউনলোড HTTP ${connection.responseCode}")
+                        if (connection.contentLengthLong > 120L * 1024L * 1024L) throw IllegalStateException("APK ফাইল অস্বাভাবিক বড়")
+                        connection.inputStream.use { input -> apk.outputStream().use { output ->
+                            val buffer = ByteArray(8192); var total = 0L
+                            while (true) { val count = input.read(buffer); if (count < 0) break; total += count
+                                if (total > 120L * 1024L * 1024L) throw IllegalStateException("APK ফাইল সীমার চেয়ে বড়")
+                                output.write(buffer, 0, count)
+                            }
+                        } }
+                    } finally { connection.disconnect() }
+                    if (!apk.exists() || apk.length() < 500000L) throw IllegalStateException("ডাউনলোড করা APK অসম্পূর্ণ")
+                    val archive = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+                        ?: throw IllegalStateException("ডাউনলোড করা ফাইলটি বৈধ APK নয়")
+                    if (archive.packageName != packageName) throw IllegalStateException("APK-টি Rumin AI-এর নয়")
+                    if (archive.versionCode <= BuildConfig.VERSION_CODE) throw IllegalStateException("ইনস্টল করা সংস্করণ নতুন বা সমান")
+                    pendingUpdateInstallFile = apk
+                    ok = true
+                    message = "APK ডাউনলোড ও পরীক্ষা সম্পন্ন। এখন Android Installer খুলছি।"
+                    runOnUiThread { installDownloadedUpdate() }
+                } catch (e: Exception) { message = e.message ?: "APK ডাউনলোড ব্যর্থ" }
+                val safe = JSONObject.quote(message)
+                runOnUiThread { webView.evaluateJavascript("window.onRuminUpdateDownload && window.onRuminUpdateDownload($ok, $safe)", null) }
+            }
+        }
+
         @JavascriptInterface fun startLiveVoice(key: String) {
             runOnUiThread {
                 if (key.isBlank()) {
@@ -379,12 +536,22 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun getPerformanceMetrics(): String = personalSystems.metrics()
 
+        @JavascriptInterface fun cancelAiRequest(requestId: String) {
+            val id = requestId.trim()
+            if (id.isNotBlank() && pendingAiRequests.contains(id)) {
+                cancelledAiRequests.add(id)
+                activeAiConnections.remove(id)?.disconnect()
+            }
+        }
+
         @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
             if (key.isBlank()) {
                 deliverAiResult(requestId, false, "API Key ফাঁকা")
                 return
             }
+            pendingAiRequests.add(requestId)
             aiExecutor.execute {
+                if (cancelledAiRequests.remove(requestId)) { pendingAiRequests.remove(requestId); return@execute }
                 var connection: HttpURLConnection? = null
                 try {
                     val p = provider.trim().lowercase()
@@ -415,7 +582,7 @@ class MainActivity : ComponentActivity() {
                         val messages = JSONArray()
                         val memoryContext = recentMemoryContext()
                         val plannerPrompt = "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না." +
-                            if (memoryContext.isBlank()) "" else "\\nপ্রাসঙ্গিক সংরক্ষিত স্মৃতি: " + memoryContext
+                            if (memoryContext.isBlank()) "" else "\nপ্রাসঙ্গিক সংরক্ষিত স্মৃতি: " + memoryContext
                         messages.put(JSONObject().put("role", "system").put("content", plannerPrompt))
                         // Keep planner context compact so free-tier TPM limits are not exhausted by old chat history.
                         val historyLimit = if (p == "groq") 3 else 4
@@ -441,7 +608,7 @@ class MainActivity : ComponentActivity() {
                             body.put("include_reasoning", false)
                         }
                     }
-                    connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
+                    val activeConnection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 20000
                         readTimeout = 60000
@@ -450,9 +617,15 @@ class MainActivity : ComponentActivity() {
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
                         else setRequestProperty("Authorization", "Bearer $key")
                     }
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    connection = activeConnection
+                    activeAiConnections[requestId] = activeConnection
+                    if (cancelledAiRequests.contains(requestId)) {
+                        activeConnection.disconnect()
+                        throw InterruptedException("AI request cancelled")
+                    }
+                    activeConnection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    val status = activeConnection.responseCode
+                    val stream = if (status in 200..299) activeConnection.inputStream else activeConnection.errorStream
                     val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                     val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
                     if (status !in 200..299) {
@@ -476,6 +649,9 @@ class MainActivity : ComponentActivity() {
                     }
                     deliverAiResult(requestId, false, detail)
                 } finally {
+                    activeAiConnections.remove(requestId)
+                    cancelledAiRequests.remove(requestId)
+                    pendingAiRequests.remove(requestId)
                     connection?.disconnect()
                 }
             }
@@ -556,6 +732,83 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun performCommand(action: String, first: String, second: String, taskId: String = "") {
             runOnUiThread {
                 try {
+                    if (action == "list_apps") {
+                        val filter = first.trim()
+                        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        val apps = packageManager.queryIntentActivities(launcherIntent, 0)
+                            .mapNotNull { resolved ->
+                                val info = resolved.activityInfo ?: return@mapNotNull null
+                                val pkg = info.packageName
+                                val label = resolved.loadLabel(packageManager).toString()
+                                if (pkg == packageName) null else Pair(label, pkg)
+                            }
+                            .filter { filter.isBlank() || it.first.contains(filter, ignoreCase = true) || it.second.contains(filter, ignoreCase = true) }
+                            .distinctBy { it.second }
+                            .sortedBy { it.first.lowercase() }
+                            .take(40)
+                        val rows = JSONArray()
+                        apps.forEach { (label, pkg) ->
+                            rows.put(JSONObject().put("name", label).put("packageName", pkg))
+                        }
+                        val result = JSONObject().put("count", rows.length()).put("apps", rows).toString()
+                        deliverCommandResult(true, result, taskId)
+                        return@runOnUiThread
+                    }
+                    if (action == "open_app") {
+                        val requested = first.trim()
+                        if (requested.isBlank()) {
+                            deliverCommandResult(false, "কোন অ্যাপ খুলতে হবে তা বুঝতে পারিনি।", taskId)
+                            return@runOnUiThread
+                        }
+                        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        val candidates = packageManager.queryIntentActivities(launcherIntent, 0)
+                            .mapNotNull { resolved ->
+                                val info = resolved.activityInfo ?: return@mapNotNull null
+                                if (info.packageName == packageName) null
+                                else Pair(resolved.loadLabel(packageManager).toString(), info.packageName)
+                            }
+                            .distinctBy { it.second }
+                        val normalized = requested.lowercase().replace(Regex("[\\s_\\-]+"), "")
+                        val exact = candidates.filter { it.first.lowercase().replace(Regex("[\\s_\\-]+"), "") == normalized }
+                        val matches = if (exact.isNotEmpty()) exact else candidates.filter {
+                            val label = it.first.lowercase().replace(Regex("[\\s_\\-]+"), "")
+                            label.contains(normalized) || normalized.contains(label)
+                        }
+                        if (matches.size != 1) {
+                            val message = if (matches.isEmpty()) "‘$requested’ নামে কোনো ইনস্টল করা অ্যাপ খুঁজে পাইনি।"
+                                else "‘$requested’ নামে একাধিক অ্যাপ পাওয়া গেছে: " + matches.take(4).joinToString(", ") { it.first } + "। নির্দিষ্ট নাম বলুন।"
+                            deliverCommandResult(false, message, taskId)
+                            return@runOnUiThread
+                        }
+                        val (label, targetPackage) = matches.first()
+                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                        if (launchIntent == null) {
+                            deliverCommandResult(false, "$label অ্যাপটি চালু করার মতো Launcher পাওয়া যায়নি।", taskId)
+                            return@runOnUiThread
+                        }
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        deliverCommandResult(true, "$label খুলেছি।", taskId)
+                        return@runOnUiThread
+                    }
+
+                    if (action == "launch_app") {
+                        val targetPackage = first.trim()
+                        if (!Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+$").matches(targetPackage)) {
+                            deliverCommandResult(false, "অ্যাপের বৈধ package name পাওয়া যায়নি।", taskId)
+                            return@runOnUiThread
+                        }
+                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                        if (launchIntent == null) {
+                            deliverCommandResult(false, "এই package-এর কোনো চালু করার মতো অ্যাপ পাওয়া যায়নি: $targetPackage", taskId)
+                            return@runOnUiThread
+                        }
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        val label = try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(targetPackage, 0)).toString() } catch (_: Exception) { targetPackage }
+                        deliverCommandResult(true, JSONObject().put("name", label).put("packageName", targetPackage).toString(), taskId)
+                        return@runOnUiThread
+                    }
                     if (action == "requestpermissions") {
                         // Request only runtime permissions supported by this Android version.
                         // Microphone was missing from the original bulk permission flow.
@@ -580,8 +833,31 @@ class MainActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
-                        val ok = RuminAccessibilityService.perform(action)
-                        val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        var ok = RuminAccessibilityService.perform(action)
+                        var message = if (ok) {
+                            if (action == "home") "ফোনের হোম স্ক্রিনে গিয়েছি।" else "ফোনের কমান্ড চালানো হয়েছে।"
+                        } else {
+                            "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        }
+
+                        // HOME is also available through Android's public launcher Intent.
+                        // Use it as a fallback when Accessibility is disabled or rejects the action.
+                        if (!ok && action == "home") {
+                            try {
+                                val homeIntent = Intent(Intent.ACTION_MAIN)
+                                    .addCategory(Intent.CATEGORY_HOME)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                if (homeIntent.resolveActivity(packageManager) != null) {
+                                    startActivity(homeIntent)
+                                    ok = true
+                                    message = "ফোনের হোম স্ক্রিনে গিয়েছি।"
+                                } else {
+                                    message = "ফোনে Default Home Launcher পাওয়া যায়নি। Android Settings থেকে Home app নির্বাচন করুন।"
+                                }
+                            } catch (e: Exception) {
+                                message = "হোম স্ক্রিন খোলা যায়নি: ${e.message ?: "অজানা সমস্যা"}"
+                            }
+                        }
                         deliverCommandResult(ok, message, taskId)
                         return@runOnUiThread
                     }
@@ -760,9 +1036,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun installDownloadedUpdate() {
+        val apk = pendingUpdateInstallFile ?: return
+        if (!apk.exists()) { pendingUpdateInstallFile = null; return }
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            waitingForInstallPermission = true
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        waitingForInstallPermission = false
+        pendingUpdateInstallFile = null
+        try {
+            val contentUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            if (::webView.isInitialized) webView.evaluateJavascript("window.onRuminUpdateDownload && window.onRuminUpdateDownload(false, ${JSONObject.quote(e.message ?: "Installer খুলতে সমস্যা")})", null)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         RuminLiveVoiceService.listener = liveUiListener
+        if (waitingForInstallPermission && (android.os.Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) installDownloadedUpdate()
         RuminLiveVoiceService.current?.let { reportLiveVoice("Live Voice ব্যাকগ্রাউন্ডে চালু আছে।", "listening") }
     }
 

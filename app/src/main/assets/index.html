@@ -139,7 +139,18 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
     <label>PC IPv4 Address</label>
     <input id="pcHost" type="text" inputmode="decimal" autocomplete="off" placeholder="যেমন 192.168.1.10">
     <div class="row"><button class="g" id="pcCheck">PC খুঁজুন / সংযোগ পরীক্ষা</button></div>
+    <label>৬ সংখ্যার PC Pairing Code</label>
+    <input id="pcPairCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="PC PowerShell থেকে তৈরি Code">
+    <div class="row"><button class="g" id="pcPair">Rumin অ্যাপ Pair করুন</button></div>
     <p id="pcConnectStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো PC পরীক্ষা করা হয়নি।</p>
+    <p style="font-size:11px;opacity:.75">Pairing একই Private Wi-Fi-তে করুন। বর্তমান Companion HTTP ব্যবহার করে; তাই Pairing Token পাঠানোর সময় নেটওয়ার্ক এনক্রিপশন নেই। Token ফোনে Android Keystore দিয়ে এনক্রিপ্ট করে রাখা হবে। HTTPS secure relay তৈরি না হওয়া পর্যন্ত PC-তে Remote Control চালু হবে না।</p>
+  </section>
+  <section style="margin:12px 0 18px;padding:14px;border:1px solid #51466c;border-radius:14px;background:rgba(28,20,52,.72)">
+    <h3 style="margin:0 0 8px;color:#e0aaff">⬆️ Rumin AI Update</h3>
+    <p style="font-size:12px;opacity:.82">GitHub-এর সর্বশেষ Official Release পরীক্ষা করুন। নতুন APK পাওয়া গেলে ডাউনলোড করে Android Installer দিয়ে আগের অ্যাপের ওপর আপডেট হবে; আনইনস্টল করার প্রয়োজন নেই, যদি Signing Key একই থাকে।</p>
+    <div class="row"><button class="g" id="checkRuminUpdate">আপডেট পরীক্ষা</button><button id="downloadRuminUpdate" disabled>ডাউনলোড ও ইনস্টল</button></div>
+    <p id="ruminUpdateStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো আপডেট পরীক্ষা করা হয়নি।</p>
+    <p id="ruminUpdateNotes" style="font-size:11px;opacity:.75;white-space:pre-wrap"></p>
   </section>
   <label>Gemini API Key (Live Voice + দ্রুত উত্তর)</label><input id="kg" type="password" autocomplete="off" placeholder="Gemini API Key">
   <label>Grok API Key (Task Agent)</label><input id="kx" type="password" autocomplete="off" placeholder="xAI Grok API Key">
@@ -164,7 +175,7 @@ const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const TOOLS=['home','back','recents','notifications','quicksettings','power','list_apps','launch_app','open_app','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,thinkGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
@@ -240,6 +251,11 @@ window.onLiveToolCall=(callId,functionName,argsJson)=>{
     N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'এই Live tool সমর্থিত নয়।'}));return;
   }
   const goal=String(args.goal||'').trim();
+  if(isCancelCommand(goal)){
+    cancelAgentTask('Live Voice-এ ব্যবহারকারীর নির্দেশে কাজ বাতিল');
+    if(N&&typeof N.sendLiveToolResponse==='function')N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:true,cancelled:true,message:'চলমান কাজ থামানোর নির্দেশ গ্রহণ করেছি।'}));
+    return;
+  }
   if(!goal){
     N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'কাজের নির্দেশ পাওয়া যায়নি।'}));return;
   }
@@ -281,55 +297,60 @@ window.onNativeActionResult=(raw,id)=>{
 /* ---------- Fast local commands (work without internet) ---------- */
 const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
+function quickCommand(raw){
+  const t=bn2en(String(raw||'')).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  const launchIntent=/(?:^|\s)(?:খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)(?:\s|$)/i.test(t);
+  if(!launchIntent)return null;
+  const quickApps=[
+    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],['youtube',/(ইউ ?টিউব|youtube)/i],
+    ['facebook',/(ফেসবুক|ফেইসবুক|ফেইস?বুক|facebook)/i],['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],
+    ['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],['gmail',/(জি ?মেইল|gmail)/i],
+    ['playstore',/(প্লে ?স্টোর|play ?store)/i],['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],
+    ['camera',/(ক্যামেরা|camera)/i],['browser',/(ব্রাউজার|browser|ইন্টারনেট)/i],
+    ['settings',/(সেটিংস|settings)/i],['wifi',/(ওয়াই ?ফাই|wifi)/i],['bluetooth',/(ব্লুটুথ|bluetooth)/i]
+  ];
+  const known=quickApps.find(([,re])=>re.test(t));
+  if(known)return {tool:known[0],a:'',label:known[0]};
+  const target=t.replace(/^(?:দয়া করে|একটু|আমার|ফোনের|মোবাইলের)\s*/,'')
+    .replace(/\s*(?:অ্যাপ(?:টা|টি)?\s*)?(?:খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)$/i,'')
+    .replace(/(?:তে|এ|ে|টা|টি)$/,'').trim();
+  if(!target||target.length>64)return null;
+  return {tool:'open_app',a:target,label:target};
+}
+function isCancelCommand(raw){
+  const t=bn2en(String(raw||'')).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  return /^(?:(?:আগের|চলমান|বর্তমান|এই)\s*)?(?:(?:কাজ(?:টা|টি)?|এটা|ওটা)\s*)?(?:এখন\s*)?(?:বাতিল|ক্যানসেল|cancel|থামাও|থামিয়ে দাও|বন্ধ(?:\s*করো|\s*করে দাও)?|stop)(?:\s*(?:করো|করুন|করে দাও|দাও))?$/i.test(t) ||
+    /^(?:থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/i.test(t) ||
+    /(?:আগের|চলমান|বর্তমান|এই)?\s*(?:কাজ(?:টা|টি)?|এটা|ওটা)\s*(?:এখন\s*)?(?:বাতিল|ক্যানসেল|cancel|থামাও|থামিয়ে দাও|বন্ধ(?:\s*করো|\s*করে দাও)?|stop)(?:\s*(?:করো|করুন|করে দাও|দাও))?/i.test(t) ||
+    /^(?:cancel|stop)\s+(?:the\s+)?(?:previous|current|last)\s+task$/i.test(t);
+}
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){cancelAgentTask('কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
+  if(isCancelCommand(t)){cancelAgentTask('ব্যবহারকারীর নির্দেশে কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, চলমান কাজ থামালাম।');return true}
   if(/(কে|কারা).*(বানিয়েছে|তৈরি করেছে|বানিয়েছ)|নির্মাতা|স্রষ্টা|ডেভেলপার|who (made|created) you|your (developer|creator)/.test(t)){reply(DEV,'happy');return true}
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){
     const fact=mem[2].trim();
-    try{
-      if(N&&typeof N.rememberPersonalFact==='function')N.rememberPersonalFact(fact,'user_explicit');
-      const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(fact);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));
-      reply('ঠিক আছে বস, আপনার কথাটি ফোনের লোকাল মেমোরিতে সংরক্ষণের চেষ্টা করেছি: '+fact,'happy');
-    }catch(e){reply('মেমোরিতে সংরক্ষণ করা যায়নি: '+(e.message||'অজানা সমস্যা'),'calm')}
-    return true
+    try{if(N&&typeof N.rememberPersonalFact==='function')N.rememberPersonalFact(fact,'user_explicit');const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(fact);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, আপনার কথাটি ফোনের লোকাল মেমোরিতে সংরক্ষণের চেষ্টা করেছি: '+fact,'happy')}
+    catch(e){reply('মেমোরিতে সংরক্ষণ করা যায়নি: '+(e.message||'অজানা সমস্যা'),'calm')}
+    return true;
   }
-  // Instant lane: obvious, reversible one-step device commands bypass remote AI planning.
-  // Multi-step or ambiguous requests still use the full Agent planner.
-  const quickApps=[
-    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],
-    ['youtube',/(ইউ ?টিউব|youtube)/i],['facebook',/(ফেইস?বুক|facebook)/i],
-    ['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],
-    ['gmail',/(জি ?মেইল|gmail)/i],['playstore',/(প্লে ?স্টোর|play ?store)/i],
-    ['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],['camera',/(ক্যামেরা|camera)/i],
-    ['browser',/(ব্রাউজার|browser|ইন্টারনেট খোলো)/i],['settings',/(সেটিংস|settings)/i]
-  ];
-  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু|open|launch|start|চালাও)/i.test(t);
-  if(launchIntent){
-    const match=quickApps.find(([tool,re])=>re.test(t));
-    if(match){
-      const [tool]=match;
-      status('দ্রুত চালু করছি…');mood('thinking',true);
-      callTool(tool,'','',7000).then(r=>{
-        const message=r.ok?'বস, '+({chatgpt:'ChatGPT',youtube:'YouTube',facebook:'Facebook',whatsapp:'WhatsApp',instagram:'Instagram',gmail:'Gmail',playstore:'Play Store',maps:'Google Maps',camera:'ক্যামেরা',browser:'ব্রাউজার',settings:'সেটিংস'}[tool]||tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
-        add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
-      });
-      return true;
-    }
+  const appCommand=quickCommand(raw);
+  if(appCommand){
+    status('দ্রুত অ্যাপ খুলছি…');mood('thinking',true);
+    callTool(appCommand.tool,appCommand.a,'',6500).then(r=>{
+      const message=r.ok?'বস, '+(appCommand.label||appCommand.a||appCommand.tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
+      add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
+    });
+    return true;
   }
   const quickActions=[
     ['volumeup',/(ভলিউম|সাউন্ড).*(বাড়াও|বাড়িয়ে|up|increase)|volume up/i],
     ['volumedown',/(ভলিউম|সাউন্ড).*(কমাও|কমানো|down|decrease)|volume down/i],
-    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],
-    ['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
+    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
   ];
   const quick=quickActions.find(([,re])=>re.test(t));
-  if(quick){
-    const [tool]=quick;status('দ্রুত কাজ করছি…');
-    callTool(tool,'','',5000).then(r=>{add(r.message|| (r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});
-    return true;
-  }
+  if(quick){const [tool]=quick;status('দ্রুত কাজ করছি…');callTool(tool,'','',5000).then(r=>{add(r.message||(r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});return true}
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
@@ -348,7 +369,7 @@ function system(extra=''){
 - কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
 - কাজটি উপলভ্য tool দিয়ে সম্ভব না হলে সৎভাবে সীমাবদ্ধতা জানাবে এবং বিকল্প বলবে।
 - বসের কথায় সম্ভাব্য অনুভূতি (খুশি, বিরক্তি, দুশ্চিন্তা, হতাশা, আগ্রহ, ক্লান্তি) ভাষা ও প্রসঙ্গ থেকে বুঝে সহানুভূতিশীল উত্তর দেবে; অনুভূতি নিশ্চিত ধরে নেবে না, প্রয়োজনে নরমভাবে যাচাই করবে। আগের আলাপের আবেগ ও অসমাপ্ত বিষয় মনে রেখে কথোপকথন চালাবে। শুধু প্রশ্নের উত্তর দিয়ে থেমে না থেকে প্রাসঙ্গিক হলে নিজে থেকে একটি স্বাভাবিক follow-up বা সাহায্যের প্রস্তাব দেবে; অকারণে বারবার বাধা দেবে না বা মনগড়া ব্যক্তিগত তথ্য বলবে না।
-- ফোনের যেকোনো কাজ—এক ধাপের হলেও—সরাসরি local shortcut দিয়ে নয়, Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
+- পরিচিত, একধাপের এবং নিরাপদ কিছু কাজ ইন্টারনেট ছাড়াই local fallback-এ করা যেতে পারে। নতুন অ্যাপ, অচেনা নির্দেশ, অস্পষ্ট বা বহু-ধাপের কাজ অবশ্যই Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
 - বসকে সম্মানজনক, সংক্ষিপ্ত, স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
 উপলভ্য Native capabilities (এগুলোই বাস্তব ক্ষমতার সীমা): ${TOOLS.join(', ')}।
 ব্যবহারকারীর সংরক্ষিত তথ্য: ${facts.length?facts.join('; '):'নেই'}
@@ -371,8 +392,12 @@ function nativeAiRequest(provider,key,msgs,extra){
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
-    aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
+    const timeout=setTimeout(()=>{delete aiWaiters[id];try{if(N&&typeof N.cancelAiRequest==='function')N.cancelAiRequest(id)}catch(e){}reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
+    aiWaiters[id]={
+      resolve:value=>{clearTimeout(timeout);delete aiWaiters[id];resolve(value)},
+      reject:error=>{clearTimeout(timeout);delete aiWaiters[id];reject(error)},
+      cancel:()=>{clearTimeout(timeout);delete aiWaiters[id];try{if(N&&typeof N.cancelAiRequest==='function')N.cancelAiRequest(id)}catch(e){}reject(new Error('AI অনুরোধ বাতিল করা হয়েছে'))}
+    };
     try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
@@ -385,6 +410,8 @@ function isTemporaryOverload(error){
 }
 const wait=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 async function askAgentAI(msgs=hist,extra='',role='planner'){
+  const taskGeneration=agentGeneration;
+  const taskCancelled=()=>role==='planner'&&taskGeneration!==agentGeneration;
   // Gemini API calls are separate from Gemini Live Voice. Keep Live Voice untouched.
   const providers=[
     ['gemini',LS.get('rumin_gemini_key')],
@@ -397,18 +424,21 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
   const names={gemini:'Gemini',groq:'Groq',grok:'Grok',openai:'ChatGPT',muse:'Muse Spark'};
   const failures=[];
   for(const [provider,key] of providers){
+    if(taskCancelled())throw new Error('AI অনুরোধ বাতিল করা হয়েছে');
     status('Task Agent: '+names[provider]+' চেষ্টা করছে…');
     try{
       return await nativeAiRequest(provider,key,msgs,extra);
     }catch(firstError){
-      let error=firstError;
+        if(String(firstError&&firstError.message||'').includes('বাতিল'))throw firstError;
+        let error=firstError;
       // A 503 is a temporary provider outage. Retry this provider only once,
       // then move on instead of looping through repeated Agent attempts.
       if(provider==='gemini' && isTemporaryOverload(firstError)){
         status('Gemini সার্ভার ব্যস্ত—একবার বিরতি দিয়ে পুনরায় চেষ্টা করছি…');
         await wait(900);
+        if(taskCancelled())throw new Error('AI অনুরোধ বাতিল করা হয়েছে');
         try{return await nativeAiRequest(provider,key,msgs,extra)}
-        catch(retryError){error=retryError}
+        catch(retryError){if(String(retryError&&retryError.message||'').includes('বাতিল'))throw retryError;error=retryError}
       }
       const detail=String(error&&error.message||'সংযোগ ব্যর্থ').slice(0,240);
       failures.push(names[provider]+': '+detail);
@@ -446,6 +476,12 @@ window.onLiveVoiceStatus=(message,state)=>{
   if(state==='stopped'||state==='error'){live=false;voiceMode=false;$('mic').classList.remove('on')}
 };
 window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
+  // Catch cancellation from the recognized Live transcript even when the model
+  // does not emit the start_agent_task tool call for the cancellation phrase.
+  if(userText&&isCancelCommand(userText)&&(agentRun||busy)){
+    cancelAgentTask('Live Voice-এ বসের নির্দেশে চলমান কাজ বাতিল');
+    status('কাজ বাতিল হয়েছে');
+  }
   if(userText){add(userText,'u');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'u',t:userText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'u',t:userText})}
   if(assistantText){add(assistantText,'b');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'b',t:assistantText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'b',t:assistantText})}
   hist=hist.slice(-30);
@@ -475,17 +511,18 @@ async function think(text,hidden){
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
-const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const OPENERS=['launch_app','open_app','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
-যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
+ব্যবহারকারী যে অ্যাপের নাম বলবেন সেটি hard-coded তালিকায় না থাকলেও প্রথমে list_apps tool-এ নামটি filter হিসেবে দিয়ে ইনস্টল করা launcher apps খুঁজবে; ফলাফলের সঠিক packageName ব্যবহার করে launch_app চালাবে। কোনো packageName অনুমান করবে না। কোনো ফল না পেলে screen inspect করে App Drawer/Search ব্যবহার করবে; না পেলে সীমাবদ্ধতা জানাবে। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 function cancelAgentTask(reason='ব্যবহারকারীর নির্দেশে কাজ বাতিল'){
   thinkGeneration++;
   agentGeneration++;
   agentRun=false;
   busy=false;
+  for(const id of Object.keys(aiWaiters)){const request=aiWaiters[id];if(request&&typeof request.cancel==='function')request.cancel()}
   for(const id of Object.keys(waiters)){
     cancelledNativeIds.add(id);
     if(cancelledNativeIds.size>100)cancelledNativeIds.delete(cancelledNativeIds.values().next().value);
@@ -501,9 +538,19 @@ async function agent(goal,firstAction=null){
   const runId=++agentGeneration;
   const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
+  const fast=quickCommand(goal);
+  if(fast){
+    status('দ্রুত অ্যাপ খুলছি…');mood('thinking',true);
+    const result=await callTool(fast.tool,fast.a||'','',6500);
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
+    agentRun=false;busy=false;
+    const message=result.ok?'বস, '+(fast.label||fast.a||fast.tool)+' খুলেছি।':(result.message||'অ্যাপটি খোলা যায়নি।');
+    if(!live)reply(message,result.ok?'happy':'sad');
+    return {ok:!!result.ok,verified:!!result.ok,message,goal,steps:1,action_log:[fast.tool+' → '+(result.ok?'সফল':'ব্যর্থ')]};
+  }
   const log=[];
   const savedAgentLogs=()=>{try{return JSON.parse(LS.get('rumin_agent_audit','[]'))}catch(e){return []}};
-  const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,900)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
+  const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,4200)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
   const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
   // The intent-classification response already selected a safe first step.
   // Read the screen immediately instead of making a second AI round-trip just to request it.
@@ -522,7 +569,7 @@ async function agent(goal,firstAction=null){
     }).slice(0,12000):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     recordStep('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
-  for(let n=1;n<=12&&isCurrent();n++){
+  for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
     for(let attempt=0;attempt<2&&!o;attempt++){
@@ -530,8 +577,9 @@ async function agent(goal,firstAction=null){
         const retryNote=attempt?'\\nআগের উত্তরে সমস্যা হয়েছিল। এবার অবশ্যই বৈধ JSON দাও; action না থাকলে done:true শুধু তখনই দেবে যখন লক্ষ্য সত্যিই পূরণ হয়েছে।':'';
         o=parse(await askAgentAI([{r:'u',t:'লক্ষ্য: '+goal+'\\nএ পর্যন্ত করা ধাপ: '+(log.join(' ; ')||'কিছু না')+'\\nবর্তমান স্ক্রিনের লেখা: '+(screen||'(এখনো দেখা হয়নি)')+retryNote}],AGENT_RULES,'planner'));
       }catch(e){
+        if(!isCurrent()||String(e&&e.message||'').includes('বাতিল'))return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
         lastError=e.message||'AI Planner-এ সংযোগ ব্যর্থ';
-        if(attempt===0){await sleep(250);continue}
+        if(attempt===0){await sleep(250);if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};continue}
         recordStep('Planner error: '+lastError);
       }
     }
@@ -586,7 +634,7 @@ async function agent(goal,firstAction=null){
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    recordStep(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
+    recordStep(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ')+(r.message?': '+String(r.message).replace(/\\s+/g,' ').slice(0,3500):''));
     if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     // Give Android a short settle window; long fixed waits made every Agent step sluggish.
     await sleep(OPENERS.includes(x.tool)?350:90);
@@ -639,8 +687,7 @@ async function execConfirmed(p){
 function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
-  const cancelText=/^(আগের কাজ(টা|টি)?\s*)?(বাতিল|ক্যানসেল|cancel)(\s*করো|\s*করুন|\s*করে দাও)?$|^(কাজ(টা|টি)?\s*)?(থামাও|বন্ধ করো|বাতিল করো|ক্যানসেল করো)$|^(cancel|stop) (the )?(previous|current|last) task$/i.test(bn2en(text).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim());
-  if(cancelText){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, আগের কাজটি বাতিল করেছি। এখন নতুন নির্দেশ দিতে পারেন।','calm');return}
+  if(isCancelCommand(text)){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, চলমান AI পরিকল্পনা ও অপেক্ষমাণ অনুরোধ থামানোর নির্দেশ দিয়েছি। ইতিমধ্যে সম্পন্ন ফোনের কাজ উল্টানো যায় না।','calm');return}
   if(pendingConfirm){
     const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
@@ -775,6 +822,50 @@ function stars(){
   window.onPcConnectionResult=(ok,message)=>{
     out.textContent=(ok?'✓ ':'✕ ')+message;
     out.style.color=ok?'#49d6a2':'#ff8a9a';
+  };
+  const pair=$('pcPair'),code=$('pcPairCode');
+  if(pair&&code){
+    pair.addEventListener('click',()=>{
+      const host=hostInput.value.trim(), pairingCode=code.value.trim();
+      if(!host||!/^\d{6}$/.test(pairingCode)){out.textContent='PC IP এবং ৬ সংখ্যার Pairing Code দিন';out.style.color='#ff8a9a';return;}
+      out.textContent='Rumin অ্যাপ PC-এর সঙ্গে Pair হচ্ছে…';out.style.color='#e0aaff';
+      if(N&&typeof N.pairPcCompanion==='function')N.pairPcCompanion(host,pairingCode);
+      else {out.textContent='এই APK-তে Native Pairing Bridge নেই।';out.style.color='#ff8a9a';}
+    });
+  }
+  window.onPcPairResult=(ok,message)=>{
+    out.textContent=(ok?'✓ ':'✕ ')+message;
+    out.style.color=ok?'#49d6a2':'#ff8a9a';
+    if(ok)code.value='';
+  };
+})();
+(function(){
+  const check=$('checkRuminUpdate'),download=$('downloadRuminUpdate'),statusEl=$('ruminUpdateStatus'),notes=$('ruminUpdateNotes');
+  if(!check||!download||!statusEl)return;
+  function requestUpdateCheck(silent){
+    statusEl.textContent='সর্বশেষ Official Release পরীক্ষা হচ্ছে…';
+    if(!silent){download.disabled=true;notes.textContent='';}
+    if(N&&typeof N.checkForAppUpdate==='function')N.checkForAppUpdate();
+    else if(!silent)statusEl.textContent='এই APK-তে Update Bridge নেই।';
+  }
+  check.addEventListener('click',()=>requestUpdateCheck(false));
+  download.addEventListener('click',()=>{
+    download.disabled=true;statusEl.textContent='APK ডাউনলোড হচ্ছে…';
+    if(N&&typeof N.downloadAndInstallUpdate==='function')N.downloadAndInstallUpdate();
+    else statusEl.textContent='এই APK-তে Update Bridge নেই।';
+  });
+  window.onRuminUpdateCheck=(ok,available,version,releaseNotes,message)=>{
+    statusEl.textContent=message||'আপডেট পরীক্ষা শেষ';
+    download.disabled=!(ok&&available);
+    notes.textContent=releaseNotes||'';
+    if(ok&&available){
+      const notice='রুমিন AI-এর নতুন সংস্করণ '+version+' পাওয়া গেছে। Settings > Rumin AI Update থেকে ডাউনলোড ও ইনস্টল করতে পারবেন।';
+      if(typeof add==='function')add(notice,'s');
+    }
+  };
+  window.onRuminUpdateDownload=(ok,message)=>{
+    statusEl.textContent=message|| (ok?'ডাউনলোড সম্পন্ন':'ডাউনলোড ব্যর্থ');
+    if(!ok)download.disabled=false;
   };
 })();
 try{stars()}catch(e){}
