@@ -17,6 +17,7 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 - Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
 - Permission-gated primary-display screenshot endpoint (JPEG, no-cache) while the local desktop session is active.
 - Batched local agent execution for up to eight supported actions in one request.
+- Windows-native speech output through the PC default audio device, with status and stop endpoints; speech endpoints remain loopback-only until the secure phone relay is implemented.
 - Desktop input and permission changes are restricted to loopback/local dashboard requests in this build. A phone bearer token cannot remotely control the desktop over the current plain-HTTP LAN transport.
 
 ## Permission model
@@ -40,7 +41,7 @@ Windows does not have one universal Android-style Accessibility toggle for every
 - OCR and AI screen feedback loop.
 - Multi-step Gemini planner with screen-context feedback and full approval orchestration; current endpoint only returns a constrained preview.
 - Rich document/PDF/image print preview, print settings, and multi-page print layout.
-- Microphone/camera streaming, arbitrary settings changes, and background service mode.
+- Secure remote phone-to-PC speech routing (blocked until encrypted relay is implemented), microphone/camera streaming, arbitrary settings changes, and background service mode.
 - Signed installer, auto-update, and production certificate/key management.
 
 ## Build on Windows 10/11
@@ -51,7 +52,7 @@ dotnet build .\RuminCompanion.csproj -c Release
 dotnet run --project .\RuminCompanion.csproj
 ```
 
-The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`; the JSON should report version `0.6.0` after updating.
+The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`. Local speech endpoints: `GET /v1/speech/status`, `POST /v1/speech/speak` with `{\"text\":\"...\"}`, and `POST /v1/speech/stop`. Speech plays through the Windows default audio output. These routes reject remote LAN clients until the secure phone relay is ready.
 
 ## Local data
 - Token: `%LOCALAPPDATA%\RuminAI\Companion\companion.token`
