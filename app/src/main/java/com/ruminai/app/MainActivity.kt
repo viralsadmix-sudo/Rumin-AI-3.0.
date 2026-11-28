@@ -299,8 +299,8 @@ class MainActivity : ComponentActivity() {
                     }
                     connection = (URL(baseUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
-                        connectTimeout = if (timeoutMs < 60000) 12000 else 20000
-                        readTimeout = timeoutMs.coerceIn(12000, 60000)
+                        connectTimeout = timeoutMs.coerceIn(4000, 8000)
+                        readTimeout = timeoutMs.coerceIn(6000, 20000)
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json; charset=utf-8")
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
