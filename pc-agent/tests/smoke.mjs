@@ -19,6 +19,14 @@ for (const match of html.matchAll(/data-page="([^"]+)"/g)) {
   assert.ok(idSet.has(match[1]), "Navigation points to missing page #" + match[1]);
 }
 assert.ok(html.includes('id="diagnostics"'), "system diagnostics page must exist");
+assert.ok(html.includes('id="safety"'), "Safety Center page must exist");
+assert.ok(html.includes('data-group-toggle="pc-hub"'), "PC Control Hub sidebar group must exist");
+for (const page of ["connect", "files", "print", "screen", "memory", "safety"]) {
+  assert.ok(html.includes('data-page="' + page + '"'), "PC Control Hub must link to " + page);
+}
+assert.ok(!html.includes("Local pairing prototype</h3>"), "module cards must not remain on the Overview page");
+assert.ok(html.includes('id="openSafetyPermissions"'), "Safety Center must link to PC Permissions");
+
 assert.ok(html.includes('id="runDiagnostics"'), "diagnostics action must exist");
 assert.ok(!html.includes("api.qrserver.com"), "pairing data must not be sent to a third-party QR service");
 
