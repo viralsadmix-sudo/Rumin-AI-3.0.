@@ -136,13 +136,13 @@ app.MapPost("/v1/permissions/grant", async (HttpContext ctx) => {
 });
 
 app.MapGet("/v1/apps/list", (HttpContext ctx) => {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
     if (!permissions.GetValueOrDefault("app-discovery")) return Results.Json(new { error = "permission_required", capability = "app-discovery" }, statusCode: 403);
     return Results.Ok(DiscoverStartMenuApps().Select(x => new { id = x.Id, name = x.Name }).ToArray());
 });
 
 app.MapPost("/v1/apps/open", async (HttpContext ctx) => {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
     if (!permissions.GetValueOrDefault("app-launch")) return Results.Json(new { error = "permission_required", capability = "app-launch" }, statusCode: 403);
     var body = await ctx.Request.ReadFromJsonAsync<AppLaunchRequest>();
     if (string.IsNullOrWhiteSpace(body?.AppId)) return Results.BadRequest(new { error = "app_id_required" });
@@ -159,7 +159,7 @@ app.MapPost("/v1/apps/open", async (HttpContext ctx) => {
 
 app.MapGet("/v1/desktop/screenshot", (HttpContext ctx) =>
 {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress))
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress))
         return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
     if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control") ||
         !permissions.GetValueOrDefault("screen-capture"))
@@ -190,7 +190,7 @@ app.MapPost("/v1/desktop/session/start", (HttpContext ctx) => {
     return Results.Ok(new { active = true, message = "Desktop control session enabled locally. Stop it from this PC at any time." });
 });
 app.MapPost("/v1/desktop/session/stop", (HttpContext ctx) => {
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
     desktopSessionActive = false;
     return Results.Ok(new { active = false });
 });
@@ -199,7 +199,7 @@ app.MapPost("/v1/desktop/input", async (HttpContext ctx) => {
     if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
         return Results.Json(new { error = "desktop_session_not_authorized" }, statusCode: 403);
     // Until the encrypted phone relay is shipped, input injection is restricted to the local PC.
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!))
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress!))
         return Results.Json(new { error = "remote_control_requires_secure_relay" }, statusCode: 403);
     var body = await ctx.Request.ReadFromJsonAsync<DesktopInputRequest>();
     if (body is null || string.IsNullOrWhiteSpace(body.Action)) return Results.BadRequest(new { error = "action_required" });
@@ -234,7 +234,7 @@ app.MapPost("/v1/desktop/input", async (HttpContext ctx) => {
 
 app.MapPost("/v1/agent/execute", async (HttpContext ctx) => {
     // Batch execution reduces HTTP/model round trips for short, deterministic PC tasks.
-    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress))
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress))
         return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
     var body = await ctx.Request.ReadFromJsonAsync<AgentBatchRequest>();
     if (body?.Actions is null || body.Actions.Count is < 1 or > 8)
@@ -299,7 +299,7 @@ app.MapPost("/v1/agent/execute", async (HttpContext ctx) => {
     return Results.Ok(new { success = true, count = results.Count, results });
 });
 
-app.MapGet("/v1/system/info", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
+app.MapGet("/v1/system/info", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
     computerName = Environment.MachineName,
     operatingSystem = Environment.OSVersion.VersionString,
     architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
@@ -307,10 +307,10 @@ app.MapGet("/v1/system/info", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Con
     companionVersion = "0.3.0"
 }));
 
-app.MapGet("/v1/files/roots", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : Results.Ok(roots.Select(x => new {
+app.MapGet("/v1/files/roots", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : Results.Ok(roots.Select(x => new {
     id = x.Key, displayName = x.Value, access = "read-only-listing"
 })));
-app.MapGet("/v1/files/list/{rootId}", (HttpContext ctx, string rootId) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : ListRoot(rootId));
+app.MapGet("/v1/files/list/{rootId}", (HttpContext ctx, string rootId) => !IsLoopbackAddress(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403) : !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : ListRoot(rootId));
 
 IResult ListRoot(string rootId)
 {
