@@ -165,8 +165,19 @@ const SkillVault={
   },
   context(){return this.list().map(x=>({name:x.name,description:x.description,steps:x.steps})).slice(-15)},
   match(goal){
-    const q=String(goal||'').toLowerCase();
-    return this.list().filter(x=>x.approved&&x.name&&q.includes(x.name.toLowerCase())).sort((a,b)=>b.updatedAt-a.updatedAt)[0]||null;
+    const q=String(goal||'').toLowerCase().replace(/[।,.!?]/g,' ');
+    const exact=this.list().filter(x=>x.approved&&x.name&&q.includes(x.name.toLowerCase())).sort((a,b)=>b.updatedAt-a.updatedAt)[0];
+    if(exact)return exact;
+    const stop=new Set(['আমি','তুমি','এটা','ওটা','করে','করো','করুন','দাও','দিয়ে','দিয়ে','আমার','একটা','আগের','কাজ','please','the','this','that','do','run','open']);
+    const tokens=s=>String(s||'').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(t=>t.length>2&&!stop.has(t));
+    const wanted=new Set(tokens(q));let best=null,bestScore=0;
+    for(const skill of this.list().filter(x=>x.approved)){
+      const available=new Set(tokens(skill.name+' '+skill.description));
+      const overlap=[...wanted].filter(t=>available.has(t)).length;
+      const score=overlap/Math.max(1,Math.min(wanted.size,available.size));
+      if(score>bestScore){bestScore=score;best=skill}
+    }
+    return bestScore>=0.34?best:null;
   }
 };
 function agentCapabilities(){
@@ -175,8 +186,14 @@ function agentCapabilities(){
 }
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const BASE_TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+let TOOLS=BASE_TOOLS.slice();
+function refreshAgentRegistry(caps=agentCapabilities()){
+  const accessibility=!!(caps&&caps.services&&caps.services.accessibility);
+  TOOLS=BASE_TOOLS.filter(tool=>!ACC.includes(tool)||accessibility);
+  return TOOLS;
+}
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
 /* ---------- UI helpers ---------- */
@@ -344,6 +361,7 @@ function system(extra=''){
   const facts=JSON.parse(LS.get('rumin_saved_facts','[]')).slice(-20);
   const learnedSkills=SkillVault.context();
   const capabilities=agentCapabilities();
+  refreshAgentRegistry(capabilities);
   return `তুমি Rumin AI — বসের ব্যক্তিগত বাংলা AI Agent। তোমার নির্মাতা সাব্বির আহমেদ রুবেল।
 মূল আচরণ:
 - বস স্বাভাবিক ভাষায়, অসম্পূর্ণ বাক্যে, কথ্য বাংলা, আঞ্চলিক উচ্চারণ, ভুল উচ্চারণ, বিরতি বা অতিরিক্ত শব্দসহ যা বলবেন তার উদ্দেশ্য বুঝবে। কোনো নির্দিষ্ট command phrase, মুখস্থ syntax, exact keyword বা নির্দিষ্ট শব্দক্রম দাবি করবে না। আগের কথার প্রসঙ্গ ধরে সর্বনাম/ইঙ্গিতের অর্থ বুঝবে; অস্পষ্ট হলে একটিমাত্র পরিষ্কার প্রশ্ন করবে।
@@ -500,6 +518,7 @@ function cancelAgentTask(reason='ব্যবহারকারীর নির�
 }
 async function agent(goal,firstAction=null){
   if(agentRun)return {ok:false,message:'আরেকটি Agent কাজ চলছে।'};
+  refreshAgentRegistry(agentCapabilities());
   const runId=++agentGeneration;
   const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
@@ -579,6 +598,18 @@ async function agent(goal,firstAction=null){
       const message='নিরাপত্তার জন্য Power action নিজে থেকে চালাইনি।';
       reply(message,'calm');return {ok:false,message};
     }
+    if(x.tool==='call'||x.tool==='sms'){
+      pendingConfirm={tool:x.tool,a:x.a||'',b:x.b||''};
+      finished=true;busy=false;agentRun=false;
+      const message=x.tool==='sms'?'বস, মেসেজ অ্যাপ খোলার আগে আপনার অনুমতি চাই। চালিয়ে যাব?':'বস, ডায়ালার খোলার আগে আপনার অনুমতি চাই। চালিয়ে যাব?';
+      reply(message,'calm');return {ok:false,requires_confirmation:true,message};
+    }
+    if(x.tool==='click_text'&&/(send|পাঠান|পোস্ট|publish|share|শেয়ার|delete|ডিলিট|মুছুন|buy|কিনুন|pay|পেমেন্ট|confirm|নিশ্চিত করুন)/i.test(String(x.a||''))){
+      pendingConfirm={tool:'agent_action',actionTool:x.tool,a:x.a||'',b:x.b||''};
+      finished=true;busy=false;agentRun=false;
+      const message='বস, এই বোতামটি কোনো বার্তা পাঠানো, পোস্ট, শেয়ার, মুছে ফেলা, কেনাকাটা বা পেমেন্ট নিশ্চিত করতে পারে। চাপ দেওয়ার আগে আপনার স্পষ্ট অনুমতি চাই।';
+      reply(message,'calm');return {ok:false,requires_confirmation:true,message};
+    }
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
@@ -611,7 +642,14 @@ async function agent(goal,firstAction=null){
   return {ok:false,message:'Agent Planner কাজটি সম্পন্ন করতে পারেনি।'};
 }
 async function execConfirmed(p){
-  if(p.tool==='sms'){
+  if(p.tool==='agent_action'){
+    const r=await callTool(p.actionTool,p.a||'',p.b||'',20000);
+    if(r.ok){
+      await sleep(250);
+      const screen=await callTool('inspect_screen','','',12000);
+      reply(screen.ok?'বস, আপনার অনুমোদনের পর কাজটি চালিয়েছি। স্ক্রিনের বর্তমান অবস্থা: '+Array.from(screen.items||[]).slice(0,18).join(' | '):'কাজটি চালানো হয়েছে, তবে স্ক্রিন যাচাই করা যায়নি।','happy');
+    }else reply('বস, অনুমোদিত কাজটি সম্পন্ন হয়নি: '+(r.message||'অজানা সমস্যা'),'sad');
+  }else if(p.tool==='sms'){
     const r=await callTool('sms',p.a||'',p.b||'');
     if(r.ok)agent('এসএমএস অ্যাপে বার্তা তৈরি আছে। পাঠানোর (Send/পাঠান) বোতাম চেপে বার্তা পাঠাও; স্ক্রিনে নিশ্চিত হলে done দাও। লক্ষ্য নম্বর: '+(p.a||'')+'; বার্তা: '+(p.b||''));
     else reply('বস, এসএমএস শুরু করা যায়নি: '+(r.message||'অজানা সমস্যা'),'sad');
