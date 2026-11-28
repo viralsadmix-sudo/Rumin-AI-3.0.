@@ -29,6 +29,10 @@ jobs:
           curl -fL --retry 3 --retry-delay 2 'https://storage.googleapis.com/vidiq-user-videos/562b25d4-d0d9-4ce5-9218-75914e17ac3f/7629967e-657a-41bc-823c-0521ebe2db4f.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1796136976&Signature=LAn%2FMETIH%2BAP1QNcBuyJ4b%2BuMyDF88JEAZ9ZgNM%2BivSyZa4cUY2NVHP5Rs0CNCGifDx8hFpTvvzaMbMyB5bfe4J2OvkvosHFnM%2BgNS130t32g3ZA621fam1%2Bn8xj%2FWN3b23IWEA9KoRYj8N5Y%2BEQxzGHin%2BkU8mvHEVxvghOpBAdzNM4mPcOEo9lNAco%2FGMbFcBnYUF3lIWXLzarJ3BVyKoI%2FDAu%2BCqlaEPwDcavcHJF6OlbRJR4RtmikXnzK5e1LfBMSOD419HsDN5WX%2Bs21bypQbT3RxUmVZxswq1lBpTGO2AaTBS0l%2FnF%2BvlntnBrPHdh4YiU2qkpn23ekyV9fg%3D%3D' -o app/src/main/assets/rumin-home-character.mp4
           test -s app/src/main/assets/rumin-home-character.mp4
           file app/src/main/assets/rumin-home-character.mp4
+      - name: Set increasing Android app version
+        run: |
+          echo "RUMIN_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "RUMIN_VERSION_NAME=3.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Require permanent signing key for official releases
         if: github.ref == 'refs/heads/main'
         env:
