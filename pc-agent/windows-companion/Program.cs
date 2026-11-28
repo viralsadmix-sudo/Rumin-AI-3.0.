@@ -208,10 +208,10 @@ app.MapGet("/v1/system/info", () => Results.Ok(new {
     companionVersion = "0.2.0"
 }));
 
-app.MapGet("/v1/files/roots", () => Results.Ok(roots.Select(x => new {
+app.MapGet("/v1/files/roots", () => !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : Results.Ok(roots.Select(x => new {
     id = x.Key, displayName = x.Value, access = "read-only-listing"
 })));
-app.MapGet("/v1/files/list/{rootId}", (string rootId) => ListRoot(rootId));
+app.MapGet("/v1/files/list/{rootId}", (string rootId) => !permissions.GetValueOrDefault("file-read") ? Results.Json(new { error = "permission_required", capability = "file-read" }, statusCode: 403) : ListRoot(rootId));
 
 IResult ListRoot(string rootId)
 {
