@@ -13,6 +13,7 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 - Windows printer enumeration and explicitly confirmed plain-text print jobs.
 - Opt-in Windows UI Automation control-tree inspection (bounded depth/node count; password values redacted).
 - Explicitly confirmed UIA Invoke and Value actions on enabled, non-password controls.
+- Gemini API planner endpoint that returns a validated preview for a strict allowlist; it never executes actions.
 - Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
 - Permission-gated primary-display screenshot endpoint (JPEG, no-cache) while the local desktop session is active.
 - Batched local agent execution for up to eight supported actions in one request.
@@ -37,7 +38,7 @@ Windows does not have one universal Android-style Accessibility toggle for every
 ## Not implemented yet
 - Remote phone-to-PC execution through a secure encrypted relay and native Android pairing client.
 - OCR and AI screen feedback loop.
-- Gemini natural-language planner/tool loop and approval orchestration.
+- Multi-step Gemini planner with screen-context feedback and full approval orchestration; current endpoint only returns a constrained preview.
 - Rich document/PDF/image print preview, print settings, and multi-page print layout.
 - Microphone/camera streaming, arbitrary settings changes, and background service mode.
 - Signed installer, auto-update, and production certificate/key management.
