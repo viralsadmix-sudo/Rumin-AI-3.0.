@@ -5,7 +5,7 @@ on:
     branches:
       - feature/openphoneuse-agent-port
     paths:
-      - "pc-agent/windows-companion/**"
+      - "rumin-source/pc-agent/windows-companion/**"
       - ".github/workflows/build-windows-companion.yml"
   workflow_dispatch:
 
@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The repository name ends in a dot; use a Windows-safe checkout directory.
+          path: rumin-source
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -27,15 +30,15 @@ jobs:
       - name: Publish self-contained Windows Companion
         shell: pwsh
         run: |
-          dotnet publish pc-agent/windows-companion/RuminCompanion.csproj `
+          dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:PublishSingleFile=true `
-            -o pc-agent/windows-companion/publish
+            -o rumin-source/pc-agent/windows-companion/publish
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
-          if (!(Test-Path "pc-agent/windows-companion/publish/RuminCompanion.exe")) {
+          if (!(Test-Path "rumin-source/pc-agent/windows-companion/publish/RuminCompanion.exe")) {
             throw "RuminCompanion.exe was not produced"
           }
 
@@ -54,7 +57,7 @@ jobs:
           This is an unsigned development installer. Windows SmartScreen may show a warning.
           This build does not provide the secure native Android-to-PC relay or OCR.
           Do not expose port 47831 to the public internet.
-          '@ | Set-Content "pc-agent/windows-companion/publish/README-FIRST.txt" -Encoding UTF8
+          '@ | Set-Content "rumin-source/pc-agent/windows-companion/publish/README-FIRST.txt" -Encoding UTF8
 
       - name: Install Inno Setup
         shell: pwsh
@@ -82,7 +85,7 @@ jobs:
         with:
           name: rumin-windows-companion-installer-and-portable
           path: |
-            pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
-            pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
+            rumin-source/pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
+            rumin-source/pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
           if-no-files-found: error
           retention-days: 30
