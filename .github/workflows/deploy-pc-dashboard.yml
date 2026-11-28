@@ -40,6 +40,17 @@ jobs:
           echo "Dashboard entry point found: $(wc -c < _site/index.html) bytes"
           find _site -maxdepth 2 -type f -print
 
+      - name: Setup Node.js for dashboard validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate relay Worker syntax
+        run: cp backend/pc-agent/worker.js /tmp/worker.mjs && node --check /tmp/worker.mjs
+
+      - name: Run dashboard smoke tests
+        run: node pc-agent/tests/smoke.mjs
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
