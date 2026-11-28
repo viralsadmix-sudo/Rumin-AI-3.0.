@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             lines.add(label + item.optString("content"))
                         }
                         lines.add("ব্যবহারকারী: " + currentText)
-                        body = JSONObject().put("model", "gemini-3.6-flash").put("input", lines.joinToString("\n"))
+                        body = JSONObject().put("model", "gemini-3.8-flash").put("input", lines.joinToString("\n"))
                     } else {
                         val messages = JSONArray()
                         messages.put(JSONObject().put("role", "system").put("content", "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না।"))
@@ -396,7 +396,7 @@ class MainActivity : ComponentActivity() {
                 .put("accessibility", accessibilityEnabled)
                 .put("notificationAccess", notificationAccess)
                 .put("writeSettings", writeSettings)
-            val availableTools = JSONArray().put("open_apps").put("volume_control").put("alarms").put("timers")
+            val availableTools = JSONArray().put("open_app").put("web_search").put("read_screen").put("tap").put("open_apps").put("volume_control").put("alarms").put("timers")
                 .put("settings_navigation").put("dialer_compose").put("sms_compose")
             if (accessibilityEnabled) {
                 listOf("inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "home", "back", "recents", "notifications", "quicksettings")
@@ -535,7 +535,17 @@ class MainActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     val intent = when (action) {
-                        "alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                        "open_app" -> {
+                            val requested = first.trim()
+                            val direct = packageManager.getLaunchIntentForPackage(requested)
+                            if (direct != null) direct else {
+                                val app = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+                                    .firstOrNull { info -> info.loadLabel(packageManager).toString().contains(requested, ignoreCase = true) }
+                                app?.let { packageManager.getLaunchIntentForPackage(it.packageName) }
+                            }
+                        }
+                        "web_search" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + java.net.URLEncoder.encode(first, "UTF-8")))
+                        "alarm", "set_alarm" -> Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                             putExtra(android.provider.AlarmClock.EXTRA_HOUR, first.toInt())
                             putExtra(android.provider.AlarmClock.EXTRA_MINUTES, second.toInt())
                             putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
@@ -601,6 +611,8 @@ class MainActivity : ComponentActivity() {
                         "camera" -> "ক্যামেরা খুলেছি।"
                         "contacts" -> "কন্টাক্টস খুলেছি।"
                         "browser" -> "ব্রাউজার খুলেছি।"
+                        "open_app" -> "অ্যাপ খোলার চেষ্টা করেছি: $first।"
+                        "web_search" -> "ওয়েব সার্চ খুলেছি।"
                         "youtube" -> "YouTube খুলেছি।"
                         "facebook" -> "Facebook খুলেছি।"
                         "whatsapp" -> "WhatsApp খুলেছি।"
