@@ -140,7 +140,7 @@ app.MapGet("/v1/audit/recent", (HttpContext ctx, int? limit) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new {
-    service = "Rumin Windows Companion", status = "ready", version = "0.6.0",
+    service = "Rumin Windows Companion", status = "ready", version = "0.6.1", host = Environment.MachineName, port = 47831, pairing = "same-private-wifi",
     transport = "local-dashboard-and-private-lan-pairing", capabilities = new[] { "system-info", "allowlisted-folder-listing", "one-time-pairing", "permission-management", "screen-capture", "desktop-input" }
 }));
 
@@ -189,7 +189,7 @@ app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
 
 app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     service = "Rumin Windows Companion",
-    version = "0.6.0",
+    version = "0.6.1",
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
@@ -559,7 +559,7 @@ app.MapGet("/v1/system/info", (HttpContext ctx) => !IsLoopbackAddress(ctx.Connec
     operatingSystem = Environment.OSVersion.VersionString,
     architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
     userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-    companionVersion = "0.6.0"
+    companionVersion = "0.6.1"
 }));
 
 
@@ -723,8 +723,8 @@ s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্
 })();
 </script></body></html>
 """, "text/html; charset=utf-8"));
-app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.6.0 · same-Wi-Fi pairing · /health", "text/plain"));
-Console.WriteLine("Rumin Windows Companion 0.6.0");
+app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.6.1 · same-Wi-Fi pairing · /health", "text/plain"));
+Console.WriteLine("Rumin Windows Companion 0.6.1");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
 Console.WriteLine("Local bearer token: " + tokenPath);
 Console.WriteLine("Approved roots: " + rootsPath);
