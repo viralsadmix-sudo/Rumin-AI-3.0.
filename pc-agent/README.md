@@ -1,27 +1,26 @@
 # Rumin AI 3.0 — PC Agent Dashboard
 
-This folder contains the first browser dashboard prototype for the existing Rumin AI 3.0 project.
+This is the existing PC Agent dashboard for the Rumin AI 3.0 project. The current UI/navigation design is retained; the new work connects its pages to the Windows Companion.
 
-## Preview locally
-Open `index.html` in a modern browser. The navigation works locally. The Files & Photos tab can preview an image selected through the browser file picker; this is not full Windows file-system access.
+## Current working areas
+- Overview: checks whether the local Windows Companion is reachable.
+- PC Permissions: separate opt-in toggles for app discovery, app launch, approved-folder read access, and local mouse/keyboard control.
+- Windows Apps: discovers Start Menu shortcuts and opens a selected app after permission is granted.
+- Files & Photos: browser image preview plus read-only listing of approved Documents/Pictures folders.
+- Screen Control: local session start/stop, coordinate click, scroll, Unicode typing, and a small allowlisted key set.
 
-## Current implementation status
-- Dashboard layout and navigation: implemented.
-- Browser-side image preview: implemented.
-- Phone pairing / QR exchange: not implemented.
-- Windows Companion Agent: not implemented.
-- Secure relay/API and authenticated device sessions: not implemented.
-- Windows file operations, printer control, screen capture, mouse/keyboard control: not implemented.
+## Windows Companion
+Build the Windows-side executable from `pc-agent/windows-companion/RuminCompanion.csproj`. Install the .NET 8 runtime if using the framework-dependent build, then start the Companion on the PC. It listens on port 47831.
 
-Controls that depend on missing services are intentionally disabled or marked unavailable. Do not enter secrets or personal files into this prototype.
+The browser dashboard must be opened on the same Windows PC for the current local-control milestone. The PC user must grant each permission explicitly. The screen-control session is local and can be stopped at any time.
 
-## Intended architecture
-1. This static HTTPS dashboard is the browser UI.
-2. A signed Windows 10 Companion runs locally and exposes only an authenticated, allowlisted command interface.
-3. The Android Rumin app approves pairing and high-impact actions.
-4. A backend provides short-lived pairing, device authentication, and encrypted message relay. Static hosting alone cannot provide this service.
+## Not complete yet
+This is not yet the full phone-controlled Universal PC Agent. Android-to-PC native pairing, encrypted relay, remote execution, screen capture/OCR/UI Automation, Gemini tool loop, file write/copy/move/delete, printer control, and microphone/camera features are not complete. The Companion intentionally blocks remote app/file/desktop actions until secure device transport is implemented.
 
-## GitHub Pages
-The repository owner/maintainer must enable Pages for this repository and choose GitHub Actions (or an appropriate branch/folder publishing source). After deployment, GitHub displays the actual site URL under **Settings → Pages**. The expected project-site URL format is documented by GitHub, but the live URL is not confirmed until Pages is enabled and deployment succeeds.
-
-Official guide: https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
+## Safety
+- No arbitrary PowerShell/CMD execution endpoint.
+- App launch is limited to discovered Start Menu shortcuts.
+- File access is read-only and limited to configured roots.
+- Mouse/keyboard input requires a local permission and active local session.
+- Sensitive/destructive operations must require explicit confirmation before future implementation.
+- Do not expose port 47831 to the public internet or share Companion tokens.
