@@ -37,6 +37,15 @@ assert.ok(companion.includes('app.MapGet("/v1/printers"'), "printer enumeration 
 assert.ok(companion.includes('app.MapPost("/v1/print/text"'), "confirmed text print endpoint must exist");
 assert.ok(companion.includes('explicit_print_confirmation_required'), "printing must require explicit confirmation");
 assert.ok(companion.includes('ResolveApprovedPath'), "file operations must be restricted to approved roots");
+assert.ok(companion.includes("using System.Speech.Synthesis;"), "Windows speech synthesis must be referenced");
+assert.ok(companion.includes('app.MapGet("/v1/speech/status"'), "PC speaker status endpoint must exist");
+assert.ok(companion.includes('app.MapPost("/v1/speech/speak"'), "PC speaker speak endpoint must exist");
+assert.ok(companion.includes('app.MapPost("/v1/speech/stop"'), "PC speaker stop endpoint must exist");
+assert.ok(companion.includes('outputDevice = "windows-default"'), "speech must target the Windows default audio output");
+assert.ok(companion.includes("SpeakAsyncCancelAll"), "PC speech must support cancelling queued/current output");
+const project = fs.readFileSync(new URL("../windows-companion/RuminCompanion.csproj", import.meta.url), "utf8");
+assert.ok(project.includes('PackageReference Include="System.Speech"'), "Windows speech synthesis package must be installed");
+assert.ok(companion.includes('if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);'), "remote speech must remain blocked until secure relay exists");
 
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
