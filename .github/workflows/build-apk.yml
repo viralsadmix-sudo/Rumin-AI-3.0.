@@ -54,10 +54,10 @@ jobs:
       - name: Build release APK
         uses: gradle/gradle-build-action@v3
         env:
-          RUMIN_KEYSTORE_PATH: ${{ env.RUMIN_KEYSTORE_PATH }}
-          RUMIN_KEYSTORE_PASSWORD: ${{ env.RUMIN_KEYSTORE_PASSWORD }}
-          RUMIN_KEY_ALIAS: ${{ env.RUMIN_KEY_ALIAS }}
-          RUMIN_KEY_PASSWORD: ${{ env.RUMIN_KEY_PASSWORD }}
+          RUMIN_KEYSTORE_PATH: ${{ secrets.RUMIN_KEYSTORE_BASE64 != '' && format('{0}/rumin-signing/rumin-release.jks', runner.temp) || '' }}
+          RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD }}
+          RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS }}
+          RUMIN_KEY_PASSWORD: ${{ secrets.RUMIN_KEY_PASSWORD }}
         with:
           gradle-version: "8.9"
           arguments: assembleRelease
