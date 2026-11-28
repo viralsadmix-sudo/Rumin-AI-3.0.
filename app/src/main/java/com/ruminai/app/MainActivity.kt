@@ -242,6 +242,69 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+
+        /** One-time LAN pairing. The returned bearer is encrypted at rest with Android Keystore. */
+        @JavascriptInterface fun pairPcCompanion(hostInput: String, codeInput: String) {
+            val host = hostInput.trim()
+            val code = codeInput.trim()
+            val validIpv4 = Regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$").matches(host) &&
+                host.split(".").all { (it.toIntOrNull() ?: -1) in 0..255 }
+            if (!validIpv4 || !Regex("^[0-9]{6}$").matches(code)) {
+                runOnUiThread {
+                    webView.evaluateJavascript("window.onPcPairResult && window.onPcPairResult(false, 'PC IPv4 address ও ৬ সংখ্যার Pairing Code দিন')", null)
+                }
+                return
+            }
+            pcNetworkExecutor.execute {
+                var ok = false
+                var message = "PC Pairing ব্যর্থ"
+                try {
+                    val body = JSONObject().put("code", code).toString().toByteArray(Charsets.UTF_8)
+                    val responseText = java.net.Socket().use { socket ->
+                        socket.connect(java.net.InetSocketAddress(host, 47831), 3500)
+                        socket.soTimeout = 5000
+                        val headers = "POST /v1/pair/join HTTP/1.1\\r\\n" +
+                            "Host: $host:47831\\r\\nContent-Type: application/json\\r\\n" +
+                            "Content-Length: ${body.size}\\r\\nConnection: close\\r\\n\\r\\n"
+                        socket.getOutputStream().apply {
+                            write(headers.toByteArray(Charsets.US_ASCII))
+                            write(body)
+                            flush()
+                        }
+                        socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText().take(16384) }
+                    }
+                    val split = responseText.indexOf("\\r\\n\\r\\n")
+                    if (split < 0) throw IllegalStateException("PC Companion-এর উত্তর বোঝা যায়নি")
+                    val statusLine = responseText.substringBefore("\\r\\n")
+                    val responseBody = responseText.substring(split + 4)
+                    if (!statusLine.contains(" 200 ")) {
+                        val status = statusLine.substringAfter(" ").substringBefore(" ").toIntOrNull()
+                        message = when (status) {
+                            410 -> "Pairing Code ভুল, মেয়াদ শেষ, অথবা আগে ব্যবহার হয়েছে। PC-তে নতুন Code তৈরি করুন।"
+                            429 -> "অনেকবার চেষ্টা হয়েছে। ৫ মিনিট পরে আবার চেষ্টা করুন।"
+                            else -> "PC Pairing প্রত্যাখ্যান করেছে (HTTP ${status ?: "?"})"
+                        }
+                    } else {
+                        val result = JSONObject(responseBody)
+                        val accessToken = result.optString("accessToken")
+                        if (!result.optBoolean("paired") || accessToken.length < 32)
+                            throw IllegalStateException("PC Companion বৈধ Pairing Token দেয়নি")
+                        CompanionTokenStore(applicationContext).save(host, accessToken)
+                        ok = true
+                        message = "Rumin অ্যাপ PC Companion-এর সঙ্গে Pair হয়েছে। Token Android Keystore দিয়ে এনক্রিপ্ট করে রাখা হয়েছে। নিরাপত্তার জন্য PC-র Remote Control এখনো বন্ধ; HTTPS secure relay যুক্ত হলে চালু হবে।"
+                    }
+                } catch (e: Exception) {
+                    message = when (e) {
+                        is java.net.SocketTimeoutException -> "PC উত্তর দিচ্ছে না। Companion চালু আছে কি না দেখুন।"
+                        is java.net.ConnectException -> "PC-তে সংযোগ হয়নি। IP ও একই Wi-Fi পরীক্ষা করুন।"
+                        else -> e.message ?: "PC Pairing ব্যর্থ"
+                    }
+                }
+                val safe = JSONObject.quote(message)
+                runOnUiThread { webView.evaluateJavascript("window.onPcPairResult && window.onPcPairResult($ok, $safe)", null) }
+            }
+        }
+
         @JavascriptInterface fun startLiveVoice(key: String) {
             runOnUiThread {
                 if (key.isBlank()) {
