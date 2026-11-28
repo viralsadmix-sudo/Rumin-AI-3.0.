@@ -30,4 +30,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rumin-windows-companion-win-x64
-          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0/win-x64/publish/
+          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0-windows/win-x64/publish/
