@@ -13,24 +13,67 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RUMIN_KEYSTORE_FILE: ${{ runner.temp }}/rumin-release.jks
+      RUMIN_KEYSTORE_BASE64: ${{ secrets.RUMIN_KEYSTORE_BASE64 }}
+      RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD || secrets.RUMIN_STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+      RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS || secrets.RUMIN_KEYSTORE_ALIAS || secrets.KEY_ALIAS }}
+      RUMIN_KEY_PASSWORD: ${{ secrets.RUMIN_KEY_PASSWORD || secrets.RUMIN_KEYSTORE_KEY_PASSWORD || secrets.KEY_PASSWORD }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Validate and prepare existing release keystore
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$RUMIN_KEYSTORE_BASE64" ]] || missing+=("RUMIN_KEYSTORE_BASE64")
+          [[ -n "$RUMIN_KEYSTORE_PASSWORD" ]] || missing+=("RUMIN_KEYSTORE_PASSWORD (or RUMIN_STORE_PASSWORD / KEYSTORE_PASSWORD)")
+          [[ -n "$RUMIN_KEY_ALIAS" ]] || missing+=("RUMIN_KEY_ALIAS (or RUMIN_KEYSTORE_ALIAS / KEY_ALIAS)")
+          [[ -n "$RUMIN_KEY_PASSWORD" ]] || missing+=("RUMIN_KEY_PASSWORD (or RUMIN_KEYSTORE_KEY_PASSWORD / KEY_PASSWORD)")
+          if (( ${#missing[@]} )); then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+          printf '%s' "$RUMIN_KEYSTORE_BASE64" | base64 --decode > "$RUMIN_KEYSTORE_FILE"
+          test -s "$RUMIN_KEYSTORE_FILE"
+          keytool -list -keystore "$RUMIN_KEYSTORE_FILE" -storepass "$RUMIN_KEYSTORE_PASSWORD" -alias "$RUMIN_KEY_ALIAS" >/dev/null
+          echo "Existing release keystore decoded and validated."
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
       - name: Download Rumin home character video
         run: |
           curl -fL --retry 3 --retry-delay 2 'https://storage.googleapis.com/vidiq-user-videos/562b25d4-d0d9-4ce5-9218-75914e17ac3f/7629967e-657a-41bc-823c-0521ebe2db4f.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1796136976&Signature=LAn%2FMETIH%2BAP1QNcBuyJ4b%2BuMyDF88JEAZ9ZgNM%2BivSyZa4cUY2NVHP5Rs0CNCGifDx8hFpTvvzaMbMyB5bfe4J2OvkvosHFnM%2BgNS130t32g3ZA621fam1%2Bn8xj%2FWN3b23IWEA9KoRYj8N5Y%2BEQxzGHin%2BkU8mvHEVxvghOpBAdzNM4mPcOEo9lNAco%2FGMbFcBnYUF3lIWXLzarJ3BVyKoI%2FDAu%2BCqlaEPwDcavcHJF6OlbRJR4RtmikXnzK5e1LfBMSOD419HsDN5WX%2Bs21bypQbT3RxUmVZxswq1lBpTGO2AaTBS0l%2FnF%2BvlntnBrPHdh4YiU2qkpn23ekyV9fg%3D%3D' -o app/src/main/assets/rumin-home-character.mp4
           test -s app/src/main/assets/rumin-home-character.mp4
           file app/src/main/assets/rumin-home-character.mp4
+
       - name: Build release APK
         uses: gradle/gradle-build-action@v3
+        env:
+          RUMIN_KEYSTORE_FILE: ${{ env.RUMIN_KEYSTORE_FILE }}
+          RUMIN_KEYSTORE_PASSWORD: ${{ env.RUMIN_KEYSTORE_PASSWORD }}
+          RUMIN_KEY_ALIAS: ${{ env.RUMIN_KEY_ALIAS }}
+          RUMIN_KEY_PASSWORD: ${{ env.RUMIN_KEY_PASSWORD }}
         with:
           gradle-version: "8.9"
           arguments: assembleRelease
+
+      - name: Verify APK release signature
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          apksigner verify --verbose --print-certs "$APK"
+          echo "APK signature verification passed."
+
       - name: Publish APK as GitHub Release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
@@ -39,10 +82,12 @@ jobs:
           name: RUMIN AI 3.0 - Build ${{ github.run_number }}
           body: |
             RUMIN AI 3.0 Android APK release.
+            Signed with the existing protected release keystore.
             Built automatically from the main branch.
           files: app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
           make_latest: true
+
       - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
