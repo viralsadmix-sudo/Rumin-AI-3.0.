@@ -476,6 +476,12 @@ window.onLiveVoiceStatus=(message,state)=>{
   if(state==='stopped'||state==='error'){live=false;voiceMode=false;$('mic').classList.remove('on')}
 };
 window.onLiveVoiceTurn=(userText,assistantText,audioReceived)=>{
+  // Catch cancellation from the recognized Live transcript even when the model
+  // does not emit the start_agent_task tool call for the cancellation phrase.
+  if(userText&&isCancelCommand(userText)&&(agentRun||busy)){
+    cancelAgentTask('Live Voice-এ বসের নির্দেশে চলমান কাজ বাতিল');
+    status('কাজ বাতিল হয়েছে');
+  }
   if(userText){add(userText,'u');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'u',t:userText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'u',t:userText})}
   if(assistantText){add(assistantText,'b');const vh=JSON.parse(LS.get('rumin_voice_history','[]'));vh.push({r:'b',t:assistantText});LS.set('rumin_voice_history',JSON.stringify(vh.slice(-80)));hist.push({r:'b',t:assistantText})}
   hist=hist.slice(-30);
