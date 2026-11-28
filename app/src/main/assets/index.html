@@ -842,7 +842,6 @@ function stars(){
 (function(){
   const check=$('checkRuminUpdate'),download=$('downloadRuminUpdate'),statusEl=$('ruminUpdateStatus'),notes=$('ruminUpdateNotes');
   if(!check||!download||!statusEl)return;
-  const LAST_CHECK_KEY='rumin_last_auto_update_check';
   function requestUpdateCheck(silent){
     statusEl.textContent='সর্বশেষ Official Release পরীক্ষা হচ্ছে…';
     if(!silent){download.disabled=true;notes.textContent='';}
@@ -868,12 +867,6 @@ function stars(){
     statusEl.textContent=message|| (ok?'ডাউনলোড সম্পন্ন':'ডাউনলোড ব্যর্থ');
     if(!ok)download.disabled=false;
   };
-  // Check automatically after startup, then at most once every 12 hours.
-  const lastCheck=Number(LS.get(LAST_CHECK_KEY,'0'))||0;
-  if(Date.now()-lastCheck>=12*60*60*1000){
-    LS.set(LAST_CHECK_KEY,String(Date.now()));
-    setTimeout(()=>requestUpdateCheck(true),5000);
-  }
 })();
 try{stars()}catch(e){}
 hist=JSON.parse(LS.get('rumin_text_history','[]'));
