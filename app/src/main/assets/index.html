@@ -175,7 +175,7 @@ const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','list_apps','launch_app','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const TOOLS=['home','back','recents','notifications','quicksettings','power','list_apps','launch_app','open_app','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,thinkGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
@@ -294,7 +294,7 @@ const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
 function quickCommand(raw){
   const t=bn2en(String(raw||'')).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
-  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)/i.test(t);
+  const launchIntent=/(?:^|\\s)(?:খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)(?:\\s|$)/i.test(t);
   if(!launchIntent)return null;
   const quickApps=[
     ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],['youtube',/(ইউ ?টিউব|youtube)/i],
@@ -380,7 +380,7 @@ function nativeAiRequest(provider,key,msgs,extra){
     const conversation=msgs.slice(0,-1).map(m=>({role:m.r==='b'?'assistant':'user',content:m.t}));
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
-    const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
+    const timeout=setTimeout(()=>{delete aiWaiters[id];try{if(N&&typeof N.cancelAiRequest==='function')N.cancelAiRequest(id)}catch(e){}reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
     aiWaiters[id]={
       resolve:value=>{clearTimeout(timeout);delete aiWaiters[id];resolve(value)},
       reject:error=>{clearTimeout(timeout);delete aiWaiters[id];reject(error)},
@@ -489,7 +489,7 @@ async function think(text,hidden){
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
-const OPENERS=['launch_app','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const OPENERS=['launch_app','open_app','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
