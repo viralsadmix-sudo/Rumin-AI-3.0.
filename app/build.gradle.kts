@@ -16,8 +16,8 @@ android {
         applicationId = "com.ruminai.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 29
-        versionName = "3.0.29"
+        versionCode = System.getenv("RUMIN_VERSION_CODE")?.toIntOrNull() ?: 30
+        versionName = System.getenv("RUMIN_VERSION_NAME") ?: "3.0.30"
     }
     val releaseStorePath = System.getenv("RUMIN_KEYSTORE_PATH")
     val releaseStorePassword = System.getenv("RUMIN_KEYSTORE_PASSWORD")
