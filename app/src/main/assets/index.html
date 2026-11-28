@@ -292,6 +292,26 @@ window.onNativeActionResult=(raw,id)=>{
 /* ---------- Fast local commands (work without internet) ---------- */
 const bn2en=s=>s.replace(/[০-৯]/g,d=>String(d.charCodeAt(0)-0x09E6));
 const APPS=[['youtube',/ইউ ?টিউব|youtube/i],['facebook',/ফেইস?বুক|facebook/i],['whatsapp',/হোয়াটস|whatsapp/i],['instagram',/ইনস্টা|instagram/i],['gmail',/জি ?মেইল|gmail/i],['playstore',/প্লে ?স্টোর|play ?store/i],['maps',/ম্যাপ|maps/i],['camera',/ক্যামেরা|camera/i],['browser',/ব্রাউজার|browser/i],['settings',/সেটিংস|settings/i],['wifi',/ওয়াই ?ফাই|wifi/i],['bluetooth',/ব্লুটুথ|bluetooth/i]];
+function quickCommand(raw){
+  const t=bn2en(String(raw||'')).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)/i.test(t);
+  if(!launchIntent)return null;
+  const quickApps=[
+    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],['youtube',/(ইউ ?টিউব|youtube)/i],
+    ['facebook',/(ফেইস?বুক|facebook)/i],['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],
+    ['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],['gmail',/(জি ?মেইল|gmail)/i],
+    ['playstore',/(প্লে ?স্টোর|play ?store)/i],['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],
+    ['camera',/(ক্যামেরা|camera)/i],['browser',/(ব্রাউজার|browser|ইন্টারনেট)/i],
+    ['settings',/(সেটিংস|settings)/i],['wifi',/(ওয়াই ?ফাই|wifi)/i],['bluetooth',/(ব্লুটুথ|bluetooth)/i]
+  ];
+  const known=quickApps.find(([,re])=>re.test(t));
+  if(known)return {tool:known[0],a:'',label:known[0]};
+  const target=t.replace(/^(?:দয়া করে|একটু|আমার|ফোনের|মোবাইলের)\s*/,'')
+    .replace(/\s*(?:অ্যাপ(?:টা|টি)?\s*)?(?:খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)$/i,'')
+    .replace(/(?:তে|এ)$/,'').trim();
+  if(!target||target.length>64)return null;
+  return {tool:'open_app',a:target,label:target};
+}
 function local(raw){
   const t=bn2en(raw).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
   if(/^(থামো|থাম|চুপ করো?|চুপ|কথা বন্ধ করো?|stop|be quiet)$/.test(t)){cancelAgentTask('কাজ থামানো হয়েছে');stopSpeaking();stopListening();status('ঠিক আছে বস, থামলাম।');return true}
@@ -299,49 +319,26 @@ function local(raw){
   const mem=raw.trim().match(/^(মনে রেখো|মনে রাখো|এটা মনে রেখো|remember)\s+(.+)/i);
   if(mem){
     const fact=mem[2].trim();
-    try{
-      if(N&&typeof N.rememberPersonalFact==='function')N.rememberPersonalFact(fact,'user_explicit');
-      const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(fact);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));
-      reply('ঠিক আছে বস, আপনার কথাটি ফোনের লোকাল মেমোরিতে সংরক্ষণের চেষ্টা করেছি: '+fact,'happy');
-    }catch(e){reply('মেমোরিতে সংরক্ষণ করা যায়নি: '+(e.message||'অজানা সমস্যা'),'calm')}
-    return true
+    try{if(N&&typeof N.rememberPersonalFact==='function')N.rememberPersonalFact(fact,'user_explicit');const f=JSON.parse(LS.get('rumin_saved_facts','[]'));f.push(fact);LS.set('rumin_saved_facts',JSON.stringify(f.slice(-40)));reply('ঠিক আছে বস, আপনার কথাটি ফোনের লোকাল মেমোরিতে সংরক্ষণের চেষ্টা করেছি: '+fact,'happy')}
+    catch(e){reply('মেমোরিতে সংরক্ষণ করা যায়নি: '+(e.message||'অজানা সমস্যা'),'calm')}
+    return true;
   }
-
-  // Instant lane: obvious, reversible one-step device commands bypass remote AI planning.
-  // Multi-step or ambiguous requests still use the full Agent planner.
-  const quickApps=[
-    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],
-    ['youtube',/(ইউ ?টিউব|youtube)/i],['facebook',/(ফেইস?বুক|facebook)/i],
-    ['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],
-    ['gmail',/(জি ?মেইল|gmail)/i],['playstore',/(প্লে ?স্টোর|play ?store)/i],
-    ['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],['camera',/(ক্যামেরা|camera)/i],
-    ['browser',/(ব্রাউজার|browser|ইন্টারনেট খোলো)/i],['settings',/(সেটিংস|settings)/i]
-  ];
-  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু|open|launch|start|চালাও)/i.test(t);
-  if(launchIntent){
-    const match=quickApps.find(([tool,re])=>re.test(t));
-    if(match){
-      const [tool]=match;
-      status('দ্রুত চালু করছি…');mood('thinking',true);
-      callTool(tool,'','',7000).then(r=>{
-        const message=r.ok?'বস, '+({chatgpt:'ChatGPT',youtube:'YouTube',facebook:'Facebook',whatsapp:'WhatsApp',instagram:'Instagram',gmail:'Gmail',playstore:'Play Store',maps:'Google Maps',camera:'ক্যামেরা',browser:'ব্রাউজার',settings:'সেটিংস'}[tool]||tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
-        add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
-      });
-      return true;
-    }
+  const appCommand=quickCommand(raw);
+  if(appCommand){
+    status('দ্রুত অ্যাপ খুলছি…');mood('thinking',true);
+    callTool(appCommand.tool,appCommand.a,'',6500).then(r=>{
+      const message=r.ok?'বস, '+(appCommand.label||appCommand.a||appCommand.tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
+      add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
+    });
+    return true;
   }
   const quickActions=[
     ['volumeup',/(ভলিউম|সাউন্ড).*(বাড়াও|বাড়িয়ে|up|increase)|volume up/i],
     ['volumedown',/(ভলিউম|সাউন্ড).*(কমাও|কমানো|down|decrease)|volume down/i],
-    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],
-    ['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
+    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
   ];
   const quick=quickActions.find(([,re])=>re.test(t));
-  if(quick){
-    const [tool]=quick;status('দ্রুত কাজ করছি…');
-    callTool(tool,'','',5000).then(r=>{add(r.message|| (r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});
-    return true;
-  }
+  if(quick){const [tool]=quick;status('দ্রুত কাজ করছি…');callTool(tool,'','',5000).then(r=>{add(r.message||(r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});return true}
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
@@ -384,7 +381,11 @@ function nativeAiRequest(provider,key,msgs,extra){
     conversation.unshift({role:'user',content:system(extra)});
     const current=msgs.length?msgs[msgs.length-1].t:'';
     const timeout=setTimeout(()=>{delete aiWaiters[id];reject(new Error('AI উত্তর দিতে সময় নিয়েছে; আবার চেষ্টা করুন'))},35000);
-    aiWaiters[id]={resolve:value=>{clearTimeout(timeout);resolve(value)},reject:error=>{clearTimeout(timeout);reject(error)}};
+    aiWaiters[id]={
+      resolve:value=>{clearTimeout(timeout);delete aiWaiters[id];resolve(value)},
+      reject:error=>{clearTimeout(timeout);delete aiWaiters[id];reject(error)},
+      cancel:()=>{clearTimeout(timeout);delete aiWaiters[id];try{if(N&&typeof N.cancelAiRequest==='function')N.cancelAiRequest(id)}catch(e){}reject(new Error('AI অনুরোধ বাতিল করা হয়েছে'))}
+    };
     try{N.requestAi(provider,key,JSON.stringify(conversation),current,id)}
     catch(e){clearTimeout(timeout);delete aiWaiters[id];reject(e)}
   });
@@ -413,14 +414,15 @@ async function askAgentAI(msgs=hist,extra='',role='planner'){
     try{
       return await nativeAiRequest(provider,key,msgs,extra);
     }catch(firstError){
-      let error=firstError;
+        if(String(firstError&&firstError.message||'').includes('বাতিল'))throw firstError;
+        let error=firstError;
       // A 503 is a temporary provider outage. Retry this provider only once,
       // then move on instead of looping through repeated Agent attempts.
       if(provider==='gemini' && isTemporaryOverload(firstError)){
         status('Gemini সার্ভার ব্যস্ত—একবার বিরতি দিয়ে পুনরায় চেষ্টা করছি…');
         await wait(900);
         try{return await nativeAiRequest(provider,key,msgs,extra)}
-        catch(retryError){error=retryError}
+        catch(retryError){if(String(retryError&&retryError.message||'').includes('বাতিল'))throw retryError;error=retryError}
       }
       const detail=String(error&&error.message||'সংযোগ ব্যর্থ').slice(0,240);
       failures.push(names[provider]+': '+detail);
@@ -498,6 +500,7 @@ function cancelAgentTask(reason='ব্যবহারকারীর নির�
   agentGeneration++;
   agentRun=false;
   busy=false;
+  for(const id of Object.keys(aiWaiters)){const request=aiWaiters[id];if(request&&typeof request.cancel==='function')request.cancel()}
   for(const id of Object.keys(waiters)){
     cancelledNativeIds.add(id);
     if(cancelledNativeIds.size>100)cancelledNativeIds.delete(cancelledNativeIds.values().next().value);
@@ -513,6 +516,16 @@ async function agent(goal,firstAction=null){
   const runId=++agentGeneration;
   const isCurrent=()=>agentGeneration===runId;
   agentRun=true;busy=true;
+  const fast=quickCommand(goal);
+  if(fast){
+    status('দ্রুত অ্যাপ খুলছি…');mood('thinking',true);
+    const result=await callTool(fast.tool,fast.a||'','',6500);
+    if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
+    agentRun=false;busy=false;
+    const message=result.ok?'বস, '+(fast.label||fast.a||fast.tool)+' খুলেছি।':(result.message||'অ্যাপটি খোলা যায়নি।');
+    if(!live)reply(message,result.ok?'happy':'sad');
+    return {ok:!!result.ok,verified:!!result.ok,message,goal,steps:1,action_log:[fast.tool+' → '+(result.ok?'সফল':'ব্যর্থ')]};
+  }
   const log=[];
   const savedAgentLogs=()=>{try{return JSON.parse(LS.get('rumin_agent_audit','[]'))}catch(e){return []}};
   const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,4200)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
@@ -651,8 +664,8 @@ async function execConfirmed(p){
 function handle(text){
   text=text.trim();if(!text)return;
   add(text,'u');if(!live){const th=JSON.parse(LS.get('rumin_text_history','[]'));th.push({r:'u',t:text});LS.set('rumin_text_history',JSON.stringify(th.slice(-80)))}$('txt').value='';stopSpeaking();
-  const cancelText=/^(আগের কাজ(টা|টি)?\s*)?(বাতিল|ক্যানসেল|cancel)(\s*করো|\s*করুন|\s*করে দাও)?$|^(কাজ(টা|টি)?\s*)?(থামাও|বন্ধ করো|বাতিল করো|ক্যানসেল করো)$|^(cancel|stop) (the )?(previous|current|last) task$/i.test(bn2en(text).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim());
-  if(cancelText){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, আগের কাজটি বাতিল করেছি। এখন নতুন নির্দেশ দিতে পারেন।','calm');return}
+  const cancelText=/^(আগের কাজ(টা|টি)?\s*)?(বাতিল|ক্যানসেল|cancel)(\s*করো|\s*করুন|\s*করে দাও)?$|^(কাজ(টা|টি)?\s*)?(থামাও|থামিয়ে দাও|বন্ধ করো|বাতিল করো|ক্যানসেল করো)$|^(এটা\s*)?(বন্ধ করো|থামাও|ক্যানসেল করো)$|^(cancel|stop) (the )?(previous|current|last) task$/i.test(bn2en(text).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim());
+  if(cancelText){pendingConfirm=null;cancelAgentTask();reply('ঠিক আছে বস, চলমান AI পরিকল্পনা ও অপেক্ষমাণ অনুরোধ থামানোর নির্দেশ দিয়েছি। ইতিমধ্যে সম্পন্ন ফোনের কাজ উল্টানো যায় না।','calm');return}
   if(pendingConfirm){
     const p=pendingConfirm;pendingConfirm=null;const n=bn2en(text).toLowerCase();
     if(/^(হ্যাঁ|হ্যা|হাঁ|জি|ঠিক আছে|করো|করে দাও|পাঠাও|yes|ok|okay|sure)/.test(n)){execConfirmed(p);return}
