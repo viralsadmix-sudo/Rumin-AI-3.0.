@@ -1,4 +1,4 @@
-name: Build Rumin Windows Companion
+name: Build Rumin Windows Companion Installer
 
 on:
   push:
@@ -14,34 +14,75 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: rumin-source
+
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - name: Build Windows Companion executable
-        run: dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release --runtime win-x64 --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishSingleFile=true
-      - name: Add quick-start instructions
+
+      - name: Publish self-contained Windows Companion
+        shell: pwsh
         run: |
-          cat > rumin-source/pc-agent/windows-companion/bin/Release/net8.0-windows/win-x64/publish/README-FIRST.txt <<'EOF'
+          dotnet publish pc-agent/windows-companion/RuminCompanion.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishSingleFile=true `
+            -o pc-agent/windows-companion/publish
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+          if (!(Test-Path "pc-agent/windows-companion/publish/RuminCompanion.exe")) {
+            throw "RuminCompanion.exe was not produced"
+          }
+
+      - name: Add first-run instructions
+        shell: pwsh
+        run: |
+          @'
           RUMIN AI 3.0 - WINDOWS COMPANION
 
-          1. Extract this ZIP to a normal folder on your Windows PC.
-          2. Double-click RuminCompanion.exe and allow Windows Firewall on your private network if prompted.
-          3. Keep the Companion running while using the PC Agent Dashboard on this same PC.
-          4. Open the Dashboard, check the Companion, and grant only the permissions you need.
-          5. Screen capture requires both Screen Control and Screen Capture permission, plus a started local session.
+          1. Launch RuminCompanion.exe from the Start Menu or desktop shortcut.
+          2. Keep the Companion running while using the PC Agent Dashboard on this PC.
+          3. Open http://127.0.0.1:47831/health on this PC. It should return status "ready".
+          4. If Windows Firewall asks, allow access on Private networks only.
+          5. Grant only the PC permissions you need from the local dashboard.
 
-          This is a development build. It does not yet provide full phone-to-PC remote control or OCR/UI Automation.
+          This is an unsigned development installer. Windows SmartScreen may show a warning.
+          This build does not provide the secure native Android-to-PC relay or OCR.
           Do not expose port 47831 to the public internet.
-          EOF
-      - name: Upload Windows Companion
+          '@ | Set-Content "pc-agent/windows-companion/publish/README-FIRST.txt" -Encoding UTF8
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) { throw "Inno Setup compiler not found: $compiler" }
+          & $compiler "pc-agent\windows-companion\installer\RuminCompanion.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+          $installer = "pc-agent\windows-companion\installer\Output\Rumin-Windows-Companion-Setup-0.6.1.exe"
+          if (!(Test-Path $installer)) { throw "Installer EXE was not produced" }
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "pc-agent\windows-companion\publish\*" -DestinationPath "pc-agent\windows-companion\Rumin-Windows-Companion-Portable-0.6.1.zip" -Force
+
+      - name: Upload installer and portable package
         uses: actions/upload-artifact@v4
         with:
-          name: rumin-windows-companion-win-x64
-          path: rumin-source/pc-agent/windows-companion/bin/Release/net8.0-windows/win-x64/publish/
+          name: rumin-windows-companion-installer-and-portable
+          path: |
+            pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
+            pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
+          if-no-files-found: error
+          retention-days: 30
