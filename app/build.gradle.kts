@@ -20,8 +20,8 @@ android {
         applicationId = "com.ruminai.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 28
-        versionName = "3.0.28"
+        versionCode = 30
+        versionName = "3.0.30"
     }
 
     signingConfigs {
