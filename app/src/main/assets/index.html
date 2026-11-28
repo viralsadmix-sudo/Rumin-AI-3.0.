@@ -145,6 +145,13 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
     <p id="pcConnectStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো PC পরীক্ষা করা হয়নি।</p>
     <p style="font-size:11px;opacity:.75">Pairing একই Private Wi-Fi-তে করুন। বর্তমান Companion HTTP ব্যবহার করে; তাই Pairing Token পাঠানোর সময় নেটওয়ার্ক এনক্রিপশন নেই। Token ফোনে Android Keystore দিয়ে এনক্রিপ্ট করে রাখা হবে। HTTPS secure relay তৈরি না হওয়া পর্যন্ত PC-তে Remote Control চালু হবে না।</p>
   </section>
+  <section style="margin:12px 0 18px;padding:14px;border:1px solid #51466c;border-radius:14px;background:rgba(28,20,52,.72)">
+    <h3 style="margin:0 0 8px;color:#e0aaff">⬆️ Rumin AI Update</h3>
+    <p style="font-size:12px;opacity:.82">GitHub-এর সর্বশেষ Official Release পরীক্ষা করুন। নতুন APK পাওয়া গেলে ডাউনলোড করে Android Installer দিয়ে আগের অ্যাপের ওপর আপডেট হবে; আনইনস্টল করার প্রয়োজন নেই, যদি Signing Key একই থাকে।</p>
+    <div class="row"><button class="g" id="checkRuminUpdate">আপডেট পরীক্ষা</button><button id="downloadRuminUpdate" disabled>ডাউনলোড ও ইনস্টল</button></div>
+    <p id="ruminUpdateStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো আপডেট পরীক্ষা করা হয়নি।</p>
+    <p id="ruminUpdateNotes" style="font-size:11px;opacity:.75;white-space:pre-wrap"></p>
+  </section>
   <label>Gemini API Key (Live Voice + দ্রুত উত্তর)</label><input id="kg" type="password" autocomplete="off" placeholder="Gemini API Key">
   <label>Grok API Key (Task Agent)</label><input id="kx" type="password" autocomplete="off" placeholder="xAI Grok API Key">
   <label>ChatGPT API Key (Task Agent)</label><input id="ko" type="password" autocomplete="off" placeholder="OpenAI API Key">
@@ -795,6 +802,29 @@ function stars(){
     out.textContent=(ok?'✓ ':'✕ ')+message;
     out.style.color=ok?'#49d6a2':'#ff8a9a';
     if(ok)code.value='';
+  };
+})();
+(function(){
+  const check=$('checkRuminUpdate'),download=$('downloadRuminUpdate'),statusEl=$('ruminUpdateStatus'),notes=$('ruminUpdateNotes');
+  if(!check||!download||!statusEl)return;
+  check.addEventListener('click',()=>{
+    statusEl.textContent='সর্বশেষ Release পরীক্ষা হচ্ছে…';download.disabled=true;notes.textContent='';
+    if(N&&typeof N.checkForAppUpdate==='function')N.checkForAppUpdate();
+    else statusEl.textContent='এই APK-তে Update Bridge নেই।';
+  });
+  download.addEventListener('click',()=>{
+    download.disabled=true;statusEl.textContent='APK ডাউনলোড হচ্ছে…';
+    if(N&&typeof N.downloadAndInstallUpdate==='function')N.downloadAndInstallUpdate();
+    else statusEl.textContent='এই APK-তে Update Bridge নেই।';
+  });
+  window.onRuminUpdateCheck=(ok,available,version,releaseNotes,message)=>{
+    statusEl.textContent=message||'আপডেট পরীক্ষা শেষ';
+    download.disabled=!(ok&&available);
+    notes.textContent=releaseNotes||'';
+  };
+  window.onRuminUpdateDownload=(ok,message)=>{
+    statusEl.textContent=message|| (ok?'ডাউনলোড সম্পন্ন':'ডাউনলোড ব্যর্থ');
+    if(!ok)download.disabled=false;
   };
 })();
 try{stars()}catch(e){}
