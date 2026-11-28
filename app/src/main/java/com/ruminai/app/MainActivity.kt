@@ -33,6 +33,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newSingleThreadExecutor()
+    private val pcNetworkExecutor = Executors.newSingleThreadExecutor()
     private val ttsExecutor = Executors.newSingleThreadExecutor()
     private val ttsHttp = OkHttpClient.Builder().callTimeout(35, TimeUnit.SECONDS).build()
     @Volatile private var elevenPlayer: MediaPlayer? = null
@@ -199,6 +200,48 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class NativeBridge {
+        /** Read-only LAN health probe. No pairing token or PC action is sent over HTTP. */
+        @JavascriptInterface fun checkPcConnection(hostInput: String) {
+            val host = hostInput.trim()
+            val validIpv4 = Regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$").matches(host) &&
+                host.split(".").all { it.toIntOrNull() in 0..255 }
+            if (!validIpv4) {
+                runOnUiThread { webView.evaluateJavascript("window.onPcConnectionResult && window.onPcConnectionResult(false, 'সঠিক PC IPv4 address দিন (যেমন 192.168.1.10)', '')", null) }
+                return
+            }
+            pcNetworkExecutor.execute {
+                var message = "PC Companion পাওয়া যায়নি"
+                var payload = ""
+                var ok = false
+                try {
+                    java.net.Socket().use { socket ->
+                        socket.connect(java.net.InetSocketAddress(host, 47831), 1800)
+                        socket.soTimeout = 1800
+                        val request = "GET /health HTTP/1.1\\r\\nHost: $host\\r\\nConnection: close\\r\\n\\r\\n"
+                        socket.getOutputStream().write(request.toByteArray(Charsets.US_ASCII))
+                        val response = socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText().take(8192) }
+                        val split = response.indexOf("\\r\\n\\r\\n")
+                        if (!response.startsWith("HTTP/1.1 200") || split < 0) throw IllegalStateException("PC Companion health check ব্যর্থ")
+                        payload = response.substring(split + 4)
+                        val health = JSONObject(payload)
+                        if (health.optString("status") != "ready" || health.optString("service") != "Rumin Windows Companion")
+                            throw IllegalStateException("এই ঠিকানায় Rumin Windows Companion পাওয়া যায়নি")
+                        ok = true
+                        message = "PC পাওয়া গেছে: " + health.optString("host", host) + " · Version " + health.optString("version", "unknown")
+                    }
+                } catch (e: Exception) {
+                    message = when (e) {
+                        is java.net.SocketTimeoutException -> "PC উত্তর দিচ্ছে না। Companion চালু আছে কি না ও Wi-Fi পরীক্ষা করুন।"
+                        is java.net.ConnectException -> "PC-তে সংযোগ হয়নি। IP, একই Wi-Fi এবং Windows Firewall পরীক্ষা করুন।"
+                        else -> e.message ?: "PC সংযোগ পরীক্ষা ব্যর্থ"
+                    }
+                }
+                val safeMessage = JSONObject.quote(message)
+                val safePayload = JSONObject.quote(payload)
+                runOnUiThread { webView.evaluateJavascript("window.onPcConnectionResult && window.onPcConnectionResult($ok, $safeMessage, $safePayload)", null) }
+            }
+        }
+
         @JavascriptInterface fun startLiveVoice(key: String) {
             runOnUiThread {
                 if (key.isBlank()) {
