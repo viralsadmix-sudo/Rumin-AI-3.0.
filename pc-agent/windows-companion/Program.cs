@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.Json;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Drawing;
+using System.Drawing.Imaging;
 
 var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuminAI", "Companion");
 Directory.CreateDirectory(appData);
@@ -113,8 +115,8 @@ app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
-    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts" },
-    notYetAvailable = new[] { "screen-capture", "screen-ocr", "printer-control", "file-write", "file-move", "file-delete", "microphone-stream", "camera" }
+    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions" },
+    notYetAvailable = new[] { "screen-ocr", "ui-automation", "printer-control", "file-write", "file-move", "file-delete", "microphone-stream", "camera" }
 }));
 
 app.MapGet("/v1/permissions", (HttpContext ctx) => !IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress) ? Results.Json(new { error = "local_pc_only" }, statusCode: 403) : Results.Ok(new {
@@ -151,6 +153,33 @@ app.MapPost("/v1/apps/open", async (HttpContext ctx) => {
         return Results.Ok(new { opened = true, app = selected.Name });
     } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) {
         return Results.Problem("Windows could not launch the selected Start Menu shortcut.", statusCode: 500);
+    }
+});
+
+
+app.MapGet("/v1/desktop/screenshot", (HttpContext ctx) =>
+{
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress))
+        return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control") ||
+        !permissions.GetValueOrDefault("screen-capture"))
+        return Results.Json(new { error = "screen_capture_not_authorized" }, statusCode: 403);
+    try
+    {
+        var bounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds;
+        if (bounds is null || bounds.Value.Width <= 0 || bounds.Value.Height <= 0)
+            return Results.Problem("No interactive Windows display is available.", statusCode: 503);
+        using var bitmap = new Bitmap(bounds.Value.Width, bounds.Value.Height);
+        using (var graphics = Graphics.FromImage(bitmap))
+            graphics.CopyFromScreen(bounds.Value.Left, bounds.Value.Top, 0, 0, bitmap.Size, CopyPixelOperation.SourceCopy);
+        using var stream = new MemoryStream();
+        bitmap.Save(stream, ImageFormat.Jpeg);
+        ctx.Response.Headers.CacheControl = "no-store";
+        return Results.File(stream.ToArray(), "image/jpeg");
+    }
+    catch (Exception)
+    {
+        return Results.Problem("Screen capture failed. Check that the Windows desktop is unlocked and interactive.", statusCode: 500);
     }
 });
 
@@ -379,7 +408,7 @@ static Dictionary<string, bool> LoadOrCreatePermissions(string path)
     var defaults = new Dictionary<string, bool> {
         ["app-discovery"] = false, ["app-launch"] = false,
         ["file-read"] = true, ["screen-control"] = false,
-        ["printing"] = false, ["file-write"] = false
+        ["printing"] = false, ["file-write"] = false, ["screen-capture"] = false
     };
     if (File.Exists(path)) try {
         var saved = JsonSerializer.Deserialize<Dictionary<string, bool>>(File.ReadAllText(path));
