@@ -23,6 +23,7 @@ string? activeCode = null;
 DateTimeOffset codeExpires = DateTimeOffset.MinValue;
 string? phoneToken = null;
 var pairingAttempts = new ConcurrentDictionary<string, (DateTimeOffset WindowStart, int Count)>();
+var pairingLock = new object();
 
 var builder = WebApplication.CreateBuilder(args);
 // Listen on LAN interfaces for same-Wi-Fi phone pairing. Firewall may ask permission.
@@ -89,10 +90,13 @@ app.MapGet("/health", () => Results.Ok(new {
 
 app.MapPost("/v1/pair/create", () =>
 {
-    activeCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-    codeExpires = DateTimeOffset.UtcNow.AddMinutes(5);
-    phoneToken = null;
-    return Results.Ok(new { code = activeCode, expiresIn = 300, addresses = GetLanIPv4Addresses() });
+    lock (pairingLock)
+    {
+        activeCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        codeExpires = DateTimeOffset.UtcNow.AddMinutes(5);
+        phoneToken = null;
+        return Results.Ok(new { code = activeCode, expiresIn = 300, addresses = GetLanIPv4Addresses() });
+    }
 });
 
 app.MapPost("/v1/pair/join", async (HttpContext ctx) =>
@@ -108,13 +112,18 @@ app.MapPost("/v1/pair/join", async (HttpContext ctx) =>
     if (attempts.Count > 8) return Results.StatusCode(429);
 
     var body = await ctx.Request.ReadFromJsonAsync<PairRequest>();
-    if (body?.Code is null || activeCode is null || now > codeExpires ||
-        !FixedEquals(body.Code, activeCode))
-        return Results.StatusCode(410);
-    activeCode = null; // one use only
+    if (body?.Code is null) return Results.StatusCode(410);
+    string issuedToken;
+    lock (pairingLock)
+    {
+        if (activeCode is null || now > codeExpires || !FixedEquals(body.Code, activeCode))
+            return Results.StatusCode(410);
+        activeCode = null; // atomic one-use claim
+        issuedToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        phoneToken = issuedToken;
+    }
     pairingAttempts.TryRemove(remoteKey, out _);
-    phoneToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-    return Results.Ok(new { paired = true, accessToken = phoneToken, expiresIn = 3600 });
+    return Results.Ok(new { paired = true, accessToken = issuedToken, expiresIn = 3600 });
 });
 
 app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
