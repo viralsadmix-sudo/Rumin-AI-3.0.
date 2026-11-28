@@ -97,7 +97,7 @@ app.Use(async (context, next) =>
 
     AddCors(context);
     var path = context.Request.Path;
-    if (path == "/health" || path == "/v1/pair/join" || path == "/v1/pair/phone-status")
+    if (path == "/health" || path == "/pair" || path == "/v1/pair/join" || path == "/v1/pair/phone-status")
     {
         await next();
         return;
