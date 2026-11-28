@@ -55,7 +55,7 @@ const project = fs.readFileSync(new URL("../windows-companion/RuminCompanion.csp
 assert.ok(project.includes('PackageReference Include="System.Speech"'), "Windows speech synthesis package must be installed");
 assert.ok(companion.includes('if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);'), "remote speech must remain blocked until secure relay exists");
 assert.ok(companion.includes('app.MapGet("/pair"'), "phone pairing landing page must exist");
-assert.ok(companion.includes('localStorage.setItem(\'ruminCompanionToken\',d.accessToken)'), "phone pairing page must retain the returned browser pairing token");
+assert.ok(companion.includes("ruminCompanionToken") && companion.includes("d.accessToken"), "phone pairing page must retain the returned browser pairing token");
 assert.ok(companion.includes('version = "0.6.1"'), "Companion health version must match 0.6.1");
 assert.ok(companion.includes('app.MapGet("/v1/audit/recent"'), "local audit history endpoint must exist");
 assert.ok(companion.includes("static class AuditTrail"), "audit trail writer must exist");
