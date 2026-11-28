@@ -313,7 +313,7 @@ function quickCommand(raw){
   if(known)return {tool:known[0],a:'',label:known[0]};
   const target=t.replace(/^(?:দয়া করে|একটু|আমার|ফোনের|মোবাইলের)\s*/,'')
     .replace(/\s*(?:অ্যাপ(?:টা|টি)?\s*)?(?:খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু করে দাও|চালাও|ঢোকো|ঢুকো|ঢুকে যাও|ভিতরে যাও|ভিতরে ঢোকো|প্রবেশ করো|অ্যাপে যাও|যাও|open|launch|start)$/i,'')
-    .replace(/(?:তে|এ)$/,'').trim();
+    .replace(/(?:তে|এ|ে|টা|টি)$/,'').trim();
   if(!target||target.length>64)return null;
   return {tool:'open_app',a:target,label:target};
 }
