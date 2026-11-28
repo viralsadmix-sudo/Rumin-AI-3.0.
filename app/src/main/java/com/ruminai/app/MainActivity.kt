@@ -376,7 +376,9 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) + if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
                 listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN) else emptyList()
-            for (permission in runtimePermissions.distinct()) {
+            val allRuntimePermissions = runtimePermissions + if (android.os.Build.VERSION.SDK_INT >= 33)
+                listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+            for (permission in allRuntimePermissions.distinct()) {
                 val granted = ContextCompat.checkSelfPermission(this@MainActivity, permission) == PackageManager.PERMISSION_GRANTED
                 permissions.put(JSONObject().put("name", permission).put("granted", granted))
             }
