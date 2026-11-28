@@ -251,6 +251,12 @@ window.onLiveToolCall=(callId,functionName,argsJson)=>{
     N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'এই Live tool সমর্থিত নয়।'}));return;
   }
   const goal=String(args.goal||'').trim();
+  const normalizedGoal=bn2en(goal).toLowerCase().replace(/[।,.!?]/g,' ').replace(/\s+/g,' ').trim();
+  if(/^(?:আগের কাজ\s*)?(?:বাতিল|ক্যানসেল|cancel)(?:\s*করো|\s*করুন|\s*করে দাও)?$|^(?:কাজ\s*)?(?:থামাও|থামিয়ে দাও|বন্ধ করো|stop)$|^(?:এটা\s*)?(?:বন্ধ করো|থামাও|ক্যানসেল করো)$/.test(normalizedGoal)){
+    cancelAgentTask('Live Voice-এ ব্যবহারকারীর নির্দেশে কাজ বাতিল');
+    if(N&&typeof N.sendLiveToolResponse==='function')N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:true,cancelled:true,message:'চলমান কাজ থামানোর নির্দেশ গ্রহণ করেছি।'}));
+    return;
+  }
   if(!goal){
     N&&N.sendLiveToolResponse&&N.sendLiveToolResponse(callId,functionName,JSON.stringify({ok:false,message:'কাজের নির্দেশ পাওয়া যায়নি।'}));return;
   }
