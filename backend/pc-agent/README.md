@@ -10,7 +10,8 @@ Create a new Cloudflare Worker named `rumin-pc-agent-relay`, connect this reposi
 - `POST /api/pair/join` with `{"code":"123456"}` joins a phone client.
 - `GET /api/pair/status?session=...` checks whether the phone joined.
 - `POST /api/pair/confirm` confirms the PC side.
-- `POST /api/relay/send` and `GET /api/relay/poll` carry small JSON messages after both sides are paired.
+- `POST /api/relay/send` and `GET /api/relay/poll` deliberately return HTTP 501 until authenticated end-to-end transport, replay protection, rate limiting, expiry/cleanup, and per-action approval are implemented.
+- `GET /health` reports relay health and explicitly identifies the current pairing-only state.
 
 ## Important security and implementation limits
 This first relay milestone is a pairing/signalling transport, not an end-to-end encrypted command channel. It does not authorize PC actions. Before production commands are enabled, add authenticated device identities, cryptographic key agreement, message signatures, replay protection, rate limiting, expiry/cleanup, and explicit per-action approval. Never send files, passwords, or unrestricted shell commands through this relay. The Android app still needs a native pairing screen/QR scanner and authenticated client implementation before the phone Rumin app can use it.
