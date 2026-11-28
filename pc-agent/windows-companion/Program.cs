@@ -16,6 +16,7 @@ using System.Runtime.InteropServices;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Automation;
+using System.Speech.Synthesis;
 
 var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuminAI", "Companion");
 Directory.CreateDirectory(appData);
@@ -36,6 +37,35 @@ var builder = WebApplication.CreateBuilder(args);
 // Listen on LAN interfaces for same-Wi-Fi phone pairing. Firewall may ask permission.
 builder.WebHost.UseUrls("http://0.0.0.0:47831");
 var app = builder.Build();
+
+ // PC speech stays loopback-only until the authenticated encrypted phone relay exists.
+app.MapGet("/v1/speech/status", (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Forbid();
+    return Results.Ok(new { available = true, outputDevice = "windows-default", state = PcSpeechOutput.State, voices = PcSpeechOutput.InstalledVoices });
+});
+app.MapPost("/v1/speech/speak", async (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<PcSpeechRequest>();
+    if (string.IsNullOrWhiteSpace(body?.Text) || body.Text.Length > 3000)
+        return Results.BadRequest(new { error = "speech_text_required_or_too_long" });
+    try
+    {
+        var voice = PcSpeechOutput.Speak(body.Text);
+        return Results.Ok(new { queued = true, outputDevice = "windows-default", voice });
+    }
+    catch (Exception)
+    {
+        return Results.Problem("Windows speech synthesis failed. Check that a Windows speech voice is installed.", statusCode: 503);
+    }
+});
+app.MapPost("/v1/speech/stop", (HttpContext ctx) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Forbid();
+    PcSpeechOutput.Stop();
+    return Results.Ok(new { stopped = true });
+});
 
 app.Use(async (context, next) =>
 {
@@ -144,7 +174,7 @@ app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
     platform = "Windows",
     permissions = permissions,
     desktopSessionActive,
-    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print", "windows-ui-automation-tree", "confirmed-ui-automation-actions", "gemini-planner-preview" },
+    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "screen-capture", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts", "batched-agent-actions", "local-agent-memory", "approved-file-create-move-recycle", "printer-enumeration", "confirmed-text-print", "windows-ui-automation-tree", "confirmed-ui-automation-actions", "gemini-planner-preview", "windows-speaker-tts" },
     notYetAvailable = new[] { "screen-ocr", "microphone-stream", "camera", "secure-phone-relay", "gemini-planner" }
 }));
 
@@ -884,3 +914,49 @@ record UiAutomationActionRequest(int[]? RuntimeId, string? Action, string? Value
 record GeminiPlanRequest(string? ApiKey, string? Task, string? Model = null);
 
 record PairRequest(string? Code);
+record PcSpeechRequest(string? Text);
+
+static class PcSpeechOutput
+{
+    private static readonly object Gate = new();
+    private static readonly SpeechSynthesizer Synthesizer = CreateSynthesizer();
+
+    private static SpeechSynthesizer CreateSynthesizer()
+    {
+        var synthesizer = new SpeechSynthesizer();
+        synthesizer.Volume = 100;
+        synthesizer.Rate = 0;
+        return synthesizer;
+    }
+
+    public static string State
+    {
+        get { lock (Gate) return Synthesizer.State.ToString(); }
+    }
+
+    public static string[] InstalledVoices
+    {
+        get
+        {
+            lock (Gate)
+                return Synthesizer.GetInstalledVoices().Where(v => v.Enabled).Select(v => v.VoiceInfo.Name).ToArray();
+        }
+    }
+
+    public static string? Speak(string text)
+    {
+        lock (Gate)
+        {
+            Synthesizer.SpeakAsyncCancelAll();
+            var voice = Synthesizer.GetInstalledVoices().FirstOrDefault(v => v.Enabled)?.VoiceInfo.Name;
+            if (!string.IsNullOrWhiteSpace(voice)) Synthesizer.SelectVoice(voice);
+            Synthesizer.SpeakAsync(text);
+            return voice;
+        }
+    }
+
+    public static void Stop()
+    {
+        lock (Gate) Synthesizer.SpeakAsyncCancelAll();
+    }
+}
