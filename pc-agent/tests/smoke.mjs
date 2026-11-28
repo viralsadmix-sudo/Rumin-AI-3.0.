@@ -23,7 +23,7 @@ assert.ok(html.includes('id="runDiagnostics"'), "diagnostics action must exist")
 assert.ok(!html.includes("api.qrserver.com"), "pairing data must not be sent to a third-party QR service");
 
 const companion = fs.readFileSync(new URL("../windows-companion/Program.cs", import.meta.url), "utf8");
-assert.ok(companion.includes('version = "0.5.0"'), "Companion version must match the dashboard release");
+assert.ok(companion.includes('version = "0.6.0"'), "Companion version must match the dashboard release");
 assert.ok(companion.includes("attempts.Count > 8"), "local pairing must throttle repeated guesses");
 assert.ok(companion.includes("atomic one-use claim"), "one-time pairing code consumption must be atomic");
 assert.ok(companion.includes('app.MapGet("/v1/files/list/{rootId}"'), "approved-folder listing endpoint must exist");
