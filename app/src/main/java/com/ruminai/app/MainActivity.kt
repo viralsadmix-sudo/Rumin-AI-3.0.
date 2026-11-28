@@ -31,9 +31,12 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : ComponentActivity() {
-    private val aiExecutor = Executors.newSingleThreadExecutor()
+    private val aiExecutor = Executors.newFixedThreadPool(3)
+    private val activeAiConnections = ConcurrentHashMap<String, HttpURLConnection>()
+    private val cancelledAiRequests = ConcurrentHashMap.newKeySet<String>()
     private val pcNetworkExecutor = Executors.newSingleThreadExecutor()
     private val ttsExecutor = Executors.newSingleThreadExecutor()
     private val ttsHttp = OkHttpClient.Builder().callTimeout(35, TimeUnit.SECONDS).build()
@@ -532,12 +535,21 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun getPerformanceMetrics(): String = personalSystems.metrics()
 
+        @JavascriptInterface fun cancelAiRequest(requestId: String) {
+            val id = requestId.trim()
+            if (id.isNotBlank()) {
+                cancelledAiRequests.add(id)
+                activeAiConnections.remove(id)?.disconnect()
+            }
+        }
+
         @JavascriptInterface fun requestAi(provider: String, key: String, historyJson: String, currentText: String, requestId: String) {
             if (key.isBlank()) {
                 deliverAiResult(requestId, false, "API Key ফাঁকা")
                 return
             }
             aiExecutor.execute {
+                if (cancelledAiRequests.remove(requestId)) return@execute
                 var connection: HttpURLConnection? = null
                 try {
                     val p = provider.trim().lowercase()
@@ -603,6 +615,11 @@ class MainActivity : ComponentActivity() {
                         if (isGemini) setRequestProperty("x-goog-api-key", key)
                         else setRequestProperty("Authorization", "Bearer $key")
                     }
+                    activeAiConnections[requestId] = connection
+                    if (cancelledAiRequests.contains(requestId)) {
+                        connection.disconnect()
+                        throw InterruptedException("AI request cancelled")
+                    }
                     connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                     val status = connection.responseCode
                     val stream = if (status in 200..299) connection.inputStream else connection.errorStream
@@ -629,6 +646,8 @@ class MainActivity : ComponentActivity() {
                     }
                     deliverAiResult(requestId, false, detail)
                 } finally {
+                    activeAiConnections.remove(requestId)
+                    cancelledAiRequests.remove(requestId)
                     connection?.disconnect()
                 }
             }
@@ -731,6 +750,44 @@ class MainActivity : ComponentActivity() {
                         deliverCommandResult(true, result, taskId)
                         return@runOnUiThread
                     }
+                    if (action == "open_app") {
+                        val requested = first.trim()
+                        if (requested.isBlank()) {
+                            deliverCommandResult(false, "কোন অ্যাপ খুলতে হবে তা বুঝতে পারিনি।", taskId)
+                            return@runOnUiThread
+                        }
+                        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        val candidates = packageManager.queryIntentActivities(launcherIntent, 0)
+                            .mapNotNull { resolved ->
+                                val info = resolved.activityInfo ?: return@mapNotNull null
+                                if (info.packageName == packageName) null
+                                else Pair(resolved.loadLabel(packageManager).toString(), info.packageName)
+                            }
+                            .distinctBy { it.second }
+                        val normalized = requested.lowercase().replace(Regex("[\\s_\\-]+"), "")
+                        val exact = candidates.filter { it.first.lowercase().replace(Regex("[\\s_\\-]+"), "") == normalized }
+                        val matches = if (exact.isNotEmpty()) exact else candidates.filter {
+                            val label = it.first.lowercase().replace(Regex("[\\s_\\-]+"), "")
+                            label.contains(normalized) || normalized.contains(label)
+                        }
+                        if (matches.size != 1) {
+                            val message = if (matches.isEmpty()) "‘$requested’ নামে কোনো ইনস্টল করা অ্যাপ খুঁজে পাইনি।"
+                                else "‘$requested’ নামে একাধিক অ্যাপ পাওয়া গেছে: " + matches.take(4).joinToString(", ") { it.first } + "। নির্দিষ্ট নাম বলুন।"
+                            deliverCommandResult(false, message, taskId)
+                            return@runOnUiThread
+                        }
+                        val (label, targetPackage) = matches.first()
+                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                        if (launchIntent == null) {
+                            deliverCommandResult(false, "$label অ্যাপটি চালু করার মতো Launcher পাওয়া যায়নি।", taskId)
+                            return@runOnUiThread
+                        }
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        deliverCommandResult(true, "$label খুলেছি।", taskId)
+                        return@runOnUiThread
+                    }
+
                     if (action == "launch_app") {
                         val targetPackage = first.trim()
                         if (!Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+$").matches(targetPackage)) {
