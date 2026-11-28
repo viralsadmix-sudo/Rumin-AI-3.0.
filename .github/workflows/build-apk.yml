@@ -1,4 +1,5 @@
 name: Build Rumin AI 3.0 APK
+# Trigger fresh signed build after repository signing secrets are configured
 
 on:
   workflow_dispatch:
