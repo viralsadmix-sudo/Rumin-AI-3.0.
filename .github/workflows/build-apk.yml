@@ -37,7 +37,13 @@ jobs:
             printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
             exit 1
           fi
-          printf '%s' "$RUMIN_KEYSTORE_BASE64" | base64 --decode > "$RUMIN_KEYSTORE_FILE"
+          # Remove line breaks/spaces introduced by clipboard or GitHub secret pasting.
+          KEYSTORE_B64="$(printf '%s' "$RUMIN_KEYSTORE_BASE64" | tr -d '[:space:]')"
+          if [[ ! "$KEYSTORE_B64" =~ ^[A-Za-z0-9+/]*={0,2}$ ]]; then
+            echo "RUMIN_KEYSTORE_BASE64 contains characters outside the standard Base64 alphabet." >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUMIN_KEYSTORE_FILE"
           test -s "$RUMIN_KEYSTORE_FILE"
           keytool -list -keystore "$RUMIN_KEYSTORE_FILE" -storepass "$RUMIN_KEYSTORE_PASSWORD" -alias "$RUMIN_KEY_ALIAS" >/dev/null
           echo "Existing release keystore decoded and validated."
