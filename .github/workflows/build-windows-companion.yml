@@ -14,12 +14,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # The repository name ends in a dot; use a Windows-safe checkout directory.
+          # Linux checkout avoids Windows path restrictions for the repository's trailing-dot name.
           path: rumin-source
 
       - name: Setup .NET 8
@@ -28,64 +28,56 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish self-contained Windows Companion
-        shell: pwsh
+        working-directory: rumin-source
         run: |
-          dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj `
-            --configuration Release `
-            --runtime win-x64 `
-            --self-contained true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:PublishSingleFile=true `
-            -o rumin-source/pc-agent/windows-companion/publish
-          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
-          if (!(Test-Path "rumin-source/pc-agent/windows-companion/publish/RuminCompanion.exe")) {
-            throw "RuminCompanion.exe was not produced"
-          }
+          dotnet publish pc-agent/windows-companion/RuminCompanion.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained true \
+            -p:EnableWindowsTargeting=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PublishSingleFile=true \
+            -o pc-agent/windows-companion/publish
+          test -s pc-agent/windows-companion/publish/RuminCompanion.exe
 
       - name: Add first-run instructions
-        shell: pwsh
+        working-directory: rumin-source
         run: |
-          @'
+          cat > pc-agent/windows-companion/publish/README-FIRST.txt <<'EOF'
           RUMIN AI 3.0 - WINDOWS COMPANION
 
-          1. Launch RuminCompanion.exe from the Start Menu or desktop shortcut.
-          2. Keep the Companion running while using the PC Agent Dashboard on this PC.
-          3. Open http://127.0.0.1:47831/health on this PC. It should return status "ready".
-          4. If Windows Firewall asks, allow access on Private networks only.
-          5. Grant only the PC permissions you need from the local dashboard.
+          1. Install Rumin-Windows-Companion-Setup-0.6.1.msi.
+          2. Launch Rumin AI Windows Companion from the Start Menu.
+          3. Keep the Companion running while using the PC Agent Dashboard on this PC.
+          4. Open http://127.0.0.1:47831/health on this PC. It should return status "ready".
+          5. If Windows Firewall asks, allow access on Private networks only.
+          6. Grant only the PC permissions you need from the local dashboard.
 
           This is an unsigned development installer. Windows SmartScreen may show a warning.
           This build does not provide the secure native Android-to-PC relay or OCR.
           Do not expose port 47831 to the public internet.
-          '@ | Set-Content "rumin-source/pc-agent/windows-companion/publish/README-FIRST.txt" -Encoding UTF8
+          EOF
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          choco install innosetup --yes --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix --version 5.0.2
 
-      - name: Build Windows installer
-        shell: pwsh
+      - name: Build Windows MSI installer
+        working-directory: rumin-source/pc-agent/windows-companion/installer
         run: |
-          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $compiler)) { throw "Inno Setup compiler not found: $compiler" }
-          & $compiler "pc-agent\windows-companion\installer\RuminCompanion.iss"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
-          $installer = "pc-agent\windows-companion\installer\Output\Rumin-Windows-Companion-Setup-0.6.1.exe"
-          if (!(Test-Path $installer)) { throw "Installer EXE was not produced" }
+          mkdir -p Output
+          "$HOME/.dotnet/tools/wix" build -arch x64 -o Output/Rumin-Windows-Companion-Setup-0.6.1.msi RuminCompanion.wxs
+          test -s Output/Rumin-Windows-Companion-Setup-0.6.1.msi
 
       - name: Create portable ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "pc-agent\windows-companion\publish\*" -DestinationPath "pc-agent\windows-companion\Rumin-Windows-Companion-Portable-0.6.1.zip" -Force
+        working-directory: rumin-source/pc-agent/windows-companion
+        run: zip -qr Rumin-Windows-Companion-Portable-0.6.1.zip publish
 
       - name: Upload installer and portable package
         uses: actions/upload-artifact@v4
         with:
           name: rumin-windows-companion-installer-and-portable
           path: |
-            rumin-source/pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
+            rumin-source/pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.msi
             rumin-source/pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
           if-no-files-found: error
           retention-days: 30
