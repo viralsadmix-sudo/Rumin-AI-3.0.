@@ -402,8 +402,6 @@ class MainActivity : ComponentActivity() {
                 listOf("inspect_screen", "click_text", "type_text", "scroll_down", "scroll_up", "home", "back", "recents", "notifications", "quicksettings")
                     .forEach { availableTools.put(it) }
             }
-            if (notificationAccess) availableTools.put("read_notifications")
-            if (writeSettings) availableTools.put("modify_system_settings")
             return JSONObject()
                 .put("androidSdk", android.os.Build.VERSION.SDK_INT)
                 .put("permissions", permissions)
