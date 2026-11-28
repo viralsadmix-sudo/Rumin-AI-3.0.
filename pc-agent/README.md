@@ -3,7 +3,8 @@
 This is the existing PC Agent dashboard for the Rumin AI 3.0 project. The current UI/navigation design is retained; the new work connects its pages to the Windows Companion.
 
 ## Current working areas
-- Overview: checks whether the local Windows Companion is reachable.
+- Overview: checks whether the local Windows Companion is reachable and loads PC status/capabilities.
+- System Diagnostics: tests health, system info, capabilities, and permission endpoints; reports failed endpoints instead of guessing.
 - PC Permissions: separate opt-in toggles for app discovery, app launch, approved-folder read access, local mouse/keyboard control, and screen capture; unavailable features are clearly marked as not implemented.
 - Windows Apps: discovers Start Menu shortcuts and opens a selected app after permission is granted.
 - Files & Photos: browser image preview plus read-only listing of approved Documents/Pictures folders (explicit opt-in; disabled by default).
@@ -18,6 +19,8 @@ Build the Windows-side executable from `pc-agent/windows-companion/RuminCompanio
 The hosted browser dashboard must be opened on the same Windows PC for the current local-control milestone. Chrome/Edge may request Local Network Access permission; allow it for this site. If Windows Firewall prompts, allow Private networks only. The PC user must grant each permission explicitly; all capabilities now default to off, including approved-folder read access. The screen-control session is local and can be stopped at any time. Screen capture is a separate opt-in permission and returns a no-cache JPEG snapshot only while the local session is active.
 
 ## Not complete yet
+The Phone Connect page currently provides a local one-time browser-pairing prototype only; it does not connect the Android Rumin app or enable remote PC actions. The dashboard also removes third-party QR image hosting so pairing codes/links are not sent to an external QR service.
+
 This is not yet the full phone-controlled Universal PC Agent. Android-to-PC native pairing, encrypted relay, remote execution, screen OCR/UI Automation, Gemini tool loop, file write/copy/move/delete, printer control, and microphone/camera features are not complete. The Companion intentionally blocks remote app/file/desktop actions until secure device transport is implemented.
 
 ## Troubleshooting `Failed to fetch`
