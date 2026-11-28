@@ -300,6 +300,41 @@ function local(raw){
     return true
   }
 
+  // Instant lane: obvious, reversible one-step device commands bypass remote AI planning.
+  // Multi-step or ambiguous requests still use the full Agent planner.
+  const quickApps=[
+    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],
+    ['youtube',/(ইউ ?টিউব|youtube)/i],['facebook',/(ফেইস?বুক|facebook)/i],
+    ['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],
+    ['gmail',/(জি ?মেইল|gmail)/i],['playstore',/(প্লে ?স্টোর|play ?store)/i],
+    ['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],['camera',/(ক্যামেরা|camera)/i],
+    ['browser',/(ব্রাউজার|browser|ইন্টারনেট খোলো)/i],['settings',/(সেটিংস|settings)/i]
+  ];
+  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু|open|launch|start|চালাও)/i.test(t);
+  if(launchIntent){
+    const match=quickApps.find(([tool,re])=>re.test(t));
+    if(match){
+      const [tool]=match;
+      status('দ্রুত চালু করছি…');mood('thinking',true);
+      callTool(tool,'','',7000).then(r=>{
+        const message=r.ok?'বস, '+({chatgpt:'ChatGPT',youtube:'YouTube',facebook:'Facebook',whatsapp:'WhatsApp',instagram:'Instagram',gmail:'Gmail',playstore:'Play Store',maps:'Google Maps',camera:'ক্যামেরা',browser:'ব্রাউজার',settings:'সেটিংস'}[tool]||tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
+        add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
+      });
+      return true;
+    }
+  }
+  const quickActions=[
+    ['volumeup',/(ভলিউম|সাউন্ড).*(বাড়াও|বাড়িয়ে|up|increase)|volume up/i],
+    ['volumedown',/(ভলিউম|সাউন্ড).*(কমাও|কমানো|down|decrease)|volume down/i],
+    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],
+    ['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
+  ];
+  const quick=quickActions.find(([,re])=>re.test(t));
+  if(quick){
+    const [tool]=quick;status('দ্রুত কাজ করছি…');
+    callTool(tool,'','',5000).then(r=>{add(r.message|| (r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});
+    return true;
+  }
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
@@ -318,7 +353,7 @@ function system(extra=''){
 - কল করা, SMS/মেসেজ পাঠানো, কেনাকাটা/পেমেন্ট, পোস্ট/শেয়ার, ফাইল মুছে ফেলা বা নিরাপত্তা/গোপনীয়তা বদলানোর আগে স্পষ্ট অনুমতি নেবে। OTP, পাসওয়ার্ড বা গোপন কোড চাইবে না।
 - কাজটি উপলভ্য tool দিয়ে সম্ভব না হলে সৎভাবে সীমাবদ্ধতা জানাবে এবং বিকল্প বলবে।
 - বসের কথায় সম্ভাব্য অনুভূতি (খুশি, বিরক্তি, দুশ্চিন্তা, হতাশা, আগ্রহ, ক্লান্তি) ভাষা ও প্রসঙ্গ থেকে বুঝে সহানুভূতিশীল উত্তর দেবে; অনুভূতি নিশ্চিত ধরে নেবে না, প্রয়োজনে নরমভাবে যাচাই করবে। আগের আলাপের আবেগ ও অসমাপ্ত বিষয় মনে রেখে কথোপকথন চালাবে। শুধু প্রশ্নের উত্তর দিয়ে থেমে না থেকে প্রাসঙ্গিক হলে নিজে থেকে একটি স্বাভাবিক follow-up বা সাহায্যের প্রস্তাব দেবে; অকারণে বারবার বাধা দেবে না বা মনগড়া ব্যক্তিগত তথ্য বলবে না।
-- ফোনের যেকোনো কাজ—এক ধাপের হলেও—সরাসরি local shortcut দিয়ে নয়, Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
+- পরিচিত, একধাপের এবং নিরাপদ কিছু কাজ ইন্টারনেট ছাড়াই local fallback-এ করা যেতে পারে। নতুন অ্যাপ, অচেনা নির্দেশ, অস্পষ্ট বা বহু-ধাপের কাজ অবশ্যই Agent Planner দিয়ে বুঝে, পরিকল্পনা করে এবং ফল যাচাই করে করবে।
 - বসকে সম্মানজনক, সংক্ষিপ্ত, স্বাভাবিক বাংলাদেশি বাংলায় উত্তর দেবে।
 উপলভ্য Native capabilities (এগুলোই বাস্তব ক্ষমতার সীমা): ${TOOLS.join(', ')}।
 ব্যবহারকারীর সংরক্ষিত তথ্য: ${facts.length?facts.join('; '):'নেই'}
