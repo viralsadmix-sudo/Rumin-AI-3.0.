@@ -2,7 +2,12 @@ name: Build Rumin AI 3.0 APK
 
 on:
   workflow_dispatch:
-  # Builds are manual until integration and regression checks are complete.
+  push:
+    branches:
+      - feature/openphoneuse-agent-port
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: write
