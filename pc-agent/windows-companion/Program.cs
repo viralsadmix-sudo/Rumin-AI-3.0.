@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuminAI", "Companion");
 Directory.CreateDirectory(appData);
@@ -11,6 +13,9 @@ var tokenPath = Path.Combine(appData, "companion.token");
 var token = LoadOrCreateToken(tokenPath);
 var rootsPath = Path.Combine(appData, "allowed-roots.json");
 var roots = LoadOrCreateRoots(rootsPath);
+var permissionsPath = Path.Combine(appData, "permissions.json");
+var permissions = LoadOrCreatePermissions(permissionsPath);
+var desktopSessionActive = false;
 string? activeCode = null;
 DateTimeOffset codeExpires = DateTimeOffset.MinValue;
 string? phoneToken = null;
@@ -45,7 +50,9 @@ app.Use(async (context, next) =>
     }
 
     // Pair-code generation is allowed only from the PC itself.
-    if (path == "/v1/pair/create" && IPAddress.IsLoopback(remote))
+    if ((path == "/v1/pair/create" || path == "/v1/permissions/grant" ||
+         path == "/v1/desktop/session/start" || path == "/v1/desktop/session/stop") &&
+        IPAddress.IsLoopback(remote))
     {
         await next();
         return;
@@ -91,6 +98,100 @@ app.MapPost("/v1/pair/join", async (HttpContext ctx) =>
 app.MapGet("/v1/pair/phone-status", () => Results.Ok(new {
     paired = phoneToken is not null, codeActive = activeCode is not null && DateTimeOffset.UtcNow <= codeExpires
 }));
+
+
+app.MapGet("/v1/agent/capabilities", () => Results.Ok(new {
+    service = "Rumin Windows Companion",
+    version = "0.3.0",
+    platform = "Windows",
+    permissions = permissions,
+    desktopSessionActive,
+    available = new[] { "system-info", "allowlisted-folder-listing", "app-discovery", "app-launch", "mouse-click", "mouse-scroll", "keyboard-type", "keyboard-shortcuts" },
+    notYetAvailable = new[] { "screen-capture", "screen-ocr", "printer-control", "file-write", "file-move", "file-delete", "microphone-stream", "camera" }
+}));
+
+app.MapGet("/v1/permissions", () => Results.Ok(new {
+    permissions,
+    note = "Permissions are granted by the PC user from the local dashboard. Windows does not provide one universal accessibility permission."
+}));
+
+app.MapPost("/v1/permissions/grant", async (HttpContext ctx) => {
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    var body = await ctx.Request.ReadFromJsonAsync<PermissionRequest>();
+    if (body?.Capability is null || !permissions.ContainsKey(body.Capability))
+        return Results.BadRequest(new { error = "unknown_capability" });
+    permissions[body.Capability] = body.Enabled;
+    SavePermissions(permissionsPath, permissions);
+    if (!body.Enabled && body.Capability == "screen-control") desktopSessionActive = false;
+    return Results.Ok(new { capability = body.Capability, enabled = body.Enabled, permissions });
+});
+
+app.MapGet("/v1/apps/list", () => {
+    if (!permissions.GetValueOrDefault("app-discovery")) return Results.Json(new { error = "permission_required", capability = "app-discovery" }, statusCode: 403);
+    return Results.Ok(DiscoverStartMenuApps().Select(x => new { id = x.Id, name = x.Name }).ToArray());
+});
+
+app.MapPost("/v1/apps/open", async (HttpContext ctx) => {
+    if (!permissions.GetValueOrDefault("app-launch")) return Results.Json(new { error = "permission_required", capability = "app-launch" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<AppLaunchRequest>();
+    if (string.IsNullOrWhiteSpace(body?.AppId)) return Results.BadRequest(new { error = "app_id_required" });
+    var selected = DiscoverStartMenuApps().FirstOrDefault(x => FixedEquals(x.Id, body.AppId));
+    if (selected is null) return Results.NotFound(new { error = "app_not_found_or_catalog_changed" });
+    try {
+        Process.Start(new ProcessStartInfo { FileName = selected.Path, UseShellExecute = true });
+        return Results.Ok(new { opened = true, app = selected.Name });
+    } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) {
+        return Results.Problem("Windows could not launch the selected Start Menu shortcut.", statusCode: 500);
+    }
+});
+
+app.MapPost("/v1/desktop/session/start", (HttpContext ctx) => {
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    if (!permissions.GetValueOrDefault("screen-control")) return Results.Json(new { error = "permission_required", capability = "screen-control" }, statusCode: 403);
+    desktopSessionActive = true;
+    return Results.Ok(new { active = true, message = "Desktop control session enabled locally. Stop it from this PC at any time." });
+});
+app.MapPost("/v1/desktop/session/stop", (HttpContext ctx) => {
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.Forbid();
+    desktopSessionActive = false;
+    return Results.Ok(new { active = false });
+});
+
+app.MapPost("/v1/desktop/input", async (HttpContext ctx) => {
+    if (!desktopSessionActive || !permissions.GetValueOrDefault("screen-control"))
+        return Results.Json(new { error = "desktop_session_not_authorized" }, statusCode: 403);
+    // Until the encrypted phone relay is shipped, input injection is restricted to the local PC.
+    if (!IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!))
+        return Results.Json(new { error = "remote_control_requires_secure_relay" }, statusCode: 403);
+    var body = await ctx.Request.ReadFromJsonAsync<DesktopInputRequest>();
+    if (body is null || string.IsNullOrWhiteSpace(body.Action)) return Results.BadRequest(new { error = "action_required" });
+    try {
+        switch (body.Action.ToLowerInvariant()) {
+            case "click":
+                var width = NativeInput.GetSystemMetrics(0); var height = NativeInput.GetSystemMetrics(1);
+                if (body.X < 0 || body.Y < 0 || body.X >= width || body.Y >= height)
+                    return Results.BadRequest(new { error = "coordinates_out_of_bounds", width, height });
+                NativeInput.Click(body.X, body.Y);
+                break;
+            case "scroll":
+                NativeInput.Scroll(Math.Clamp(body.Delta, -1200, 1200));
+                break;
+            case "type":
+                if (string.IsNullOrEmpty(body.Text) || body.Text.Length > 2000)
+                    return Results.BadRequest(new { error = "text_length_invalid" });
+                NativeInput.TypeText(body.Text);
+                break;
+            case "key":
+                if (!NativeInput.PressAllowedKey(body.Key ?? ""))
+                    return Results.BadRequest(new { error = "key_not_allowed" });
+                break;
+            default: return Results.BadRequest(new { error = "unsupported_input_action" });
+        }
+        return Results.Ok(new { executed = true, action = body.Action });
+    } catch (Exception) {
+        return Results.Problem("Windows rejected the requested input action.", statusCode: 500);
+    }
+});
 
 app.MapGet("/v1/system/info", () => Results.Ok(new {
     computerName = Environment.MachineName,
@@ -195,4 +296,99 @@ static Dictionary<string, string> LoadOrCreateRoots(string path)
     File.WriteAllText(path, JsonSerializer.Serialize(defaults, new JsonSerializerOptions { WriteIndented = true }));
     return defaults;
 }
+
+static Dictionary<string, bool> LoadOrCreatePermissions(string path)
+{
+    var defaults = new Dictionary<string, bool> {
+        ["app-discovery"] = false, ["app-launch"] = false,
+        ["file-read"] = true, ["screen-control"] = false,
+        ["printing"] = false, ["file-write"] = false
+    };
+    if (File.Exists(path)) try {
+        var saved = JsonSerializer.Deserialize<Dictionary<string, bool>>(File.ReadAllText(path));
+        if (saved is not null) foreach (var key in defaults.Keys)
+            if (saved.TryGetValue(key, out var value)) defaults[key] = value;
+    } catch (JsonException) { }
+    SavePermissions(path, defaults);
+    return defaults;
+}
+static void SavePermissions(string path, Dictionary<string, bool> permissions) =>
+    File.WriteAllText(path, JsonSerializer.Serialize(permissions, new JsonSerializerOptions { WriteIndented = true }));
+static List<StartMenuApp> DiscoverStartMenuApps()
+{
+    var dirs = new[] {
+        Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu)
+    }.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase);
+    var result = new Dictionary<string, StartMenuApp>();
+    foreach (var dir in dirs) {
+        IEnumerable<string> links;
+        try { links = Directory.EnumerateFiles(dir, "*.lnk", SearchOption.AllDirectories).Take(500).ToArray(); }
+        catch (UnauthorizedAccessException) { continue; }
+        foreach (var path in links) {
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path.ToLowerInvariant()))).ToLowerInvariant()[..24];
+            result[id] = new StartMenuApp(id, name, path);
+        }
+    }
+    return result.Values.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(250).ToList();
+}
+record StartMenuApp(string Id, string Name, string Path);
+record PermissionRequest(string? Capability, bool Enabled);
+record AppLaunchRequest(string? AppId);
+record DesktopInputRequest(string? Action, int X, int Y, int Delta, string? Text, string? Key);
+
+static class NativeInput
+{
+    private const uint InputMouse = 0, InputKeyboard = 1;
+    private const uint MouseMove = 0x0001, LeftDown = 0x0002, LeftUp = 0x0004, Wheel = 0x0800;
+    private const uint KeyUp = 0x0002, Unicode = 0x0004;
+    [StructLayout(LayoutKind.Sequential)] private struct INPUT { public uint type; public InputUnion U; }
+    [StructLayout(LayoutKind.Explicit)] private struct InputUnion {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct MOUSEINPUT {
+        public int dx, dy; public uint mouseData, dwFlags, time; public UIntPtr dwExtraInfo;
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct KEYBDINPUT {
+        public ushort wVk, wScan; public uint dwFlags, time; public UIntPtr dwExtraInfo;
+    }
+    [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, INPUT[] inputs, int size);
+    [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    private static void Send(INPUT input) {
+        if (SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) != 1)
+            throw new InvalidOperationException("SendInput failed");
+    }
+    public static void Click(int x, int y) {
+        if (!SetCursorPos(x, y)) throw new InvalidOperationException("Cursor positioning failed");
+        Send(new INPUT { type = InputMouse, U = new InputUnion { mi = new MOUSEINPUT { dwFlags = LeftDown } } });
+        Send(new INPUT { type = InputMouse, U = new InputUnion { mi = new MOUSEINPUT { dwFlags = LeftUp } } });
+    }
+    public static void Scroll(int delta) =>
+        Send(new INPUT { type = InputMouse, U = new InputUnion { mi = new MOUSEINPUT { mouseData = unchecked((uint)delta), dwFlags = Wheel } } });
+    public static void TypeText(string value) {
+        foreach (var ch in value) {
+            Send(new INPUT { type = InputKeyboard, U = new InputUnion { ki = new KEYBDINPUT { wScan = ch, dwFlags = Unicode } } });
+            Send(new INPUT { type = InputKeyboard, U = new InputUnion { ki = new KEYBDINPUT { wScan = ch, dwFlags = Unicode | KeyUp } } });
+        }
+    }
+    public static bool PressAllowedKey(string key) {
+        var vk = key.ToUpperInvariant() switch {
+            "ENTER" => (ushort)0x0D, "ESC" => (ushort)0x1B, "TAB" => (ushort)0x09,
+            "BACKSPACE" => (ushort)0x08, "SPACE" => (ushort)0x20,
+            "UP" => (ushort)0x26, "DOWN" => (ushort)0x28,
+            "LEFT" => (ushort)0x25, "RIGHT" => (ushort)0x27,
+            "HOME" => (ushort)0x24, "END" => (ushort)0x23,
+            "DELETE" => (ushort)0x2E, _ => (ushort)0
+        };
+        if (vk == 0) return false;
+        Send(new INPUT { type = InputKeyboard, U = new InputUnion { ki = new KEYBDINPUT { wVk = vk } } });
+        Send(new INPUT { type = InputKeyboard, U = new InputUnion { ki = new KEYBDINPUT { wVk = vk, dwFlags = KeyUp } } });
+        return true;
+    }
+}
+
 record PairRequest(string? Code);
