@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
     private val aiExecutor = Executors.newFixedThreadPool(3)
     private val activeAiConnections = ConcurrentHashMap<String, HttpURLConnection>()
     private val cancelledAiRequests = ConcurrentHashMap.newKeySet<String>()
+    private val pendingAiRequests = ConcurrentHashMap.newKeySet<String>()
     private val pcNetworkExecutor = Executors.newSingleThreadExecutor()
     private val ttsExecutor = Executors.newSingleThreadExecutor()
     private val ttsHttp = OkHttpClient.Builder().callTimeout(35, TimeUnit.SECONDS).build()
@@ -537,7 +538,7 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun cancelAiRequest(requestId: String) {
             val id = requestId.trim()
-            if (id.isNotBlank()) {
+            if (id.isNotBlank() && pendingAiRequests.contains(id)) {
                 cancelledAiRequests.add(id)
                 activeAiConnections.remove(id)?.disconnect()
             }
@@ -548,8 +549,9 @@ class MainActivity : ComponentActivity() {
                 deliverAiResult(requestId, false, "API Key ফাঁকা")
                 return
             }
+            pendingAiRequests.add(requestId)
             aiExecutor.execute {
-                if (cancelledAiRequests.remove(requestId)) return@execute
+                if (cancelledAiRequests.remove(requestId)) { pendingAiRequests.remove(requestId); return@execute }
                 var connection: HttpURLConnection? = null
                 try {
                     val p = provider.trim().lowercase()
@@ -648,6 +650,7 @@ class MainActivity : ComponentActivity() {
                 } finally {
                     activeAiConnections.remove(requestId)
                     cancelledAiRequests.remove(requestId)
+                    pendingAiRequests.remove(requestId)
                     connection?.disconnect()
                 }
             }
