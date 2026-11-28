@@ -1,21 +1,35 @@
-# Rumin Windows Companion — MVP 0.1.0
+# Rumin Windows Companion — 0.3.0 (Windows 10)
 
-This is the first Windows-side foundation for Rumin AI 3.0 PC Agent.
+The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 PC Agent. It is a .NET 8 ASP.NET Core process; it is not yet a signed installer or a Windows service.
 
-## What it does
-- Runs a small local HTTP API bound only to `127.0.0.1:47831`.
-- Generates a random local bearer token on first launch and stores it under the current Windows user's LocalAppData folder.
-- Exposes a health endpoint.
-- Exposes basic system information behind bearer authentication.
-- Lists entries (maximum 200) only in the configured Documents and Pictures roots.
-- Stores the allowed-root map in `%LOCALAPPDATA%\RuminAI\Companion\allowed-roots.json`.
+## Current functions
+- Local health and capability status.
+- Separate, opt-in permissions stored in `%LOCALAPPDATA%\RuminAI\Companion\permissions.json`.
+- Start Menu shortcut discovery and launch by an ID returned by the local app catalog (no arbitrary command-line endpoint).
+- Read-only listing of Documents and Pictures roots, with the allowed-root map stored in `allowed-roots.json`.
+- Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
+- Desktop input and permission changes are restricted to loopback/local dashboard requests in this build. A phone bearer token cannot remotely control the desktop over the current plain-HTTP LAN transport.
 
-## What it deliberately does not do
-- No LAN or internet listener.
-- No remote phone pairing or relay yet.
-- No arbitrary PowerShell, CMD, or process execution.
-- No file create, edit, move, overwrite, or delete.
-- No screen capture, mouse, keyboard, printer, or background monitoring.
+## Permission model
+The dashboard's **PC Permissions** page lets the Windows user separately enable:
+- App discovery
+- App launch
+- Read approved folders
+- Mouse and keyboard control
+- Printing (reserved; not implemented)
+- File write/edit/move (reserved; not implemented)
+
+All permissions except read-only folder listing default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. The session can be stopped from the dashboard at any time.
+
+Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; future UI Automation, screen capture, OCR, printing, microphone, and camera features need their own implementation and consent. UAC secure desktop and protected system surfaces cannot be bypassed.
+
+## Not implemented yet
+- Remote phone-to-PC execution through a secure encrypted relay.
+- Screen capture, OCR, UI Automation tree reading, and AI screen feedback loop.
+- File create/edit/copy/move/delete, recycle-bin recovery, and user-selected root management UI.
+- Printer enumeration, print preview, and confirmed printing.
+- Microphone/camera streaming, arbitrary settings changes, and background service mode.
+- Signed installer, auto-update, and production certificate/key management.
 
 ## Build on Windows 10
 Install the .NET 8 SDK, then run:
@@ -25,15 +39,11 @@ dotnet build .\RuminCompanion.csproj -c Release
 dotnet run --project .\RuminCompanion.csproj
 ```
 
-Open `http://127.0.0.1:47831/health` on the same PC to confirm the service is running.
+The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/health`.
 
-Authenticated endpoints require:
-`Authorization: Bearer <token>`
+## Local data
+- Token: `%LOCALAPPDATA%\RuminAI\Companion\companion.token`
+- Approved roots: `%LOCALAPPDATA%\RuminAI\Companion\allowed-roots.json`
+- Permissions: `%LOCALAPPDATA%\RuminAI\Companion\permissions.json`
 
-The token is stored locally at:
-`%LOCALAPPDATA%\RuminAI\Companion\companion.token`
-
-Do not share this token or commit it to Git. The health endpoint intentionally returns no secret.
-
-## Security boundary
-This is a local development MVP, not the final paired-device transport. Do not expose port 47831 to the LAN or internet. Browser dashboard and Android pairing are not connected to this API yet. A reviewed authenticated relay and device approval flow must be implemented before remote control is enabled.
+Do not share tokens or commit local configuration files. This is a development build, not a production-secure remote-control product. Keep Windows Firewall enabled and do not expose port 47831 to the public internet.
