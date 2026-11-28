@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -21,6 +22,7 @@ var desktopSessionActive = false;
 string? activeCode = null;
 DateTimeOffset codeExpires = DateTimeOffset.MinValue;
 string? phoneToken = null;
+var pairingAttempts = new ConcurrentDictionary<string, (DateTimeOffset WindowStart, int Count)>();
 
 var builder = WebApplication.CreateBuilder(args);
 // Listen on LAN interfaces for same-Wi-Fi phone pairing. Firewall may ask permission.
@@ -95,11 +97,22 @@ app.MapPost("/v1/pair/create", () =>
 
 app.MapPost("/v1/pair/join", async (HttpContext ctx) =>
 {
+    // Short pairing codes are convenient but low entropy; throttle guesses per LAN client.
+    var remoteKey = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    var now = DateTimeOffset.UtcNow;
+    var attempts = pairingAttempts.AddOrUpdate(remoteKey,
+        _ => (now, 1),
+        (_, previous) => now - previous.WindowStart > TimeSpan.FromMinutes(5)
+            ? (now, 1)
+            : (previous.WindowStart, previous.Count + 1));
+    if (attempts.Count > 8) return Results.StatusCode(429);
+
     var body = await ctx.Request.ReadFromJsonAsync<PairRequest>();
-    if (body?.Code is null || activeCode is null || DateTimeOffset.UtcNow > codeExpires ||
+    if (body?.Code is null || activeCode is null || now > codeExpires ||
         !FixedEquals(body.Code, activeCode))
         return Results.StatusCode(410);
     activeCode = null; // one use only
+    pairingAttempts.TryRemove(remoteKey, out _);
     phoneToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
     return Results.Ok(new { paired = true, accessToken = phoneToken, expiresIn = 3600 });
 });
@@ -346,8 +359,8 @@ s.textContent='ফোন এই PC Companion-এর সঙ্গে যুক্
 })();
 </script></body></html>
 """, "text/html; charset=utf-8"));
-app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.2.0 · same-Wi-Fi pairing · /health", "text/plain"));
-Console.WriteLine("Rumin Windows Companion 0.4.0");
+app.MapGet("/", () => Results.Text("Rumin Windows Companion 0.4.1 · same-Wi-Fi pairing · /health", "text/plain"));
+Console.WriteLine("Rumin Windows Companion 0.4.1");
 Console.WriteLine("LAN endpoint: http://0.0.0.0:47831 (private networks only)");
 Console.WriteLine("Local bearer token: " + tokenPath);
 Console.WriteLine("Approved roots: " + rootsPath);
