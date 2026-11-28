@@ -68,14 +68,18 @@ assert.ok(html.includes('id="safetyAuditItems"'), "Safety Center must render rec
 
 
 
-const installerScript = fs.readFileSync(new URL("../windows-companion/installer/RuminCompanion.wxs", import.meta.url), "utf8");
-assert.ok(installerScript.includes('Source="..\\publish\\RuminCompanion.exe"'), "Windows MSI must install the Companion executable");
-assert.ok(installerScript.includes("MajorUpgrade"), "Windows MSI must support upgrades");
-assert.ok(installerScript.includes("RemoveFolder"), "Windows MSI must clean up its Start Menu folder on uninstall");
+const installerScript = fs.readFileSync(new URL("../windows-companion/installer/RuminCompanion.iss", import.meta.url), "utf8");
+assert.ok(installerScript.includes('PrivilegesRequired=lowest'), "Windows installer must install per-user without administrator elevation");
+assert.ok(installerScript.includes('Source: "..\\\\publish\\\\*"'), "Windows installer must package the published Companion files");
+assert.ok(installerScript.includes("UninstallDisplayName"), "Windows installer must expose a clear uninstall entry");
+assert.ok(installerScript.includes("postinstall nowait skipifsilent"), "Windows installer must offer first launch after setup");
 const windowsBuild = fs.readFileSync(new URL("../../.github/workflows/build-windows-companion.yml", import.meta.url), "utf8");
-assert.ok(windowsBuild.includes("runs-on: ubuntu-latest"), "Windows package build must run on Linux to avoid the repository's trailing-dot Windows path limitation");
-assert.ok(windowsBuild.includes("WiX Toolset"), "Windows build must compile an MSI installer");
-assert.ok(windowsBuild.includes("Rumin-Windows-Companion-Setup-0.6.1.msi"), "Windows build must verify and upload the MSI installer");
+assert.ok(windowsBuild.includes("runs-on: windows-latest"), "Windows installer must be built on a Windows runner");
+assert.ok(windowsBuild.includes("Inno Setup"), "Windows build must compile an Inno Setup installer");
+assert.ok(windowsBuild.includes("Rumin-Windows-Companion-Setup-0.6.1.exe"), "Windows build must verify and upload the EXE installer");
+assert.ok(windowsBuild.includes("Rumin-Windows-Companion-Portable-0.6.1.zip"), "Windows build must create a portable ZIP");
+assert.ok(windowsBuild.includes("RUNNER_TEMP\\\\rumin-source"), "Windows build must clone into a Windows-safe temporary directory");
+assert.ok(windowsBuild.includes("retention-days: 30"), "Windows build artifact must have a 30-day retention period");
 
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
