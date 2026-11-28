@@ -8,6 +8,8 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 - Start Menu shortcut discovery and launch by an ID returned by the local app catalog (no arbitrary command-line endpoint).
 - Read-only listing of Documents and Pictures roots, with the allowed-root map stored in `allowed-roots.json`.
 - Local, user-started desktop input session: mouse click by screen coordinates, scroll, Unicode text typing, and a small allowlist of keys.
+- Permission-gated primary-display screenshot endpoint (JPEG, no-cache) while the local desktop session is active.
+- Batched local agent execution for up to eight supported actions in one request.
 - Desktop input and permission changes are restricted to loopback/local dashboard requests in this build. A phone bearer token cannot remotely control the desktop over the current plain-HTTP LAN transport.
 
 ## Permission model
@@ -16,22 +18,23 @@ The dashboard's **PC Permissions** page lets the Windows user separately enable:
 - App launch
 - Read approved folders
 - Mouse and keyboard control
+- Screen capture (separate opt-in; local only)
 - Printing (reserved; not implemented)
 - File write/edit/move (reserved; not implemented)
 
-All permissions except read-only folder listing default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. The session can be stopped from the dashboard at any time.
+All permissions except read-only folder listing default to off. The screen-control permission is not enough by itself: the user must also start a local desktop-control session. Screen capture additionally requires the separate screen-capture permission. The session can be stopped from the dashboard at any time.
 
-Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; future UI Automation, screen capture, OCR, printing, microphone, and camera features need their own implementation and consent. UAC secure desktop and protected system surfaces cannot be bypassed.
+Windows does not have one universal Android-style Accessibility toggle for every desktop capability. Some actions use Windows APIs; future UI Automation, OCR, printing, microphone, and camera features need their own implementation and consent. UAC secure desktop and protected system surfaces cannot be bypassed.
 
 ## Not implemented yet
 - Remote phone-to-PC execution through a secure encrypted relay.
-- Screen capture, OCR, UI Automation tree reading, and AI screen feedback loop.
+- OCR, UI Automation tree reading, and AI screen feedback loop.
 - File create/edit/copy/move/delete, recycle-bin recovery, and user-selected root management UI.
 - Printer enumeration, print preview, and confirmed printing.
 - Microphone/camera streaming, arbitrary settings changes, and background service mode.
 - Signed installer, auto-update, and production certificate/key management.
 
-## Build on Windows 10
+## Build on Windows 10/11
 Install the .NET 8 SDK, then run:
 
 ```powershell
