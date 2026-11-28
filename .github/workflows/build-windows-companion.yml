@@ -15,10 +15,6 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
-        working-directory: ${{ runner.temp }}
     steps:
       # Do not use actions/checkout: the repository name ends with a dot,
       # which Windows cannot represent in the default GitHub workspace path.
@@ -27,6 +23,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
+        working-directory: ${{ runner.temp }}
         run: |
           $repoUrl = "https://x-access-token:$env:GH_TOKEN@github.com/$env:REPOSITORY.git"
           git clone --depth 1 --branch "$env:BRANCH" $repoUrl "$env:RUNNER_TEMP\rumin-source"
