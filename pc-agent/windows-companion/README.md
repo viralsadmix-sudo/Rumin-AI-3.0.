@@ -4,6 +4,7 @@ The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 
 
 ## Current functions
 - Local health and capability status.
+- Per-client rate limiting for one-time pairing-code guesses (8 attempts per five-minute window).
 - Separate, opt-in permissions stored in `%LOCALAPPDATA%\RuminAI\Companion\permissions.json`.
 - Start Menu shortcut discovery and launch by an ID returned by the local app catalog (no arbitrary command-line endpoint).
 - Read-only listing of Documents and Pictures roots, with the allowed-root map stored in `allowed-roots.json`.
