@@ -619,6 +619,45 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun performCommand(action: String, first: String, second: String, taskId: String = "") {
             runOnUiThread {
                 try {
+                    if (action == "list_apps") {
+                        val filter = first.trim()
+                        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        val apps = packageManager.queryIntentActivities(launcherIntent, 0)
+                            .mapNotNull { resolved ->
+                                val info = resolved.activityInfo ?: return@mapNotNull null
+                                val pkg = info.packageName
+                                val label = resolved.loadLabel(packageManager).toString()
+                                if (pkg == packageName) null else Pair(label, pkg)
+                            }
+                            .filter { filter.isBlank() || it.first.contains(filter, ignoreCase = true) || it.second.contains(filter, ignoreCase = true) }
+                            .distinctBy { it.second }
+                            .sortedBy { it.first.lowercase() }
+                            .take(40)
+                        val rows = JSONArray()
+                        apps.forEach { (label, pkg) ->
+                            rows.put(JSONObject().put("name", label).put("packageName", pkg))
+                        }
+                        val result = JSONObject().put("count", rows.length()).put("apps", rows).toString()
+                        deliverCommandResult(true, result, taskId)
+                        return@runOnUiThread
+                    }
+                    if (action == "launch_app") {
+                        val targetPackage = first.trim()
+                        if (!Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+$").matches(targetPackage)) {
+                            deliverCommandResult(false, "অ্যাপের বৈধ package name পাওয়া যায়নি।", taskId)
+                            return@runOnUiThread
+                        }
+                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                        if (launchIntent == null) {
+                            deliverCommandResult(false, "এই package-এর কোনো চালু করার মতো অ্যাপ পাওয়া যায়নি: $targetPackage", taskId)
+                            return@runOnUiThread
+                        }
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        val label = try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(targetPackage, 0)).toString() } catch (_: Exception) { targetPackage }
+                        deliverCommandResult(true, JSONObject().put("name", label).put("packageName", targetPackage).toString(), taskId)
+                        return@runOnUiThread
+                    }
                     if (action == "requestpermissions") {
                         // Request only runtime permissions supported by this Android version.
                         // Microphone was missing from the original bulk permission flow.
