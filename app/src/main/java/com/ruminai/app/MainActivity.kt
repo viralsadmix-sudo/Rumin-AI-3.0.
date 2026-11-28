@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private var continuousListening = false
     private var pendingLiveKey: String? = null
     @Volatile private var pendingUpdateInstallFile: File? = null
+    @Volatile private var waitingForInstallPermission = false
 
     private val phonePermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.filterValues { it }.keys
@@ -955,9 +956,12 @@ class MainActivity : ComponentActivity() {
         val apk = pendingUpdateInstallFile ?: return
         if (!apk.exists()) { pendingUpdateInstallFile = null; return }
         if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            waitingForInstallPermission = true
             startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             return
         }
+        waitingForInstallPermission = false
+        pendingUpdateInstallFile = null
         try {
             val contentUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -973,7 +977,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         RuminLiveVoiceService.listener = liveUiListener
-        if (pendingUpdateInstallFile != null && (android.os.Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) installDownloadedUpdate()
+        if (waitingForInstallPermission && (android.os.Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) installDownloadedUpdate()
         RuminLiveVoiceService.current?.let { reportLiveVoice("Live Voice ব্যাকগ্রাউন্ডে চালু আছে।", "listening") }
     }
 
