@@ -2,6 +2,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+    if (url.pathname === "/health") return json({ service: "Rumin PC Agent Pairing Relay", status: "ready", pairing: true, commandRelay: false });
     if (url.pathname === "/") return new Response("Rumin PC Agent Pairing Relay", {
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
     });
