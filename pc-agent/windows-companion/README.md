@@ -1,4 +1,4 @@
-# Rumin Windows Companion — 0.6.0 (Windows 10/11)
+# Rumin Windows Companion — 0.6.1 (Windows 10/11)
 
 The Companion is the Windows-side execution layer for the existing Rumin AI 3.0 PC Agent. It is a .NET 8 ASP.NET Core process; it is not yet a signed installer or a Windows service.
 
@@ -60,3 +60,14 @@ The Companion listens on port 47831. Confirm locally at `http://127.0.0.1:47831/
 - Permissions: `%LOCALAPPDATA%\RuminAI\Companion\permissions.json`
 
 Do not share tokens or commit local configuration files. This is a development build, not a production-secure remote-control product. Keep Windows Firewall enabled and do not expose port 47831 to the public internet.
+
+
+## Phone pairing check (0.6.1)
+
+1. Run `RuminCompanion.exe` on the Windows PC and keep its console window open.
+2. On that same PC, open `http://127.0.0.1:47831/health`. It must return JSON with `"status":"ready"` and version `0.6.1`.
+3. Open the PC Agent Dashboard in Chrome or Edge on that same Windows PC. A phone browser's `127.0.0.1` is the phone itself, not the PC.
+4. Create the one-time code from the dashboard. Open the displayed `http://<PC-LAN-IP>:47831/pair?code=...` link on the phone while both devices are on the same private Wi-Fi.
+5. Pairing status will update on the PC dashboard. This is browser pairing only; it does not enable remote PC actions in the Android Rumin app. Secure relay and native Android client remain disabled.
+
+If the health URL does not load, the Companion is not running/listening or Windows Firewall is blocking it. Allow Private networks only; never expose port 47831 to the public internet.
