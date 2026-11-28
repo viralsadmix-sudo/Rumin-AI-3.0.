@@ -25,7 +25,21 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - name: Build Windows Companion executable
-        run: dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release --runtime win-x64 --self-contained false -p:PublishSingleFile=true
+        run: dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj --configuration Release --runtime win-x64 --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishSingleFile=true
+      - name: Add quick-start instructions
+        run: |
+          cat > rumin-source/pc-agent/windows-companion/bin/Release/net8.0-windows/win-x64/publish/README-FIRST.txt <<'EOF'
+          RUMIN AI 3.0 - WINDOWS COMPANION
+
+          1. Extract this ZIP to a normal folder on your Windows PC.
+          2. Double-click RuminCompanion.exe and allow Windows Firewall on your private network if prompted.
+          3. Keep the Companion running while using the PC Agent Dashboard on this same PC.
+          4. Open the Dashboard, check the Companion, and grant only the permissions you need.
+          5. Screen capture requires both Screen Control and Screen Capture permission, plus a started local session.
+
+          This is a development build. It does not yet provide full phone-to-PC remote control or OCR/UI Automation.
+          Do not expose port 47831 to the public internet.
+          EOF
       - name: Upload Windows Companion
         uses: actions/upload-artifact@v4
         with:
