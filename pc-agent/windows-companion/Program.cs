@@ -390,7 +390,7 @@ app.MapPost("/v1/agent/plan", async (HttpContext ctx) =>
                     break;
                 case "press_key":
                     var key = item.TryGetProperty("key", out var keyNode) ? keyNode.GetString() : null;
-                    if (!NativeInput.PressAllowedKey(key ?? ""))
+                    if (!NativeInput.IsAllowedKey(key ?? ""))
                         return Results.BadRequest(new { error = "planner_proposed_disallowed_key" });
                     actions.Add(new { tool, key });
                     break;
@@ -850,6 +850,8 @@ static class NativeInput
             Send(new INPUT { type = InputKeyboard, U = new InputUnion { ki = new KEYBDINPUT { wScan = ch, dwFlags = Unicode | KeyUp } } });
         }
     }
+    public static bool IsAllowedKey(string key) =>
+        key.ToUpperInvariant() is "ENTER" or "ESC" or "TAB" or "BACKSPACE" or "SPACE" or "UP" or "DOWN" or "LEFT" or "RIGHT" or "HOME" or "END" or "DELETE";
     public static bool PressAllowedKey(string key) {
         var vk = key.ToUpperInvariant() switch {
             "ENTER" => (ushort)0x0D, "ESC" => (ushort)0x1B, "TAB" => (ushort)0x09,
