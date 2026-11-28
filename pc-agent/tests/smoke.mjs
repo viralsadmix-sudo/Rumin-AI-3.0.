@@ -54,6 +54,13 @@ assert.ok(companion.includes("SpeakAsyncCancelAll"), "PC speech must support can
 const project = fs.readFileSync(new URL("../windows-companion/RuminCompanion.csproj", import.meta.url), "utf8");
 assert.ok(project.includes('PackageReference Include="System.Speech"'), "Windows speech synthesis package must be installed");
 assert.ok(companion.includes('if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "secure_phone_relay_not_ready" }, statusCode: 403);'), "remote speech must remain blocked until secure relay exists");
+assert.ok(companion.includes('app.MapGet("/v1/audit/recent"'), "local audit history endpoint must exist");
+assert.ok(companion.includes("static class AuditTrail"), "audit trail writer must exist");
+assert.ok(companion.includes("TakeLast(500)"), "audit log must be bounded to the latest 500 events");
+assert.ok(companion.includes("capturesRequestBodies = false"), "audit endpoint must disclose that request bodies are not captured");
+assert.ok(html.includes('id="loadSafetyAudit"'), "Safety Center must expose audit history loading");
+assert.ok(html.includes('id="safetyAuditItems"'), "Safety Center must render recent audit events");
+
 
 const worker = fs.readFileSync(new URL("../../backend/pc-agent/worker.js", import.meta.url), "utf8");
 assert.ok(worker.includes("if (!/^\\d{6}$/.test(code))"), "pairing code must validate exactly six digits");
