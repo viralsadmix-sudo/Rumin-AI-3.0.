@@ -15,12 +15,22 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          # Use a safe directory name because the repository name ends with a dot.
-          path: rumin-source
+      # Do not use actions/checkout: the repository name ends with a dot,
+      # which Windows cannot represent in the default GitHub workspace path.
+      - name: Clone source into a Windows-safe temporary directory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          $repoUrl = "https://x-access-token:$env:GH_TOKEN@github.com/$env:REPOSITORY.git"
+          git clone --depth 1 --branch "$env:BRANCH" $repoUrl "$env:RUNNER_TEMP\rumin-source"
+          if ($LASTEXITCODE -ne 0) { throw "Git clone failed" }
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -28,23 +38,23 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish self-contained Windows Companion
-        shell: pwsh
         run: |
-          dotnet publish rumin-source/pc-agent/windows-companion/RuminCompanion.csproj `
+          $source = "$env:RUNNER_TEMP\rumin-source"
+          dotnet publish "$source\pc-agent\windows-companion\RuminCompanion.csproj" `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:PublishSingleFile=true `
-            -o rumin-source/pc-agent/windows-companion/publish
+            -o "$source\pc-agent\windows-companion\publish"
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
-          if (!(Test-Path "rumin-source/pc-agent/windows-companion/publish/RuminCompanion.exe")) {
+          if (!(Test-Path "$source\pc-agent\windows-companion\publish\RuminCompanion.exe")) {
             throw "RuminCompanion.exe was not produced"
           }
 
       - name: Add first-run instructions
-        shell: pwsh
         run: |
+          $source = "$env:RUNNER_TEMP\rumin-source"
           @'
           RUMIN AI 3.0 - WINDOWS COMPANION
 
@@ -58,35 +68,34 @@ jobs:
           This is an unsigned development installer. Windows SmartScreen may show a warning.
           This build does not provide the secure native Android-to-PC relay or OCR.
           Do not expose port 47831 to the public internet.
-          '@ | Set-Content "rumin-source/pc-agent/windows-companion/publish/README-FIRST.txt" -Encoding UTF8
+          '@ | Set-Content "$source\pc-agent\windows-companion\publish\README-FIRST.txt" -Encoding UTF8
 
       - name: Install Inno Setup
-        shell: pwsh
         run: |
           choco install innosetup --yes --no-progress
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
 
       - name: Build Windows installer
-        shell: pwsh
         run: |
+          $source = "$env:RUNNER_TEMP\rumin-source"
           $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $compiler)) { throw "Inno Setup compiler not found: $compiler" }
-          & $compiler "rumin-source\pc-agent\windows-companion\installer\RuminCompanion.iss"
+          & $compiler "$source\pc-agent\windows-companion\installer\RuminCompanion.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
-          $installer = "rumin-source\pc-agent\windows-companion\installer\Output\Rumin-Windows-Companion-Setup-0.6.1.exe"
+          $installer = "$source\pc-agent\windows-companion\installer\Output\Rumin-Windows-Companion-Setup-0.6.1.exe"
           if (!(Test-Path $installer)) { throw "Installer EXE was not produced" }
 
       - name: Create portable ZIP
-        shell: pwsh
         run: |
-          Compress-Archive -Path "rumin-source\pc-agent\windows-companion\publish\*" -DestinationPath "rumin-source\pc-agent\windows-companion\Rumin-Windows-Companion-Portable-0.6.1.zip" -Force
+          $source = "$env:RUNNER_TEMP\rumin-source"
+          Compress-Archive -Path "$source\pc-agent\windows-companion\publish\*" -DestinationPath "$source\pc-agent\windows-companion\Rumin-Windows-Companion-Portable-0.6.1.zip" -Force
 
       - name: Upload installer and portable package
         uses: actions/upload-artifact@v4
         with:
           name: rumin-windows-companion-installer-and-portable
           path: |
-            rumin-source/pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
-            rumin-source/pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
+            ${{ runner.temp }}/rumin-source/pc-agent/windows-companion/installer/Output/Rumin-Windows-Companion-Setup-0.6.1.exe
+            ${{ runner.temp }}/rumin-source/pc-agent/windows-companion/Rumin-Windows-Companion-Portable-0.6.1.zip
           if-no-files-found: error
           retention-days: 30
