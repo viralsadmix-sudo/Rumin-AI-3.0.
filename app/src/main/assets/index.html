@@ -168,7 +168,7 @@ const $=id=>document.getElementById(id), N=window.RuminNative||null;
 const LS={get:(k,d='')=>{try{return localStorage.getItem(k)||d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const MOODS={calm:'#4c6ef5',happy:'#f59f00',sad:'#6c7a9c',angry:'#e03131',thinking:'#9c36b5',listening:'#12b886'};
 const DEV='আমাকে তৈরি করেছেন সাব্বির আহমেদ রুবেল। আমি রুমিন AI।';
-const TOOLS=['home','back','recents','notifications','quicksettings','power','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
+const TOOLS=['home','back','recents','notifications','quicksettings','power','list_apps','launch_app','volumeup','volumedown','volumemute','volumeunmute','alarm','timer','showalarms','showtimers','call','sms','dialer','accessibility','notificationaccess','apppermissions','ttssettings','writesettings','settings','wifi','bluetooth','display','sound','camera','contacts','browser','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 const ACC=['inspect_screen','click_text','type_text','scroll_down','scroll_up'];
 let afterSpeak=null,smartMode=false,promptMode=false,pendingConfirm=null,agentRun=false,agentGeneration=0,thinkGeneration=0,hist=[],busy=false,live=false,pending='',counter=0,listenTimer=0;
 
@@ -299,41 +299,7 @@ function local(raw){
     }catch(e){reply('মেমোরিতে সংরক্ষণ করা যায়নি: '+(e.message||'অজানা সমস্যা'),'calm')}
     return true
   }
-  // Instant lane: obvious, reversible one-step device commands bypass remote AI planning.
-  // Multi-step or ambiguous requests still use the full Agent planner.
-  const quickApps=[
-    ['chatgpt',/(chat ?gpt|চ্যাট ?জিপিটি|চ্যাটজিপিটি)/i],
-    ['youtube',/(ইউ ?টিউব|youtube)/i],['facebook',/(ফেইস?বুক|facebook)/i],
-    ['whatsapp',/(হোয়াটস ?অ্যাপ|হোয়াটস|whatsapp)/i],['instagram',/(ইনস্টাগ্রাম|ইনস্টা|instagram)/i],
-    ['gmail',/(জি ?মেইল|gmail)/i],['playstore',/(প্লে ?স্টোর|play ?store)/i],
-    ['maps',/(গুগল ?ম্যাপ|ম্যাপ|maps)/i],['camera',/(ক্যামেরা|camera)/i],
-    ['browser',/(ব্রাউজার|browser|ইন্টারনেট খোলো)/i],['settings',/(সেটিংস|settings)/i]
-  ];
-  const launchIntent=/(খোলো|খুলে দাও|খুলুন|খুলে|ওপেন|চালু করো|চালু|open|launch|start|চালাও)/i.test(t);
-  if(launchIntent){
-    const match=quickApps.find(([tool,re])=>re.test(t));
-    if(match){
-      const [tool]=match;
-      status('দ্রুত চালু করছি…');mood('thinking',true);
-      callTool(tool,'','',7000).then(r=>{
-        const message=r.ok?'বস, '+({chatgpt:'ChatGPT',youtube:'YouTube',facebook:'Facebook',whatsapp:'WhatsApp',instagram:'Instagram',gmail:'Gmail',playstore:'Play Store',maps:'Google Maps',camera:'ক্যামেরা',browser:'ব্রাউজার',settings:'সেটিংস'}[tool]||tool)+' খুলেছি।':(r.message||'অ্যাপটি খোলা যায়নি।');
-        add(message,r.ok?'s':'b');status(r.ok?'অ্যাপ চালু হয়েছে':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false);
-      });
-      return true;
-    }
-  }
-  const quickActions=[
-    ['volumeup',/(ভলিউম|সাউন্ড).*(বাড়াও|বাড়িয়ে|up|increase)|volume up/i],
-    ['volumedown',/(ভলিউম|সাউন্ড).*(কমাও|কমানো|down|decrease)|volume down/i],
-    ['home',/(হোম স্ক্রিনে যাও|home screen|go home)/i],
-    ['back',/(এক ধাপ পিছনে|ব্যাক যাও|go back)/i]
-  ];
-  const quick=quickActions.find(([,re])=>re.test(t));
-  if(quick){
-    const [tool]=quick;status('দ্রুত কাজ করছি…');
-    callTool(tool,'','',5000).then(r=>{add(r.message|| (r.ok?'কাজ সম্পন্ন হয়েছে।':'কাজটি করা যায়নি।'),r.ok?'s':'b');status(r.ok?'কাজ সম্পন্ন':'আবার চেষ্টা করুন');mood(r.ok?'happy':'sad',false)});
-    return true;
-  }
+
   return false;
 }
 function act(tool){runTool(tool);mood('happy',false);status('কাজটি করছি…');return true}
@@ -479,11 +445,11 @@ async function think(text,hidden){
 }
 
 /* ---------- Agent: multi-step phone tasks ---------- */
-const OPENERS=['youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
+const OPENERS=['launch_app','youtube','facebook','whatsapp','instagram','gmail','playstore','maps','chatgpt','camera','browser','settings','wifi','bluetooth','display','sound','contacts','dialer'];
 const AGENT_RULES=`তুমি এখন Rumin-এর autonomous task planner। বসের স্বাভাবিক ভাষার লক্ষ্য পূরণে নিজে ধাপে ধাপে পরিকল্পনা তৈরি করো; ব্যবহারকারীকে command syntax শেখাবে না বা নির্দিষ্ট phrase চাইবে না। প্রতিবার বর্তমান স্ক্রিন ও আগের ফলাফল দেখে সবচেয়ে যুক্তিসঙ্গত পরবর্তী একটি কাজ বেছে নাও। ব্যবহারকারীর লক্ষ্য যদি একটিমাত্র কাজ হয় এবং সেই কাজ সফলভাবে সম্পন্ন হয়, তাহলে সঙ্গে সঙ্গে done:true দাও; নিজের থেকে দ্বিতীয় কাজ যোগ করবে না, একই কাজ পুনরাবৃত্তি করবে না, বা একটি নির্দেশকে একাধিক উদ্দেশ্যে ভাগ করবে না। স্ক্রিন পড়ার ব্যর্থতাকে ফোনের action ব্যর্থতা হিসেবে গণ্য করবে না; action result সফল হলে সেটি আলাদা করে বিবেচনা করবে। শুধু JSON দাও: {"reply":"এখন কী করছ এক লাইনে","done":false,"action":{"tool":"উপলভ্য tool-এর নাম","a":"প্রথম যুক্তি","b":"দ্বিতীয় যুক্তি"}}। কাজ সম্পূর্ণ হলে {"reply":"যাচাইকৃত ফলাফল","done":true,"verified":true} দাও। verified:true শুধু তখনই দেবে যখন শেষ স্ক্রিনের বাস্তব প্রমাণে ব্যবহারকারীর লক্ষ্য পূরণ স্পষ্ট। শুধু অ্যাপ খুলেছে বা স্ক্রিনে লেখা আছে—এটুকু দিয়ে বড় কাজ সফল বলবে না।
 উপলভ্য tool: ${TOOLS.join(', ')}। এগুলো ছাড়া tool বানিয়ে ডাকবে না। ব্যবহারকারীর উদ্দেশ্য থেকে tool ও arguments নিজে নির্বাচন করবে; fixed command phrase/keyword matching করবে না।
 পদ্ধতি: (১) কাজের জন্য কোন অ্যাপ/স্ক্রিন দরকার তা নির্ধারণ করো। (২) দরকার হলে home বা উপযুক্ত app tool দিয়ে খোলো। (৩) inspect_screen দিয়ে বর্তমান স্ক্রিন পড়ো; সেখানে UI উপাদানের text, description, viewId, clickable, editable, bounds এবং অবস্থান থাকবে—এসব দেখে লক্ষ্য বেছে নাও। (৪) click_text দিয়ে দৃশ্যমান label বা viewId মিলিয়ে চাপ দাও; Native layer node click ব্যর্থ হলে অবস্থানভিত্তিক tap চেষ্টা করে। (৫) type_text দৃশ্যমান editable field নিজে খুঁজে focus করে লেখা বসানোর চেষ্টা করে; একাধিক ইনপুট থাকলে আগে সঠিক field-এ click_text করো। (৬) scroll action-এ node scroll ব্যর্থ হলে swipe gesture চেষ্টা হয়। (৭) প্রতিটি action-এর পর inspect_screen চালিয়ে নতুন স্ক্রিন ও UI উপাদান দেখে পরের ধাপ বেছে নাও। (৮) ব্যর্থ হলে error string মুখস্থ করে বলবে না; স্ক্রিন আবার পড়ে ভিন্ন নিরাপদ পদ্ধতি চেষ্টা করো। একই ব্যর্থ action ও একই arguments অন্ধভাবে পুনরাবৃত্তি করবে না।
-যে অ্যাপ সরাসরি তালিকায় নেই, সেটি হোম/অ্যাপ ড্রয়ার/সার্চ থেকে খুঁজে খোলার চেষ্টা করো; না পেলে সীমাবদ্ধতা জানাও। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
+ব্যবহারকারী যে অ্যাপের নাম বলবেন সেটি hard-coded তালিকায় না থাকলেও প্রথমে list_apps tool-এ নামটি filter হিসেবে দিয়ে ইনস্টল করা launcher apps খুঁজবে; ফলাফলের সঠিক packageName ব্যবহার করে launch_app চালাবে। কোনো packageName অনুমান করবে না। কোনো ফল না পেলে screen inspect করে App Drawer/Search ব্যবহার করবে; না পেলে সীমাবদ্ধতা জানাবে। স্ক্রিনে নেই এমন বোতাম, লেখা, ফলাফল বা কাজ কল্পনা করবে না। ব্যবহারকারী শুধু প্রশ্ন/কথা বলতে চাইলে কোনো ফোন action নিও না, done:true দিয়ে উত্তর দাও।
 কল বা SMS-এর ক্ষেত্রে শুধু ডায়ালার/মেসেজ compose screen খুলবে; প্রকৃত কল বা Send ব্যবহারকারী নিজে করবেন। পেমেন্ট/কেনাকাটা, পোস্ট/শেয়ার, ডিলিট, নিরাপত্তা বা গোপনীয়তা পরিবর্তন, power action নিজে থেকে চালাবে না; আগে স্পষ্ট অনুমতি ও নিরাপদ যাচাই দরকার হলে থামবে। OTP/পাসওয়ার্ড কখনো সংগ্রহ করবে না। সর্বোচ্চ 20টি ধাপ; কাজ সম্ভব না হলে কারণ জানিয়ে থামো.`;
 function cancelAgentTask(reason='ব্যবহারকারীর নির্দেশে কাজ বাতিল'){
   thinkGeneration++;
@@ -507,7 +473,7 @@ async function agent(goal,firstAction=null){
   agentRun=true;busy=true;
   const log=[];
   const savedAgentLogs=()=>{try{return JSON.parse(LS.get('rumin_agent_audit','[]'))}catch(e){return []}};
-  const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,900)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
+  const recordStep=(entry)=>{log.push(entry);const rows=savedAgentLogs();rows.push({at:Date.now(),goal:String(goal).slice(0,300),entry:String(entry).slice(0,4200)});LS.set('rumin_agent_audit',JSON.stringify(rows.slice(-150)))};
   const executedActions=new Set(),failedActions=new Set();let screen='',finished=false,lastError='';
   // The intent-classification response already selected a safe first step.
   // Read the screen immediately instead of making a second AI round-trip just to request it.
@@ -526,7 +492,7 @@ async function agent(goal,firstAction=null){
     }).slice(0,12000):'(স্ক্রিন পড়া যায়নি: '+(initial.message||'')+')';
     recordStep('inspect_screen → '+(initial.ok?'সফল':'ব্যর্থ: '+(initial.message||'')));
   }
-  for(let n=1;n<=12&&isCurrent();n++){
+  for(let n=1;n<=20&&isCurrent();n++){
     status('কাজ চলছে… ধাপ '+n);mood('thinking',true);
     let o=null;
     for(let attempt=0;attempt<2&&!o;attempt++){
@@ -590,7 +556,7 @@ async function agent(goal,firstAction=null){
     if(o.reply)add(o.reply,'s');
     const r=await callTool(x.tool,x.a||'',x.b||'',20000);
     if(!isCurrent())return {ok:false,cancelled:true,message:'কাজ বাতিল করা হয়েছে।'};
-    recordStep(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ: '+(r.message||'')));
+    recordStep(x.tool+'('+(x.a||'')+(x.b?', '+x.b:'')+') → '+(r.ok?'সফল':'ব্যর্থ')+(r.message?': '+String(r.message).replace(/\\s+/g,' ').slice(0,3500):''));
     if(!r.ok){lastError=r.message||'ফোনের action ব্যর্থ হয়েছে';failedActions.add(actionKey);}
     // Give Android a short settle window; long fixed waits made every Agent step sluggish.
     await sleep(OPENERS.includes(x.tool)?350:90);
