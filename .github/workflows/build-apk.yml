@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/openphoneuse-agent-port
+      - feature/android-pc-pairing-integration
     paths:
       - 'app/**'
       - '.github/workflows/build-apk.yml'
