@@ -70,7 +70,7 @@ assert.ok(html.includes('id="safetyAuditItems"'), "Safety Center must render rec
 
 const installerScript = fs.readFileSync(new URL("../windows-companion/installer/RuminCompanion.iss", import.meta.url), "utf8");
 assert.ok(installerScript.includes('PrivilegesRequired=lowest'), "Windows installer must install per-user without administrator elevation");
-assert.ok(installerScript.includes('Source:') && installerScript.includes('publish') && installerScript.includes('DestDir={app}'), "Windows installer must package the published Companion files");
+assert.ok(installerScript.includes('Source:') && installerScript.includes('publish') && installerScript.includes('DestDir: "{app}"'), "Windows installer must package the published Companion files");
 assert.ok(installerScript.includes("UninstallDisplayName"), "Windows installer must expose a clear uninstall entry");
 assert.ok(installerScript.includes("postinstall nowait skipifsilent"), "Windows installer must offer first launch after setup");
 const windowsBuild = fs.readFileSync(new URL("../../.github/workflows/build-windows-companion.yml", import.meta.url), "utf8");
