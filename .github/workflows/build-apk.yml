@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      RUMIN_KEYSTORE_FILE: ${{ runner.temp }}/rumin-release.jks
+      RUMIN_KEYSTORE_FILE: ${{ github.workspace }}/rumin-release.jks
       RUMIN_KEYSTORE_BASE64: ${{ secrets.RUMIN_KEYSTORE_BASE64 }}
       RUMIN_KEYSTORE_PASSWORD: ${{ secrets.RUMIN_KEYSTORE_PASSWORD || secrets.RUMIN_STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
       RUMIN_KEY_ALIAS: ${{ secrets.RUMIN_KEY_ALIAS || secrets.RUMIN_KEYSTORE_ALIAS || secrets.KEY_ALIAS }}
@@ -71,7 +71,9 @@ jobs:
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          apksigner verify --verbose --print-certs "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
           echo "APK signature verification passed."
 
       - name: Publish APK as GitHub Release
