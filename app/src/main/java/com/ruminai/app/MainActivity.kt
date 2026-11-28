@@ -833,8 +833,31 @@ class MainActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     if (action == "home" || action == "back" || action == "recents" || action == "notifications" || action == "quicksettings" || action == "power") {
-                        val ok = RuminAccessibilityService.perform(action)
-                        val message = if (ok) "ফোনের কমান্ড চালানো হয়েছে।" else "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        var ok = RuminAccessibilityService.perform(action)
+                        var message = if (ok) {
+                            if (action == "home") "ফোনের হোম স্ক্রিনে গিয়েছি।" else "ফোনের কমান্ড চালানো হয়েছে।"
+                        } else {
+                            "আগে Accessibility সেটিংসে RUMIN AI ফোন নিয়ন্ত্রণ চালু করুন।"
+                        }
+
+                        // HOME is also available through Android's public launcher Intent.
+                        // Use it as a fallback when Accessibility is disabled or rejects the action.
+                        if (!ok && action == "home") {
+                            try {
+                                val homeIntent = Intent(Intent.ACTION_MAIN)
+                                    .addCategory(Intent.CATEGORY_HOME)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                if (homeIntent.resolveActivity(packageManager) != null) {
+                                    startActivity(homeIntent)
+                                    ok = true
+                                    message = "ফোনের হোম স্ক্রিনে গিয়েছি।"
+                                } else {
+                                    message = "ফোনে Default Home Launcher পাওয়া যায়নি। Android Settings থেকে Home app নির্বাচন করুন।"
+                                }
+                            } catch (e: Exception) {
+                                message = "হোম স্ক্রিন খোলা যায়নি: ${e.message ?: "অজানা সমস্যা"}"
+                            }
+                        }
                         deliverCommandResult(ok, message, taskId)
                         return@runOnUiThread
                     }
