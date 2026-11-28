@@ -139,7 +139,11 @@ nav button span{font-size:20px}nav button.on{color:#ff2bd6;text-shadow:0 0 8px #
     <label>PC IPv4 Address</label>
     <input id="pcHost" type="text" inputmode="decimal" autocomplete="off" placeholder="যেমন 192.168.1.10">
     <div class="row"><button class="g" id="pcCheck">PC খুঁজুন / সংযোগ পরীক্ষা</button></div>
+    <label>৬ সংখ্যার PC Pairing Code</label>
+    <input id="pcPairCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="PC PowerShell থেকে তৈরি Code">
+    <div class="row"><button class="g" id="pcPair">Rumin অ্যাপ Pair করুন</button></div>
     <p id="pcConnectStatus" role="status" style="font-size:12px;margin:8px 0 0">এখনো PC পরীক্ষা করা হয়নি।</p>
+    <p style="font-size:11px;opacity:.75">Pairing একই Private Wi-Fi-তে করুন। বর্তমান Companion HTTP ব্যবহার করে; তাই Pairing Token পাঠানোর সময় নেটওয়ার্ক এনক্রিপশন নেই। Token ফোনে Android Keystore দিয়ে এনক্রিপ্ট করে রাখা হবে। HTTPS secure relay তৈরি না হওয়া পর্যন্ত PC-তে Remote Control চালু হবে না।</p>
   </section>
   <label>Gemini API Key (Live Voice + দ্রুত উত্তর)</label><input id="kg" type="password" autocomplete="off" placeholder="Gemini API Key">
   <label>Grok API Key (Task Agent)</label><input id="kx" type="password" autocomplete="off" placeholder="xAI Grok API Key">
@@ -775,6 +779,21 @@ function stars(){
   window.onPcConnectionResult=(ok,message)=>{
     out.textContent=(ok?'✓ ':'✕ ')+message;
     out.style.color=ok?'#49d6a2':'#ff8a9a';
+  };
+  const pair=$('pcPair'),code=$('pcPairCode');
+  if(pair&&code){
+    pair.addEventListener('click',()=>{
+      const host=hostInput.value.trim(), pairingCode=code.value.trim();
+      if(!host||!/^\\d{6}$/.test(pairingCode)){out.textContent='PC IP এবং ৬ সংখ্যার Pairing Code দিন';out.style.color='#ff8a9a';return;}
+      out.textContent='Rumin অ্যাপ PC-এর সঙ্গে Pair হচ্ছে…';out.style.color='#e0aaff';
+      if(N&&typeof N.pairPcCompanion==='function')N.pairPcCompanion(host,pairingCode);
+      else {out.textContent='এই APK-তে Native Pairing Bridge নেই।';out.style.color='#ff8a9a';}
+    });
+  }
+  window.onPcPairResult=(ok,message)=>{
+    out.textContent=(ok?'✓ ':'✕ ')+message;
+    out.style.color=ok?'#49d6a2':'#ff8a9a';
+    if(ok)code.value='';
   };
 })();
 try{stars()}catch(e){}
