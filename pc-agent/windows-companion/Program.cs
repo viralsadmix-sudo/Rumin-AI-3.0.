@@ -37,6 +37,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Listen on LAN interfaces for same-Wi-Fi phone pairing. Firewall may ask permission.
 builder.WebHost.UseUrls("http://0.0.0.0:47831");
 var app = builder.Build();
+var auditPath = Path.Combine(appData, "audit.jsonl");
+var auditGate = new object();
+
+// Audit mutating requests without recording request bodies, credentials, or typed text.
+app.Use(async (context, next) =>
+{
+    await next();
+    var method = context.Request.Method;
+    if (method is "POST" or "PUT" or "PATCH" or "DELETE")
+        AuditTrail.Record(auditPath, auditGate, method, context.Request.Path.Value ?? "/", context.Response.StatusCode,
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+});
 
  // PC speech stays loopback-only until the authenticated encrypted phone relay exists.
 app.MapGet("/v1/speech/status", (HttpContext ctx) =>
@@ -118,6 +130,13 @@ app.Use(async (context, next) =>
         return;
     }
     await next();
+});
+
+app.MapGet("/v1/audit/recent", (HttpContext ctx, int? limit) =>
+{
+    if (!IsLoopbackAddress(ctx.Connection.RemoteIpAddress)) return Results.Json(new { error = "local_pc_only" }, statusCode: 403);
+    var entries = AuditTrail.ReadRecent(auditPath, auditGate, Math.Clamp(limit ?? 100, 1, 250));
+    return Results.Ok(new { count = entries.Count, entries, storage = "local-appdata-jsonl", capturesRequestBodies = false });
 });
 
 app.MapGet("/health", () => Results.Ok(new {
@@ -843,6 +862,46 @@ static List<StartMenuApp> DiscoverStartMenuApps()
     }
     return result.Values.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(250).ToList();
 }
+static class AuditTrail
+{
+    public static void Record(string path, object gate, string method, string route, int status, string remote)
+    {
+        try
+        {
+            var entry = JsonSerializer.Serialize(new {
+                timestamp = DateTimeOffset.UtcNow,
+                method,
+                route = route.Length > 120 ? route[..120] : route,
+                status,
+                remote = remote.Length > 64 ? remote[..64] : remote
+            });
+            lock (gate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.AppendAllText(path, entry + Environment.NewLine, Encoding.UTF8);
+                var lines = File.ReadAllLines(path);
+                if (lines.Length > 500)
+                    File.WriteAllLines(path, lines.TakeLast(500), Encoding.UTF8);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public static List<JsonElement> ReadRecent(string path, object gate, int limit)
+    {
+        lock (gate)
+        {
+            if (!File.Exists(path)) return new List<JsonElement>();
+            var result = new List<JsonElement>();
+            foreach (var line in File.ReadLines(path).TakeLast(limit))
+                try { result.Add(JsonDocument.Parse(line).RootElement.Clone()); }
+                catch (JsonException) { }
+            return result;
+        }
+    }
+}
+
 record StartMenuApp(string Id, string Name, string Path);
 record PermissionRequest(string? Capability, bool Enabled);
 record AppLaunchRequest(string? AppId);
