@@ -263,9 +263,9 @@ class MainActivity : ComponentActivity() {
                     val responseText = java.net.Socket().use { socket ->
                         socket.connect(java.net.InetSocketAddress(host, 47831), 3500)
                         socket.soTimeout = 5000
-                        val headers = "POST /v1/pair/join HTTP/1.1\\r\\n" +
-                            "Host: $host:47831\\r\\nContent-Type: application/json\\r\\n" +
-                            "Content-Length: ${body.size}\\r\\nConnection: close\\r\\n\\r\\n"
+                        val headers = "POST /v1/pair/join HTTP/1.1\r\n" +
+                            "Host: $host:47831\r\nContent-Type: application/json\r\n" +
+                            "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
                         socket.getOutputStream().apply {
                             write(headers.toByteArray(Charsets.US_ASCII))
                             write(body)
@@ -273,9 +273,9 @@ class MainActivity : ComponentActivity() {
                         }
                         socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText().take(16384) }
                     }
-                    val split = responseText.indexOf("\\r\\n\\r\\n")
+                    val split = responseText.indexOf("\r\n\r\n")
                     if (split < 0) throw IllegalStateException("PC Companion-এর উত্তর বোঝা যায়নি")
-                    val statusLine = responseText.substringBefore("\\r\\n")
+                    val statusLine = responseText.substringBefore("\r\n")
                     val responseBody = responseText.substring(split + 4)
                     if (!statusLine.contains(" 200 ")) {
                         val status = statusLine.substringAfter(" ").substringBefore(" ").toIntOrNull()
@@ -478,7 +478,7 @@ class MainActivity : ComponentActivity() {
                         val messages = JSONArray()
                         val memoryContext = recentMemoryContext()
                         val plannerPrompt = "তুমি Rumin AI-এর Task Agent Planner। ব্যবহারকারীর লক্ষ্য, স্ক্রিন ও আগের ধাপ দেখে পরবর্তী একটি নিরাপদ Android tool action বেছে নাও। শুধু বৈধ JSON দাও; ফোনে কাজ Native Android bridge করবে, তুমি নিজে ফোন নিয়ন্ত্রণ করো না। কাজ শেষ না হলে done:true দেবে না." +
-                            if (memoryContext.isBlank()) "" else "\\nপ্রাসঙ্গিক সংরক্ষিত স্মৃতি: " + memoryContext
+                            if (memoryContext.isBlank()) "" else "\nপ্রাসঙ্গিক সংরক্ষিত স্মৃতি: " + memoryContext
                         messages.put(JSONObject().put("role", "system").put("content", plannerPrompt))
                         // Keep planner context compact so free-tier TPM limits are not exhausted by old chat history.
                         val historyLimit = if (p == "groq") 3 else 4
